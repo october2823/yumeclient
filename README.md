@@ -1,6 +1,5 @@
 # Yume Client
 
-Sync & async `requests`-style Python client over `github.com/bogdanfinn/tls-client` v1.16.0. The Python layer never substitutes another TLS implementation: it calls the upstream Go `cffi_src` client through a small cgo shared-library adapter. The Go client remains responsible for uTLS fingerprints, HTTP/2/3, proxies, cookies and profiles.
 
 ```python
 from yumeclient import Session, AsyncSession
@@ -17,16 +16,6 @@ Sessions start with browser-plausible **default headers per profile and OS**
 cookies across redirect hops, and support `headers.update()`, per-request
 overrides, one-shot `yumeclient.get(...)` / `await yumeclient.aget(...)` calls.
 
-## Install
-
-Requires Go 1.24.1, a C compiler, and network access for Go modules. The importable Python package lives in `yumeclient/`; build from the `native/` directory:
-
-```sh
-cd native && go build -buildmode=c-shared -o ../yumeclient/yumeclient.so .
-cd .. && python -m pip install -e .
-```
-
-On Windows use `-o ../yumeclient/yumeclient.dll`; on macOS use `.dylib`. Set `YUMECLIENT_LIBRARY` to the resulting library path if it is elsewhere. The shared library must be built for the host OS/architecture.
 
 ## Docs & examples
 
