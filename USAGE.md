@@ -134,11 +134,16 @@ s.post(url, data={"form": "field"})             # x-www-form-urlencoded
 s.post(url, data=b"raw bytes")                  # octet-stream (base64 через границу)
 s.post(url, data="plain text")
 s.post(url, data=[("k", "1"), ("k2", "2")],     # multipart; порядок частей сохраняется
-       files=[("file", ("doc.pdf", pdf_bytes, "application/pdf"))])
+       files=[("file", ("doc.pdf", pdf_bytes))])
 ```
 
-`encode_multipart(data, files)` доступен отдельно; boundary — Chrome-подобная
-`----WebKitFormBoundary` + 16 hex.
+Спецификация файла в `files` — как в `requests`:
+- "content" / b"bytes" / открытый файл — имя берётся из файла, Content-Type угадывается по расширению (`mimetypes`);
+- `("doc.pdf", content)` — имя + содержимое;
+- `("doc.pdf", content, "application/pdf")` — + явный Content-Type;
+- `("doc.pdf", content, None, {"X-Extra": "1"})` — + доп. заголовки части.
+
+`str`-содержимое уходит UTF-8; имена/файлы с `"`, CR, LF процент-экранируются как у браузеров и urllib3. Boundary — Chrome-подобная `----WebKitFormBoundary` + 16 hex. `encode_multipart(data, files, boundary=None)` доступна отдельно.
 
 ## Ответ
 

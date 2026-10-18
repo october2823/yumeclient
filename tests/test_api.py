@@ -155,6 +155,26 @@ def test_multipart_order_and_wire_format():
     assert b"%PDF\r\n" in body and body.endswith(b"--\r\n")
 
 
+def test_multipart_requests_compat():
+    import io
+    # tuple arities 2..4, bare file object, mimetype guessing, CR/LF/quote escaping
+    body, _ = encode_multipart(
+        [("k", "v"), ("multi", ["1", "2"])],
+        [("f1", ("doc.pdf", b"%PDF")),                       # len 2 -> guessed type
+         ("f2", ("r.txt", "text content")),                  # str content
+         ("f3", ("w\"n.txt", b"x", None, {"X-Extra": "1"})),  # len 4 + escaping
+         ("f4", io.BytesIO(b"stream"))],                     # bare readable
+        "----WebKitFormBoundary0123456789abcdef")
+    assert b'filename="doc.pdf"\r\nContent-Type: application/pdf' in body
+    assert b'filename="r.txt"\r\nContent-Type: text/plain' in body
+    assert b'name="multi"\r\n\r\n1' in body and b'name="multi"\r\n\r\n2' in body
+    assert b'filename="w%22n.txt"' in body
+    assert b"X-Extra: 1" in body
+    assert b"Content-Type: application/octet-stream" in body  # BytesIO no-ext -> default
+    with pytest.raises(ValueError, match="file spec"):
+        encode_multipart(None, [("bad", ("a", b"b", "c", "d", "e"))])
+
+
 def test_invalid_http3_proxy_rejected_before_native_call():
     from yumeclient import _validateTransport
     with pytest.raises(SessionConfigurationError, match="socks5"):
