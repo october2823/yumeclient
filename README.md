@@ -38,3 +38,5 @@ On Windows use `-o ../yumeclient/yumeclient.dll`; on macOS use `.dylib`. Set `YU
 Tests: `python -m pytest tests -q` (offline, local HTTP server); add `--run-online` for live httpbin.org checks.
 
 Upstream license: MIT; see `UPSTREAM-LICENSE`. Profile names and JSON field spellings track upstream v1.16.0.
+
+Contributors: [randomtempusername123](https://github.com/randomtempusername123).
