@@ -105,7 +105,11 @@ func createPatchedClient(in src.RequestInput) (tls_client.HttpClient, string, bo
  if timeoutMs == 0 && in.TimeoutSeconds != 0 { timeoutMs = in.TimeoutSeconds * 1000 }
  if timeoutMs == 0 { timeoutMs = 30000 }
 
- dialer, err := newInsecureHttpsConnectDialer(proxyUrl, time.Duration(timeoutMs)*time.Millisecond, in.InsecureSkipVerify)
+ // the proxy leg is deliberately never certificate-verified: the operator picks
+ // the proxy, and https:// proxies in the wild (IP hosts, self-signed/domain certs
+ // without IP SANs) fail strict verification — every practical TLS client defaults
+ // to lenient proxy TLS. Target verification is still governed by InsecureSkipVerify.
+ dialer, err := newInsecureHttpsConnectDialer(proxyUrl, time.Duration(timeoutMs)*time.Millisecond, true)
  if err != nil { return nil, sessionId, false, src.NewTLSClientError(err) }
 
  options := []tls_client.HttpClientOption{

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "yumeclient"
-version = "0.2.3"
+version = "0.2.4"
 description = "Async Python facade for bogdanfinn/tls-client"
 requires-python = ">=3.11"
 license = {text = "MIT"}
