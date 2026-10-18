@@ -5,6 +5,10 @@ from http.cookiejar import Cookie
 from time import time
 from typing import Any, Iterator
 
+def _normalize_domain(domain: str) -> str:
+    return domain.lstrip(".").lower().split(":", 1)[0]
+
+
 @dataclass
 class JarCookie:
     name: str
@@ -26,7 +30,16 @@ class CookieJar:
                 if isinstance(item, dict): self.set(item.get("name", ""), item.get("value", ""), domain=item.get("domain", ""), path=item.get("path", "/"), expires=item.get("expirationDate", item.get("expires")), secure=item.get("secure", False), http_only=item.get("httpOnly", item.get("http_only", False)), same_site=item.get("sameSite"))
 
     def set(self, name: str, value: str, *, domain: str = "", path: str = "/", expires: float | None = None, secure: bool = False, http_only: bool = False, same_site: str | None = None) -> None:
-        domain = domain.lstrip(".").lower()
+        if not domain:
+            # update the most specific existing same-name cookie in place instead of
+            # shadowing it with a domainless duplicate (jar["sid"] = "x" semantics)
+            candidates = [c for c in self._items if c.name == name and c.path == path]
+            if candidates:
+                target = max(candidates, key=lambda c: len(c.domain))
+                target.value = str(value)
+                if expires is not None: target.expires = expires
+                return
+        domain = _normalize_domain(domain)
         self._items = [c for c in self._items if not (c.name == name and c.domain == domain and c.path == path)]
         self._items.append(JarCookie(str(name), str(value), domain, path or "/", expires, secure, http_only, same_site))
 
@@ -52,7 +65,7 @@ class CookieJar:
         return item.value if item else default
 
     def remove(self, name: str, *, domain: str | None = None, path: str | None = None) -> None:
-        self._items = [c for c in self._items if not (c.name == name and (domain is None or c.domain == domain.lstrip(".").lower()) and (path is None or c.path == path))]
+        self._items = [c for c in self._items if not (c.name == name and (domain is None or c.domain == _normalize_domain(domain)) and (path is None or c.path == path))]
 
     def clear_domain(self, domain: str) -> None:
         domain = domain.lstrip(".").lower()
