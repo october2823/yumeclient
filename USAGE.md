@@ -143,7 +143,7 @@ s.post(url, data=[("k", "1"), ("k2", "2")],     # multipart; порядок ча
 - `("doc.pdf", content, "application/pdf")` — + явный Content-Type;
 - `("doc.pdf", content, None, {"X-Extra": "1"})` — + доп. заголовки части.
 
-`str`-содержимое уходит UTF-8; имена/файлы с `"`, CR, LF процент-экранируются как у браузеров и urllib3. Boundary — Chrome-подобная `----WebKitFormBoundary` + 16 hex. `encode_multipart(data, files, boundary=None)` доступна отдельно.
+`str`-содержимое уходит UTF-8; имена/файлы с `"`, CR, LF процент-экранируются как у браузеров и urllib3. Boundary — Chrome-подобная `----WebKitFormBoundary` + 16 hex. Кодировщик живёт отдельным файлом `yumeclient/multipart.py` (`encode_multipart(data, files, boundary=None)`, `choose_boundary()`) — его можно править, не трогая ядро.
 
 ## Ответ
 

@@ -7,6 +7,7 @@ import "C"
 
 import (
  "encoding/json"
+ "strings"
  "time"
  "unsafe"
 
@@ -78,7 +79,7 @@ func yumeclient_call(input *C.char) *C.char {
   }
   if len(jarCookies) > 0 && req.URL != nil { client.SetCookies(req.URL, jarCookies) }
  }
- resp, err := client.Do(req)
+ resp, err := wrapClient(client).Do(req)
  if err != nil {
   if withSession { src.RemoveSession(session) }
   b,_:=json.Marshal(map[string]any{"status":0, "body":err.Error()})
@@ -101,6 +102,37 @@ func yumeclient_call(input *C.char) *C.char {
   if raw2, err := json.Marshal(payload); err == nil { raw = raw2 }
  }
  return C.CString(string(raw))
+}
+
+// schemeGuard isolates plain-http requests from the https transport state.
+// Upstream keys its cached transports by host:443 regardless of scheme, so an
+// h2/h3 transport cached from an https call gets handed to an http:// request
+// for the same host -> "http2: unsupported scheme" / "protocol negotiated".
+// http:// always speaks plain HTTP/1.1 on a fresh dedicated transport here,
+// with the SAME cookie jar, timeout and redirect policy as the inner client.
+type schemeGuard struct {
+ inner tls_client.HttpClient
+}
+
+func wrapClient(client tls_client.HttpClient) *schemeGuard { return &schemeGuard{inner: client} }
+
+func httpErrUseLast(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+
+func (g *schemeGuard) buildPlainHTTPClient() *http.Client {
+ inner := g.inner
+ client := &http.Client{Timeout: 30 * time.Second, Transport: http.DefaultTransport.(*http.Transport).Clone()}
+ if fr, ok := inner.(interface{ GetFollowRedirect() bool }); ok && !fr.GetFollowRedirect() {
+  client.CheckRedirect = httpErrUseLast
+ }
+ client.Jar = inner.GetCookieJar()
+ return client
+}
+
+func (g *schemeGuard) Do(req *http.Request) (*http.Response, error) {
+ if strings.EqualFold(req.URL.Scheme, "http") {
+  return g.buildPlainHTTPClient().Do(req)
+ }
+ return g.inner.Do(req)
 }
 
 //export yumeclient_close
