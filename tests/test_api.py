@@ -91,11 +91,24 @@ def native():
 # ---------------------------------------------------------------------------
 
 def test_profiles_are_upstream_v116_profiles():
-    assert len(ALL_IDENTIFIERS) == 83
+    # 83 upstream v1.16.0 profiles + 8 extras implemented in the native adapter
+    assert len(ALL_IDENTIFIERS) == 91
     assert Profiles.CHROME_152 == "chrome_152"
     assert find("chrome_15") == ["chrome_150", "chrome_150_PSK", "chrome_152", "chrome_152_PSK"]
+    assert find("edge") == ["edge_99", "edge_101", "edge_131", "edge_latest"]
     with pytest.raises(SessionConfigurationError, match="chrome_152"):
         Session(client_identifier="chrome152")
+
+
+def test_extra_profiles_headers(native):
+    edge = default_headers("edge_131")
+    assert '"Microsoft Edge";v="131"' in edge["sec-ch-ua"]
+    assert edge["user-agent"].endswith("Edg/131.0.0.0")
+    tor = default_headers("tor_145")
+    assert "rv:128.0" in tor["user-agent"]
+    safari = default_headers("safari_macos_18_0")
+    assert "Version/18.0" in safari["user-agent"]
+    assert default_headers("safari_macos_18_0", None)["user-agent"] == default_headers("safari_macos_18_0")["user-agent"]
 
 
 def test_client_os_validation():

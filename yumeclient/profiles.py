@@ -6,6 +6,10 @@ from urllib.parse import urlsplit
 
 ALL_IDENTIFIERS: Final[tuple[str, ...]] = (
     "chrome_103", "chrome_104", "chrome_105", "chrome_106", "chrome_107", "chrome_108", "chrome_109", "chrome_110", "chrome_111", "chrome_112", "chrome_116_PSK", "chrome_116_PSK_PQ", "chrome_117", "chrome_120", "chrome_124", "chrome_130_PSK", "chrome_131", "chrome_131_PSK", "chrome_133", "chrome_133_PSK", "chrome_144", "chrome_144_PSK", "chrome_146", "chrome_146_PSK", "chrome_150", "chrome_150_PSK", "chrome_152", "chrome_152_PSK", "brave_146", "brave_146_PSK", "safari_15_6_1", "safari_16_0", "safari_ipad_15_6", "safari_ios_15_5", "safari_ios_15_6", "safari_ios_16_0", "safari_ios_17_0", "safari_ios_18_0", "safari_ios_18_5", "safari_ios_26_0", "firefox_102", "firefox_104", "firefox_105", "firefox_106", "firefox_108", "firefox_110", "firefox_117", "firefox_120", "firefox_123", "firefox_132", "firefox_133", "firefox_135", "firefox_146_PSK", "firefox_147", "firefox_147_PSK", "firefox_148", "opera_89", "opera_90", "opera_91", "zalando_android_mobile", "zalando_ios_mobile", "nike_ios_mobile", "nike_android_mobile", "cloudscraper", "mms_ios", "mms_ios_1", "mms_ios_2", "mms_ios_3", "mesh_ios", "mesh_ios_1", "mesh_ios_2", "mesh_android", "mesh_android_1", "mesh_android_2", "confirmed_ios", "confirmed_android", "okhttp4_android_7", "okhttp4_android_8", "okhttp4_android_9", "okhttp4_android_10", "okhttp4_android_11", "okhttp4_android_12", "okhttp4_android_13",
+    # extra profiles implemented in the native adapter (not upstream v1.16.0)
+    "edge_99", "edge_101", "edge_131", "edge_latest",
+    "tor_145",
+    "safari_macos_17_0", "safari_macos_18_0", "safari_macos_26_0",
 )
 ClientIdentifier: TypeAlias = Literal[tuple(ALL_IDENTIFIERS)]
 
@@ -46,7 +50,7 @@ def validate_os(value: str | ClientOs | None, identifier: str) -> ClientOs:
             return "ios"
         if "_android" in identifier:
             return "android"
-        if identifier in ("safari_15_6_1", "safari_16_0"):
+        if identifier in ("safari_15_6_1", "safari_16_0") or identifier.startswith("safari_macos"):
             return "macos"
         return "windows"
     normalized = str(value).lower()
@@ -145,6 +149,11 @@ def _firefox_headers(identifier: str, os_name: str) -> dict[str, str]:
 
 def _safari_version(identifier: str) -> tuple[str, str]:
     """(ua_token, pretty) e.g. ('18_5', '18.5'); desktop safaris map to their own."""
+    if identifier.startswith("safari_macos_"):
+        digits = [p for p in identifier.replace("safari_macos_", "").split("_") if p.isdigit()]
+        if digits:
+            return ("_".join(digits[:2]), ".".join(digits[:2]))
+        return ("17_5", "17.5")
     known = {"safari_15_6_1": ("15_6_1", "15.6.1"), "safari_16_0": ("16_0", "16.0"), "safari_ipad_15_6": ("15_6", "15.6")}
     if identifier in known: return known[identifier]
     digits = [piece for piece in identifier.split("_") if piece.isdigit()]
@@ -185,6 +194,34 @@ def _app_headers(identifier: str, os_name: str) -> dict[str, str]:
     return {"user-agent": "okhttp/4.12.0", "accept": "*/*", "accept-encoding": "gzip"}
 
 
+def _edge_headers(identifier: str, os_name: str) -> dict[str, str]:
+    """Edge = Chromium TLS/headers + Edg/ UA suffix; sec-ch-ua brand replaced."""
+    try:
+        edge_major = int(_major(identifier, "edge"))
+    except ValueError:
+        edge_major = 131
+    headers = _chrome_headers(f"chrome_{max(edge_major, 120)}", os_name)
+    headers["sec-ch-ua"] = f'"Chromium";v="{edge_major}", "Not(A:Brand";v="24", "Microsoft Edge";v="{edge_major}"'
+    ua = headers["user-agent"]
+    # replace Chrome/<v> brand in UA with Edge triplet
+    if f" Chrome/" in ua:
+        import re
+        ua = re.sub(r"Chrome/\d+\.0\.0\.0", f"Chrome/{edge_major}.0.0.0", ua)
+    headers["user-agent"] = ua + f" Edg/{edge_major}.0.0.0"
+    return headers
+
+
+def _tor_headers(identifier: str, os_name: str) -> dict[str, str]:
+    """Tor Browser 14+ = Firefox ESR 128 TLS stack; standard Tor UA style."""
+    headers = _firefox_headers("firefox_128", os_name)
+    ua = "Mozilla/5.0 (Windows NT 10.0; rv:128.0) Gecko/20100101 Firefox/128.0"
+    if os_name == "macos":
+        ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:128.0) Gecko/20100101 Firefox/128.0"
+    headers["user-agent"] = ua
+    headers.pop("te", None)
+    return headers
+
+
 def default_headers(identifier: str, os_name: str | None = None) -> dict[str, str]:
     """Browser-plausible baseline headers for a profile; any key can be overridden."""
     os_name = validate_os(os_name, identifier)
@@ -196,8 +233,14 @@ def default_headers(identifier: str, os_name: str | None = None) -> dict[str, st
         return _opera_headers(identifier, os_name)
     if identifier.startswith("firefox_"):
         return _firefox_headers(identifier, os_name)
+    if identifier.startswith("safari_macos"):
+        return _safari_headers(identifier, os_name)
     if identifier.startswith(("safari_", "mms_")):
         return _safari_headers(identifier, os_name)
+    if identifier.startswith("edge_"):
+        return _edge_headers(identifier, os_name)
+    if identifier.startswith("tor_"):
+        return _tor_headers(identifier, os_name)
     if identifier.startswith("okhttp4"):
         return _okhttp_headers(identifier)
     return _app_headers(identifier, os_name)

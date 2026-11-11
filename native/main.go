@@ -8,7 +8,7 @@ import "C"
 import (
  "bufio"
  "context"
- "crypto/tls"
+ crandtls "crypto/tls"
  "encoding/base64"
  "encoding/json"
  "fmt"
@@ -19,10 +19,12 @@ import (
  "time"
  "unsafe"
 
+ http2 "github.com/bogdanfinn/fhttp/http2"
  http "github.com/bogdanfinn/fhttp"
  "github.com/bogdanfinn/tls-client/profiles"
  src "github.com/bogdanfinn/tls-client/cffi_src"
  tls_client "github.com/bogdanfinn/tls-client"
+ tls "github.com/bogdanfinn/utls"
  proxy "golang.org/x/net/proxy"
 )
 
@@ -71,6 +73,97 @@ func jarDump(client tls_client.HttpClient, current []*http.Cookie, currentHost s
 // dialer that honors InsecureSkipVerify for the proxy leg.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// extra TLS profiles absent from upstream MappedTLSClients (macOS Safari 17+,
+// Edge, Tor). Built through the public NewClientProfile API with utls
+// ClientHelloIDs; headers baselines live in the Python layer (profiles.py).
+// ---------------------------------------------------------------------------
+
+func h2Chrome() (map[http2.SettingID]uint32, []http2.SettingID, []string, uint32) {
+ settings := map[http2.SettingID]uint32{
+  http2.SettingHeaderTableSize:      65536,
+  http2.SettingEnablePush:           0,
+  http2.SettingMaxConcurrentStreams: 1000,
+  http2.SettingInitialWindowSize:    6291456,
+  http2.SettingMaxHeaderListSize:    262144,
+ }
+ order := []http2.SettingID{
+  http2.SettingHeaderTableSize,
+  http2.SettingEnablePush,
+  http2.SettingMaxConcurrentStreams,
+  http2.SettingInitialWindowSize,
+  http2.SettingMaxHeaderListSize,
+ }
+ pseudo := []string{":method", ":authority", ":scheme", ":path"}
+ return settings, order, pseudo, 15663105
+}
+
+func h2Safari() (map[http2.SettingID]uint32, []http2.SettingID, []string, uint32) {
+ settings := map[http2.SettingID]uint32{
+  http2.SettingInitialWindowSize:    4194304,
+  http2.SettingMaxConcurrentStreams: 100,
+ }
+ order := []http2.SettingID{
+  http2.SettingInitialWindowSize,
+  http2.SettingMaxConcurrentStreams,
+ }
+ pseudo := []string{":method", ":scheme", ":path", ":authority"}
+ return settings, order, pseudo, 10485760
+}
+
+func h2Firefox() (map[http2.SettingID]uint32, []http2.SettingID, []string, uint32) {
+ settings := map[http2.SettingID]uint32{
+  http2.SettingHeaderTableSize:      65536,
+  http2.SettingEnablePush:           0,
+  http2.SettingInitialWindowSize:    131072,
+  http2.SettingMaxFrameSize:         16384,
+ }
+ order := []http2.SettingID{
+  http2.SettingHeaderTableSize,
+  http2.SettingEnablePush,
+  http2.SettingInitialWindowSize,
+  http2.SettingMaxFrameSize,
+ }
+ pseudo := []string{":method", ":path", ":authority", ":scheme"}
+ return settings, order, pseudo, 12517377
+}
+
+func profileFromH2(id tls.ClientHelloID, family string) profiles.ClientProfile {
+ var settings map[http2.SettingID]uint32
+ var order []http2.SettingID
+ var pseudo []string
+ var flow uint32
+ switch family {
+ case "safari":
+  settings, order, pseudo, flow = h2Safari()
+ case "firefox":
+  settings, order, pseudo, flow = h2Firefox()
+ default: // chrome/edge family
+  settings, order, pseudo, flow = h2Chrome()
+ }
+ return profiles.NewClientProfile(id, settings, order, pseudo, flow, nil, nil, 0, false, nil, nil, 0, nil, false)
+}
+
+var extraProfiles = map[string]profiles.ClientProfile{
+ // Edge (Chromium TLS stack): edge_99/edge_101 mirror curl_cffi names, edge_131 is current
+ "edge_99":     profileFromH2(tls.HelloChrome_100, "chrome"),
+ "edge_101":    profileFromH2(tls.HelloChrome_110, "chrome"),
+ "edge_131":    profileFromH2(tls.HelloChrome_131, "chrome"),
+ "edge_latest": profileFromH2(tls.HelloChrome_131, "chrome"),
+ // Tor Browser 14+ (Firefox ESR 128 TLS stack, stable since FF110)
+ "tor_145": profileFromH2(tls.HelloFirefox_120, "firefox"),
+ // macOS Safari desktop: Apple keeps the TLS ClientHello stable across 16/17/18/26;
+ // utls HelloSafari_16_0 is the real, current Apple TLS stack
+ "safari_macos_17_0": profileFromH2(tls.HelloSafari_16_0, "safari"),
+ "safari_macos_18_0": profileFromH2(tls.HelloSafari_16_0, "safari"),
+ "safari_macos_26_0": profileFromH2(tls.HelloSafari_16_0, "safari"),
+}
+
+func lookupExtraProfile(name string) (profiles.ClientProfile, bool) {
+ p, ok := extraProfiles[name]
+ return p, ok
+}
+
 // patched sessions: keyed like cffi's clients map so lifecycle stays identical
 var patchedSessions = struct {
  sync.Mutex
@@ -80,8 +173,12 @@ var patchedSessions = struct {
 func createPatchedClient(in src.RequestInput) (tls_client.HttpClient, string, bool, *src.TLSClientError) {
  proxyUrl := ""
  if in.ProxyUrl != nil { proxyUrl = *in.ProxyUrl }
+ _, isExtra := lookupExtraProfile(in.TLSClientIdentifier)
+ // extra TLS profiles (edge/tor/safari_macos) are unknown to upstream's
+ // MappedTLSClients, so they must always go through the manual builder;
  // ja3_string clients keep the upstream path (custom profiles are private to cffi)
- if !strings.HasPrefix(strings.ToLower(proxyUrl), "https://") || in.TLSClientIdentifier == "" {
+ needsPatched := isExtra || strings.HasPrefix(strings.ToLower(proxyUrl), "https://")
+ if !needsPatched || in.TLSClientIdentifier == "" {
   return src.CreateClient(in)
  }
  sessionId := ""
@@ -91,15 +188,19 @@ func createPatchedClient(in src.RequestInput) (tls_client.HttpClient, string, bo
  patchedSessions.Lock()
  if existing, ok := patchedSessions.m[sessionId]; ok {
   patchedSessions.Unlock()
-  if in.ProxyUrl != nil {
-   if setter, ok := existing.(interface{ SetFollowRedirect(bool) }); ok { setter.SetFollowRedirect(in.FollowRedirects) }
-  }
+  if setter, ok := existing.(interface{ SetFollowRedirect(bool) }); ok { setter.SetFollowRedirect(in.FollowRedirects) }
   return existing, sessionId, true, nil
  }
  patchedSessions.Unlock()
 
  profile, ok := profiles.MappedTLSClients[in.TLSClientIdentifier]
- if !ok { profile = profiles.DefaultClientProfile }
+ if !ok {
+  if ep, isExtra := lookupExtraProfile(in.TLSClientIdentifier); isExtra {
+   profile = ep
+  } else {
+   profile = profiles.DefaultClientProfile
+  }
+ }
 
  timeoutMs := in.TimeoutMilliseconds
  if timeoutMs == 0 && in.TimeoutSeconds != 0 { timeoutMs = in.TimeoutSeconds * 1000 }
@@ -109,16 +210,19 @@ func createPatchedClient(in src.RequestInput) (tls_client.HttpClient, string, bo
  // the proxy, and https:// proxies in the wild (IP hosts, self-signed/domain certs
  // without IP SANs) fail strict verification — every practical TLS client defaults
  // to lenient proxy TLS. Target verification is still governed by InsecureSkipVerify.
- dialer, err := newInsecureHttpsConnectDialer(proxyUrl, time.Duration(timeoutMs)*time.Millisecond, true)
- if err != nil { return nil, sessionId, false, src.NewTLSClientError(err) }
-
  options := []tls_client.HttpClientOption{
   tls_client.WithClientProfile(profile),
   tls_client.WithTimeoutMilliseconds(timeoutMs),
-  tls_client.WithProxyDialerFactory(func(_ string, _ time.Duration, _ *net.TCPAddr, _ http.Header, _ tls_client.Logger) (proxy.ContextDialer, error) {
-   return dialer, nil
-  }),
   tls_client.WithCookieJar(tls_client.NewCookieJar()),
+ }
+ if strings.HasPrefix(strings.ToLower(proxyUrl), "https://") {
+  dialer, err := newInsecureHttpsConnectDialer(proxyUrl, time.Duration(timeoutMs)*time.Millisecond, true)
+  if err != nil { return nil, sessionId, false, src.NewTLSClientError(err) }
+  options = append(options, tls_client.WithProxyDialerFactory(func(_ string, _ time.Duration, _ *net.TCPAddr, _ http.Header, _ tls_client.Logger) (proxy.ContextDialer, error) {
+   return dialer, nil
+  }))
+ } else if proxyUrl != "" {
+  options = append(options, tls_client.WithProxyUrl(proxyUrl))
  }
  if in.WithRandomTLSExtensionOrder { options = append(options, tls_client.WithRandomTLSExtensionOrder()) }
  if in.ForceHttp1 { options = append(options, tls_client.WithForceHttp1()) }
@@ -173,7 +277,7 @@ func (d *insecureDialer) connect(ctx context.Context, address string) (net.Conn,
  if err != nil { return nil, err }
  var conn net.Conn = rawConn
  if d.proxyUrl.Scheme == "https" {
-  tlsConn := tls.Client(rawConn, &tls.Config{
+  tlsConn := crandtls.Client(rawConn, &crandtls.Config{
    NextProtos:         []string{"http/1.1"},
    ServerName:         d.proxyUrl.Hostname(),
    InsecureSkipVerify: d.skipVerify,
