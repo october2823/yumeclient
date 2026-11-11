@@ -99,7 +99,11 @@ with Session(client_identifier=Profiles.CHROME_152, client_os="android") as s:
     ...
 ```
 
-- `ALL_IDENTIFIERS` — все 83 профиля upstream v1.16.0; `Profiles.*` — константы; `find("safari_ios")` — поиск по подстроке.
+- `ALL_IDENTIFIERS` — 83 профиля upstream v1.16.0 + 8 extra-профилей адаптера (итого 91); `Profiles.*` — константы; `find("safari_ios")` — поиск по подстроке.
+- Extra-профили (нет в upstream, TLS-стек собран адаптером и проверен по JA4):
+  `edge_99` / `edge_101` / `edge_131` / `edge_latest` — Chromium TLS-стек (JA4 идентичен chrome_131) с Edge UA и sec-ch-ua брендом;
+  `safari_macos_17_0` / `safari_macos_18_0` / `safari_macos_26_0` — Apple держит ClientHello стабильным с 16 версии (JA4 идентичен safari_16_0), macOS-baseline, client_os по умолчанию macos;
+  `tor_145` — TLS-стек Firefox ESR 128 как в Tor Browser 14+ (15 extensions), Tor-стиль UA без te:trailers.
 - `client_os` принимает `"windows"`, `"android"`, `"ios"`, `"macos"` и меняет **только baseline заголовков** (UA, client hints), не сам TLS-фингерпринт.
 - По умолчанию OS выводится из профиля: `*_ios_* → ios`, `*_android_* → android`, desktop-safari → `macos`, остальное → `windows`.
 - Chrome-на-iOS — это CriOS без client hints (как в реальном браузере); okhttp/zalando/nike/mesh/confirmed/mobile-профили получают app-подобные наборы.
