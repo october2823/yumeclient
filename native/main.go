@@ -214,6 +214,8 @@ func (d *insecureDialer) Dial(network, address string) (net.Conn, error) {
 func yumeclient_call(input *C.char) *C.char {
  var in src.RequestInput
  if err := json.Unmarshal([]byte(C.GoString(input)), &in); err != nil { return C.CString(`{"status":0,"body":"invalid input"}`) }
+ sessionProxy := ""
+ if in.ProxyUrl != nil { sessionProxy = *in.ProxyUrl }
  client, session, withSession, clientErr := createPatchedClient(in)
  if clientErr != nil {
   b,_:=json.Marshal(map[string]any{"status":0, "body":"client creation failed: "+clientErr.Error()})
@@ -235,7 +237,7 @@ func yumeclient_call(input *C.char) *C.char {
   }
   if len(jarCookies) > 0 && req.URL != nil { client.SetCookies(req.URL, jarCookies) }
  }
- resp, err := wrapClient(client).Do(req)
+ resp, err := wrapClient(client, sessionProxy).Do(req)
  if err != nil {
   if withSession { src.RemoveSession(session); removePatchedSession(session) }
   b,_:=json.Marshal(map[string]any{"status":0, "body":err.Error()})
@@ -277,15 +279,29 @@ func removePatchedSession(session string) {
 // with the SAME cookie jar, timeout and redirect policy as the inner client.
 type schemeGuard struct {
  inner tls_client.HttpClient
+ // proxyUrl is remembered from session creation so plain-http requests keep
+ // going through the operator's proxy instead of leaking direct connections.
+ proxyUrl string
 }
 
-func wrapClient(client tls_client.HttpClient) *schemeGuard { return &schemeGuard{inner: client} }
+func wrapClient(client tls_client.HttpClient, proxyUrl string) *schemeGuard {
+ return &schemeGuard{inner: client, proxyUrl: proxyUrl}
+}
 
 func httpErrUseLast(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 
+func proxyFuncFromUrl(raw string) func(*http.Request) (*url.URL, error) {
+ if raw == "" { return nil }
+ parsed, err := url.Parse(raw)
+ if err != nil || parsed.Host == "" { return nil }
+ return func(*http.Request) (*url.URL, error) { return parsed, nil }
+}
+
 func (g *schemeGuard) buildPlainHTTPClient() *http.Client {
  inner := g.inner
- client := &http.Client{Timeout: 30 * time.Second, Transport: http.DefaultTransport.(*http.Transport).Clone()}
+ transport := http.DefaultTransport.(*http.Transport).Clone()
+ if pf := proxyFuncFromUrl(g.proxyUrl); pf != nil { transport.Proxy = pf }
+ client := &http.Client{Timeout: 30 * time.Second, Transport: transport}
  if fr, ok := inner.(interface{ GetFollowRedirect() bool }); ok && !fr.GetFollowRedirect() {
   client.CheckRedirect = httpErrUseLast
  }
