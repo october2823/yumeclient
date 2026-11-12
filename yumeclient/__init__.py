@@ -248,6 +248,32 @@ def _parseResponse(result: dict[str, Any], requestUrl: str, elapsed: float) -> R
                     result.get("target", requestUrl), result.get("usedProtocol", ""), [], elapsed)
 
 
+# numeric curve ids -> upstream mapper names (mapper.go curves map)
+_CURVE_NAMES = {29: "X25519", 23: "P256", 24: "P384", 31: "P521", 4588: "X25519MLKEM768",
+    10794: "X25519MLKEM768", 4587: "X25519Kyber768", 4586: "X25519Kyber512D",
+    25497: "X25519MLKEM768", 0x0A0A: "GREASE"}
+# numeric TLS versions -> upstream mapper names
+_VERSION_NAMES = {772: "1.3", 771: "1.2", 770: "1.1", 769: "1.0", 0x0A0A: "GREASE"}
+
+def _normalizeCurveName(value):
+    if isinstance(value, str): return value
+    if not isinstance(value, int): return str(value)
+    if value in _CURVE_NAMES: return _CURVE_NAMES[value]
+    return "%x" % value
+
+def _normalizeVersionName(value):
+    if isinstance(value, str): return value
+    if not isinstance(value, int): return str(value)
+    if value in _VERSION_NAMES: return _VERSION_NAMES[value]
+    return "%x" % value
+
+def _normalizeHexU16(value):
+    # upstream ja3.go: strconv.ParseUint(s, 16, 16) — hex WITHOUT 0x prefix
+    if isinstance(value, str): return value
+    if not isinstance(value, int): return str(value)
+    return "%x" % value
+
+
 class _Core:
     """Transport + cookie state shared by Session and AsyncSession."""
     def __init__(self, *, client_identifier: str | None = None, client_os: ClientOs | str | None = None,
@@ -307,8 +333,13 @@ class _Core:
         self.header_order: list[str] | None = list(header_order) if header_order else None
         self.cookies = cookies if isinstance(cookies, CookieJar) else CookieJar(cookies)
         self.custom: dict[str, Any] | None = None
-        customData = {"ja3String": ja3_string, "supportedSignatureAlgorithms": supported_signature_algorithms,
-            "keyShareCurves": key_share_curves, "supportedVersions": supported_versions,
+        # upstream's ja3 mapper expects named/hex strings; accept ints and
+        # decimal/hex numbers from curl_cffi-style calls and normalize them
+        keyShareCurves = [_normalizeCurveName(v) for v in key_share_curves] if key_share_curves is not None else None
+        supportedVersions = [_normalizeVersionName(v) for v in supported_versions] if supported_versions is not None else None
+        sigAlgs = [_normalizeHexU16(v) for v in supported_signature_algorithms] if supported_signature_algorithms is not None else None
+        customData = {"ja3String": ja3_string, "supportedSignatureAlgorithms": sigAlgs,
+            "keyShareCurves": keyShareCurves, "supportedVersions": supportedVersions,
             "alpnProtocols": alpn_protocols, "alpsProtocols": alps_protocols,
             "certCompressionAlgos": cert_compression_algos, "trustAnchorsPayload": trust_anchors_payload,
             "h2Settings": h2_settings, "h2SettingsOrder": h2_settings_order, "connectionFlow": connection_flow,

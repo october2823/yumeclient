@@ -285,6 +285,13 @@ func extensionID(e tls.TLSExtension) uint16 {
  case *tls.PSKKeyExchangeModesExtension: return 45
  case *tls.UtlsCompressCertExtension: return 27
  case *tls.RenegotiationInfoExtension: return 65281
+ case *tls.UtlsPaddingExtension: return 21
+ case *tls.FakeRecordSizeLimitExtension: return 28
+ case *tls.DelegatedCredentialsExtension: return 34
+ case *tls.ApplicationSettingsExtensionNew: return 17613
+ case *tls.ApplicationSettingsExtension: return 13172
+ case *tls.GREASEEncryptedClientHelloExtension: return 17513
+ case *tls.UtlsGREASEExtension: return tls.GREASE_PLACEHOLDER
  case *tls.GenericExtension: return t.Id
  }
  return 0xFFFF
@@ -333,34 +340,44 @@ func ja3FromSpec(spec *tls.ClientHelloSpec) string {
 }
 
 func ja4FromSpec(spec *tls.ClientHelloSpec) string {
- count := strconv.Itoa(len(spec.CipherSuites))
- if len(count) < 2 { count = "0" + count }
- extCount := strconv.Itoa(len(spec.Extensions))
- if len(extCount) < 2 { extCount = "0" + extCount }
- ciphers := make([]string, 0, len(spec.CipherSuites))
+ // JA4: t<proto><ver><sni><cipher_count><ext_count><alpn>_<cipher_hash>_<ext_hash>
+ // ciphers sorted numerically, GREASE excluded from count and hashes;
+ // extension hash keeps wire order but excludes SNI(0), ALPN(16) and GREASE
+ ciphers := make([]int, 0, len(spec.CipherSuites))
  for _, c := range spec.CipherSuites {
-  if (c&0x0F0F) == 0x0A0A { continue } // no GREASE in JA4
-  ciphers = append(ciphers, fmt.Sprintf("%04x", c))
+  if (c&0x0F0F) == 0x0A0A { continue }
+  ciphers = append(ciphers, int(c))
  }
- sort.Strings(ciphers)
- sigs := make([]string, 0)
- seenSig := false
- extSrc := make([]string, 0, len(spec.Extensions))
+ sort.Ints(ciphers)
+ cipherCount := len(ciphers)
+ extIDs := make([]string, 0, len(spec.Extensions))
+ extCount := 0
+ alpnFirst := "00"
  for _, e := range spec.Extensions {
-  extSrc = append(extSrc, strconv.Itoa(int(extensionID(e))))
-  if sa, ok := e.(*tls.SignatureAlgorithmsExtension); ok {
-   for _, s := range sa.SupportedSignatureAlgorithms { sigs = append(sigs, fmt.Sprintf("%04x", s)) }
-   seenSig = true
+  id := extensionID(e)
+  if (id&0x0F0F) == 0x0A0A { continue }
+  extCount++ // JA4 counts every non-GREASE ext, including SNI and ALPN
+  if id == 0 { continue } // SNI excluded from the hash
+  if id == 16 {
+   if alpn, ok := e.(*tls.ALPNExtension); ok && len(alpn.AlpnProtocols) > 0 {
+    switch alpn.AlpnProtocols[0] {
+    case "h2": alpnFirst = "h2"
+    case "http/1.1", "http/1.0": alpnFirst = "t"
+    default: alpnFirst = "99"
+    }
+   }
+   continue // ALPN excluded from the hash
   }
+  extIDs = append(extIDs, strconv.Itoa(int(id)))
  }
- sort.Strings(sigs)
- sigPart := "00"
- if seenSig && len(sigs) > 0 { sigPart = strings.Join(sigs, ",") }
- cipSum := sha256.Sum256([]byte(strings.Join(ciphers, ",")))
- extSum := sha256.Sum256([]byte(strings.Join(extSrc, ",")))
- sigSum := sha256.Sum256([]byte(sigPart))
- return fmt.Sprintf("t13d%s%sh2_%s_%s_%s", count, extCount,
-  hex.EncodeToString(cipSum[:6]), hex.EncodeToString(extSum[:6]), hex.EncodeToString(sigSum[:6]))
+ cc := fmt.Sprintf("%02d", cipherCount)
+ ec := fmt.Sprintf("%02d", extCount)
+ cipherStrings := make([]string, 0, len(ciphers))
+ for _, c := range ciphers { cipherStrings = append(cipherStrings, fmt.Sprintf("%04x", c)) }
+ cipSum := sha256.Sum256([]byte(strings.Join(cipherStrings, ",")))
+ extSum := sha256.Sum256([]byte(strings.Join(extIDs, ",")))
+ return fmt.Sprintf("t13d%s%s%s_%s_%s", cc, ec, alpnFirst,
+  hex.EncodeToString(cipSum[:6]), hex.EncodeToString(extSum[:6]))
 }
 
 func settingIDNum(s http2.SettingID) uint16 {
@@ -377,14 +394,22 @@ func settingIDNum(s http2.SettingID) uint16 {
 
 func akamaiFromSpec(settings map[http2.SettingID]uint32, order []http2.SettingID,
  pseudo []string, flow uint32) string {
+ // canonical Akamai fingerprint: SETTINGS in send order (id:value, ';'),
+ // then |<connection window increment>|<headers priority?>|, then pseudo order letters
  parts := []string{}
  for _, sid := range order {
-  if v, ok := settings[sid]; ok { parts = append(parts, fmt.Sprintf("%d=%d", settingIDNum(sid), v)) }
+  if v, ok := settings[sid]; ok { parts = append(parts, fmt.Sprintf("%d:%d", settingIDNum(sid), v)) }
  }
  if len(parts) == 0 { return "" }
- fp := strings.Join(parts, ",")
- if flow != 0 { fp += fmt.Sprintf(",%d", flow) }
- if len(pseudo) > 0 { fp += ";m=" + strings.Join(pseudo, ",") }
+ fp := strings.Join(parts, ";")
+ fp += "|" + fmt.Sprintf("%d", flow)
+ fp += "|0"
+ letters := map[string]string{":method": "m", ":authority": "a", ":scheme": "s", ":path": "p"}
+ pseudoParts := []string{}
+ for _, p := range pseudo {
+  if letter, ok := letters[p]; ok { pseudoParts = append(pseudoParts, letter) } else { pseudoParts = append(pseudoParts, p) }
+ }
+ fp += "|" + strings.Join(pseudoParts, ",")
  return fp
 }
 
@@ -541,18 +566,14 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
   Client: "Custom", Version: "ja3",
   SpecFactory: func() (tls.ClientHelloSpec, error) { return spec, nil },
  }
- h2Settings := map[http2.SettingID]uint32{}
- var h2Order []http2.SettingID
- for name, v := range ct.H2Settings {
-  if sid, ok := h2SettingByName(name); ok { h2Settings[sid] = uint32(v); h2Order = append(h2Order, sid) }
+ h2Settings, h2Order := resolveH2Settings(ct)
+ pseudoOrder := ct.PseudoHeaderOrder
+ if len(pseudoOrder) == 0 {
+  pseudoOrder = []string{":method", ":authority", ":scheme", ":path"}
  }
- if len(ct.H2SettingsOrder) > 0 {
-  h2Order = nil
-  for _, name := range ct.H2SettingsOrder {
-   if sid, ok := h2SettingByName(name); ok { h2Order = append(h2Order, sid) }
-  }
- }
- profile := profiles.NewClientProfile(helloID, h2Settings, h2Order, ct.PseudoHeaderOrder, uint32(ct.ConnectionFlow), nil, nil, 0, false, nil, nil, 0, nil, false)
+ connFlow := ct.ConnectionFlow
+ if connFlow == 0 { connFlow = 15663105 }
+ profile := profiles.NewClientProfile(helloID, h2Settings, h2Order, pseudoOrder, connFlow, nil, nil, 0, false, nil, nil, 0, nil, false)
 
  timeoutMs := in.TimeoutMilliseconds
  if timeoutMs == 0 && in.TimeoutSeconds != 0 { timeoutMs = in.TimeoutSeconds * 1000 }
@@ -566,7 +587,11 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
  if in.WithRandomTLSExtensionOrder { options = append(options, tls_client.WithRandomTLSExtensionOrder()) }
  if in.ForceHttp1 { options = append(options, tls_client.WithForceHttp1()) }
  if in.DisableHttp3 { options = append(options, tls_client.WithDisableHttp3()) }
- if in.WithProtocolRacing { options = append(options, tls_client.WithProtocolRacing()) }
+ if in.WithProtocolRacing && !hasMLKEMCurve(&spec) {
+  // quic-go rejects MLKEM-family keyshare preferences ("CurvePreferences includes
+  // unsupported curve"); keep h2-only when the ja3 asks for 4588-family curves
+  options = append(options, tls_client.WithProtocolRacing())
+ }
  if !in.FollowRedirects { options = append(options, tls_client.WithNotFollowRedirects()) }
  if in.InsecureSkipVerify { options = append(options, tls_client.WithInsecureSkipVerify()) }
  if in.ServerNameOverwrite != nil && *in.ServerNameOverwrite != "" {
@@ -605,6 +630,65 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
  patchedSessions.m[sessionId] = client
  patchedSessions.Unlock()
  return client, sessionId, true, nil
+}
+
+// resolveH2Settings: explicit h2Settings win; otherwise a Chrome-like default is
+// applied so the fingerprinted SETTINGS are actually what the transport sends.
+func resolveH2Settings(ct *src.CustomTlsClient) (map[http2.SettingID]uint32, []http2.SettingID) {
+ h2Settings := map[http2.SettingID]uint32{}
+ var h2Order []http2.SettingID
+ for name, v := range ct.H2Settings {
+  if sid, ok := h2SettingByName(name); ok { h2Settings[sid] = uint32(v); h2Order = append(h2Order, sid) }
+ }
+ if len(ct.H2SettingsOrder) > 0 {
+  h2Order = nil
+  for _, name := range ct.H2SettingsOrder {
+   if sid, ok := h2SettingByName(name); ok { h2Order = append(h2Order, sid) }
+  }
+ }
+ if len(h2Settings) == 0 {
+  h2Settings = map[http2.SettingID]uint32{
+   http2.SettingHeaderTableSize:      65536,
+   http2.SettingEnablePush:           0,
+   http2.SettingMaxConcurrentStreams: 1000,
+   http2.SettingInitialWindowSize:    6291456,
+   http2.SettingMaxHeaderListSize:    262144,
+  }
+  h2Order = []http2.SettingID{
+   http2.SettingHeaderTableSize,
+   http2.SettingEnablePush,
+   http2.SettingMaxConcurrentStreams,
+   http2.SettingInitialWindowSize,
+   http2.SettingMaxHeaderListSize,
+  }
+ }
+ return h2Settings, h2Order
+}
+
+// hasMLKEMCurve: true when the spec keyshares/curves include MLKEM-family groups
+// that quic-go's handshake cannot negotiate.
+func hasMLKEMCurve(spec *tls.ClientHelloSpec) bool {
+ for _, e := range spec.Extensions {
+  if ks, ok := e.(*tls.KeyShareExtension); ok {
+   for _, k := range ks.KeyShares {
+    switch k.Group {
+    case 0x11EC: // 4588 X25519MLKEM768
+     return true
+    case 0xFE0E, 0xFE0F: // 65038/65039 MLKEM drafts
+     return true
+    }
+   }
+  }
+  if sc, ok := e.(*tls.SupportedCurvesExtension); ok {
+   for _, c := range sc.Curves {
+    switch c {
+    case 0x11EC, 0xFE0E, 0xFE0F: // 4588 + MLKEM drafts
+     return true
+    }
+   }
+  }
+ }
+ return false
 }
 
 func h2SettingByName(name string) (http2.SettingID, bool) {
@@ -870,16 +954,24 @@ func fingerprintForSession(in src.RequestInput, rawPayload []byte, client tls_cl
   ensureSignatureAlgorithms(spec, ct.SupportedSignatureAlgorithms)
   ensureDelegatedCredentials(spec, ct.SupportedDelegatedCredentialsAlgorithms)
   ensureCurves(spec)
+  // keep in sync with buildJa3Client: empty ALPN breaks servers and JA4 alpn tag
+  for _, e := range spec.Extensions {
+   if alpnExt, ok := e.(*tls.ALPNExtension); ok && len(alpnExt.AlpnProtocols) == 0 {
+    alpnExt.AlpnProtocols = []string{"h2", "http/1.1"}
+   }
+  }
   if adv := decodeAdvancedTls(rawPayload); adv != nil {
    if adv.grease != nil { applyGrease(spec, *adv.grease) }
    if adv.pskMode != "" { applyPskMode(spec, adv.pskMode) }
    applyExtensionOrder(spec, adv.extOrder)
   }
-  for name, v := range ct.H2Settings {
-   if sid, ok := h2SettingByName(name); ok { settings[sid] = uint32(v); order = append(order, sid) }
-  }
+  settings, order = resolveH2Settings(ct)
   pseudo = ct.PseudoHeaderOrder
-  flow = uint32(ct.ConnectionFlow)
+  if len(pseudo) == 0 {
+   pseudo = []string{":method", ":authority", ":scheme", ":path"}
+  }
+  flow = ct.ConnectionFlow
+  if flow == 0 { flow = 15663105 }
   return fingerprintFromSpec(spec, settings, order, pseudo, flow)
  }
 
