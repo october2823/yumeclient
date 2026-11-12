@@ -174,11 +174,10 @@ func createPatchedClient(in src.RequestInput) (tls_client.HttpClient, string, bo
  proxyUrl := ""
  if in.ProxyUrl != nil { proxyUrl = *in.ProxyUrl }
  _, isExtra := lookupExtraProfile(in.TLSClientIdentifier)
- // extra TLS profiles (edge/tor/safari_macos) are unknown to upstream's
- // MappedTLSClients, so they must always go through the manual builder;
- // ja3_string clients keep the upstream path (custom profiles are private to cffi)
- needsPatched := isExtra || strings.HasPrefix(strings.ToLower(proxyUrl), "https://")
- if !needsPatched || in.TLSClientIdentifier == "" {
+ // All identifier-based clients go through the manual builder so yumeclient_close
+ // can always call CloseIdleConnections; ja3_string clients keep the upstream
+ // path (custom profiles are private to cffi).
+ if isExtra || in.TLSClientIdentifier == "" {
   return src.CreateClient(in)
  }
  sessionId := ""

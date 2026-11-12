@@ -362,7 +362,10 @@ class _Core:
     def close(self) -> None:
         if self._closed: return
         self._closed = True
-        _closeNative(self._sessionId)
+        try:
+            _closeNative(self._sessionId)
+        except TLSClientError:
+            pass
 
 
 class Session:
@@ -440,6 +443,8 @@ class AsyncSession:
             self._core._checkOpen()
             if task: self._active.add(task)
             oldId = self._core._markIfChanged()
+        if self._core._closed:  # closed between check and execution
+            raise SessionConfigurationError("session is closed")
         try:
             loop = asyncio.get_running_loop()
             if oldId: await loop.run_in_executor(_executor, _closeNative, oldId)
@@ -471,7 +476,7 @@ class AsyncSession:
 
     async def close(self) -> None:
         if self._core._closed: return
-        self._core._closed = True
+        self._core._closed = True  # sync flag: even a forgotten await blocks further requests
         active = tuple(task for task in self._active if task is not asyncio.current_task())
         sessionId = self._core._sessionId
         if active: await asyncio.gather(*(asyncio.shield(task) for task in active), return_exceptions=True)
