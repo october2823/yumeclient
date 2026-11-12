@@ -122,6 +122,7 @@ class Response:
     history: list["Response"] = field(default_factory=list)
     elapsed: float = 0.0
     encoding: str = "utf-8"
+    fingerprint: dict[str, Any] | None = None
 
     @property
     def status(self) -> int: return self.status_code
@@ -213,7 +214,8 @@ def _buildPayload(sessionId: str, *, method: str, url: str, params: Any, headers
                   identifier: str, random_tls_extension_order: bool, verify: bool,
                   disable_session_tickets: bool, server_name_overwrite: str | None,
                   local_address: str | None, custom: dict[str, Any] | None,
-                  request_header_order: Sequence[str] | None) -> dict[str, Any]:
+                  request_header_order: Sequence[str] | None, udp_proxy: str | None = None,
+                  want_fingerprint: bool = False) -> dict[str, Any]:
     requestUrl = url
     if params:
         query = urlencode(params, doseq=True)
@@ -229,6 +231,8 @@ def _buildPayload(sessionId: str, *, method: str, url: str, params: Any, headers
         "forceHttp1": flags["forceHttp1"], "disableHttp3": flags["disableHttp3"],
         "withProtocolRacing": flags["withProtocolRacing"], "disableSessionTickets": disable_session_tickets}
     if proxy is not None: payload["proxyUrl"] = proxy
+    if udp_proxy is not None: payload["udpProxyUrl"] = udp_proxy
+    if want_fingerprint: payload["withFingerprint"] = True
     if host_override is not None: payload["requestHostOverride"] = host_override
     if server_name_overwrite is not None: payload["serverNameOverwrite"] = server_name_overwrite
     if local_address is not None: payload["localAddress"] = local_address
@@ -260,7 +264,12 @@ class _Core:
                  connection_flow: int = 0, pseudo_header_order: Sequence[str] | None = None,
                  priority_frames: Sequence[Mapping[str, Any]] | None = None,
                  header_priority: Mapping[str, Any] | None = None,
-                 fill_custom_with_chrome_defaults: bool = True) -> None:
+                 fill_custom_with_chrome_defaults: bool = True,
+                 tls_extension_order: Sequence[int] | None = None,
+                 ech_config_list: bytes | None = None,
+                 grease: bool | None = None,
+                 psk_mode: str | None = None,
+                 udp_proxy: str | None = None) -> None:
         try:
             self.client_identifier = validate(client_identifier)
             self.client_os = validate_os(client_os, self.client_identifier)
@@ -270,6 +279,27 @@ class _Core:
         self.proxy, self.timeout, self.verify = proxy, timeout, verify
         self.force_http1, self.disable_http3, self.disable_session_tickets = force_http1, disable_http3, disable_session_tickets
         self.server_name_overwrite, self.local_address = server_name_overwrite, local_address
+        # advanced ClientHello controls (iOS CFNetwork-class fingerprints)
+        if tls_extension_order is not None:
+            if ja3_string is None: raise SessionConfigurationError("tls_extension_order requires ja3_string")
+            if not all(isinstance(x, int) and 0 <= x <= 65535 for x in tls_extension_order):
+                raise SessionConfigurationError("tls_extension_order must be ints 0..65535")
+        if ech_config_list is not None and ja3_string is None:
+            raise SessionConfigurationError("ech_config_list requires ja3_string")
+        if grease is not None and ja3_string is None:
+            raise SessionConfigurationError("grease requires ja3_string")
+        if psk_mode is not None:
+            if psk_mode not in ("psk", "no_psk"):
+                raise SessionConfigurationError("psk_mode must be 'psk' or 'no_psk'")
+            if ja3_string is None: raise SessionConfigurationError("psk_mode requires ja3_string")
+        if udp_proxy is not None and not str(udp_proxy).lower().startswith(("socks5://", "udp://")):
+            raise SessionConfigurationError("udp_proxy must be socks5:// or udp:// (for HTTP/3 racing)")
+        self.tls_extension_order = list(tls_extension_order) if tls_extension_order else None
+        self.ech_config_list = ech_config_list
+        self.grease = grease
+        self.psk_mode = psk_mode
+        self.udp_proxy = udp_proxy
+        self.last_fingerprint: dict[str, Any] | None = None
         # session.headers starts as the profile+OS default set; dict(=) keeps insertion order,
         # which is exactly the wire header order when no explicit header_order is given
         self.headers = Headers(default_headers(self.client_identifier, self.client_os))
@@ -286,7 +316,13 @@ class _Core:
         customData = {key: value for key, value in customData.items() if value is not None and value != 0}
         if ja3_string:
             if client_identifier is not None: raise SessionConfigurationError("ja3_string cannot be combined with client_identifier")
+            # only add Chrome-default filler when explicitly asked; False = raw ja3 as-is
             if fill_custom_with_chrome_defaults: customData["fillCustomWithChromeDefaults"] = True
+            if self.tls_extension_order: customData["tlsExtensionOrder"] = self.tls_extension_order
+            if self.ech_config_list is not None:
+                customData["echConfigList"] = base64.b64encode(self.ech_config_list).decode("ascii")
+            if self.grease is not None: customData["grease"] = self.grease
+            if self.psk_mode is not None: customData["pskMode"] = self.psk_mode
             self.client_identifier = ""
             self.custom = customData
         elif any(value is not None for key, value in customData.items() if key != "connectionFlow"):
@@ -299,7 +335,9 @@ class _Core:
     def _transportMark(self) -> tuple[Any, ...]:
         return (self.client_identifier, self.random_tls_extension_order, self.http_version, self.proxy,
                 self.timeout, self.verify, self.force_http1, self.disable_http3, self.disable_session_tickets,
-                self.server_name_overwrite, self.local_address, json.dumps(self.custom, sort_keys=True))
+                self.server_name_overwrite, self.local_address, self.grease, self.psk_mode,
+                tuple(self.tls_extension_order or ()), self.ech_config_list, self.udp_proxy,
+                json.dumps(self.custom, sort_keys=True))
 
     def _markIfChanged(self) -> str | None:
         mark = self._transportMark()
@@ -339,7 +377,8 @@ class _Core:
                                 random_tls_extension_order=self.random_tls_extension_order, verify=self.verify,
                                 disable_session_tickets=self.disable_session_tickets,
                                 server_name_overwrite=self.server_name_overwrite, local_address=self.local_address,
-                                custom=self.custom, request_header_order=header_order)
+                                custom=self.custom, request_header_order=header_order,
+                                udp_proxy=self.udp_proxy, want_fingerprint=True)
         start = time.perf_counter()
         result = _call(payload)
         elapsed = time.perf_counter() - start
@@ -352,7 +391,11 @@ class _Core:
         filtered = {hostKey: [pair for pair in (pairs or []) if not (pair.get("name") in requestNames and pair.get("name") not in responseNames)]
                     for hostKey, pairs in jarDump.items()}
         _applyJarDump(self.cookies, filtered)
-        return _parseResponse(result, url, elapsed)
+        if result.get("fingerprint"):
+            self.last_fingerprint = result["fingerprint"]
+        response = _parseResponse(result, url, elapsed)
+        response.fingerprint = result.get("fingerprint")
+        return response
 
     def _syncRequest(self, method: str, url: str, **kwargs: Any) -> Response:
         oldId = self._markIfChanged()
