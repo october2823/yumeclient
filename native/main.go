@@ -437,12 +437,37 @@ func ensureSupportedVersions(spec *tls.ClientHelloSpec) {
  }
 }
 
+func isGREASEU16(v uint16) bool { return (v&0x0F0F) == 0x0A0A }
+
 func ensureKeyShare(spec *tls.ClientHelloSpec) {
  for _, e := range spec.Extensions {
   if ks, ok := e.(*tls.KeyShareExtension); ok {
-   if len(ks.KeyShares) == 0 {
-    ks.KeyShares = []tls.KeyShare{{Group: tls.X25519}}
+   if len(ks.KeyShares) > 0 { continue }
+   // Derive shares from the DECLARED supported_groups so groups advertised in
+   // the ja3 (e.g. 4588 X25519MLKEM768) actually carry key shares. Servers like
+   // Cloudflare send HelloRetryRequest when a preferred advertised group has no
+   // share, and the go-tls retry path then rejects the MLKEM curve.
+   // utls generates the Data for X25519MLKEM768 (ML-KEM 1184b + X25519 32b),
+   // Kyber drafts and classic curves during ApplyPreset.
+   var groups []tls.CurveID
+   for _, ce := range spec.Extensions {
+    if sc, ok := ce.(*tls.SupportedCurvesExtension); ok {
+     groups = append(groups, sc.Curves...)
+    }
    }
+   seenX25519 := false
+   shares := make([]tls.KeyShare, 0, 2)
+   for _, g := range groups {
+    if isGREASEU16(uint16(g)) { continue }
+    if g == tls.X25519 { seenX25519 = true }
+    shares = append(shares, tls.KeyShare{Group: g})
+    if len(shares) >= 2 { break } // Chrome-style: at most first two groups carry shares
+   }
+   if !seenX25519 {
+    shares = append(shares, tls.KeyShare{Group: tls.X25519})
+   }
+   if len(shares) == 0 { shares = []tls.KeyShare{{Group: tls.X25519}} }
+   ks.KeyShares = shares
   }
  }
 }
@@ -561,6 +586,7 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
   if adv.pskMode != "" { applyPskMode(&spec, adv.pskMode) }
   applyExtensionOrder(&spec, adv.extOrder)
  }
+ applyKeyShareData(&spec, rawPayload)
 
  helloID := tls.ClientHelloID{
   Client: "Custom", Version: "ja3",
@@ -689,6 +715,31 @@ func hasMLKEMCurve(spec *tls.ClientHelloSpec) bool {
   }
  }
  return false
+}
+
+// applyKeyShareData: mimic path — pre-captured share bytes per curve group,
+// overriding auto-generated ones ("To mimic it, fill the Data field manually").
+func applyKeyShareData(spec *tls.ClientHelloSpec, rawPayload []byte) {
+ var env struct {
+  CustomTlsClient *struct {
+   KeyShareData map[string]string `json:"keyShareData"`
+  } `json:"customTlsClient"`
+ }
+ if err := json.Unmarshal(rawPayload, &env); err != nil || env.CustomTlsClient == nil { return }
+ data := env.CustomTlsClient.KeyShareData
+ if len(data) == 0 { return }
+ for _, e := range spec.Extensions {
+  ks, ok := e.(*tls.KeyShareExtension)
+  if !ok { continue }
+  for i := range ks.KeyShares {
+   key := strconv.FormatUint(uint64(ks.KeyShares[i].Group), 10)
+   if b64, ok := data[key]; ok {
+    if raw, err := base64.StdEncoding.DecodeString(b64); err == nil {
+     ks.KeyShares[i].Data = raw
+    }
+   }
+  }
+ }
 }
 
 func h2SettingByName(name string) (http2.SettingID, bool) {

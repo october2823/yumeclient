@@ -268,10 +268,16 @@ def _normalizeVersionName(value):
     return "%x" % value
 
 def _normalizeHexU16(value):
-    # upstream ja3.go: strconv.ParseUint(s, 16, 16) — hex WITHOUT 0x prefix
-    if isinstance(value, str): return value
-    if not isinstance(value, int): return str(value)
-    return "%x" % value
+    # upstream ja3.go: strconv.ParseUint(s, 16, 16) — hex WITHOUT 0x prefix.
+    # decimal ja3 strings ("1027") vs hex strings ("0403") are disambiguated:
+    # leading zero or hex letters -> hex as-is; all digits without leading zero
+    # -> decimal converted to hex ("1027" -> "403").
+    if isinstance(value, int): return "%x" % value
+    if not isinstance(value, str): return str(value)
+    stripped = value[2:] if value.lower().startswith("0x") else value
+    if stripped.isdigit() and len(stripped) < 5 and stripped[0] != "0":
+        return "%x" % int(stripped)
+    return value
 
 
 class _Core:
@@ -295,7 +301,8 @@ class _Core:
                  ech_config_list: bytes | None = None,
                  grease: bool | None = None,
                  psk_mode: str | None = None,
-                 udp_proxy: str | None = None) -> None:
+                 udp_proxy: str | None = None,
+                 key_share_data: Mapping[int, bytes] | None = None) -> None:
         try:
             self.client_identifier = validate(client_identifier)
             self.client_os = validate_os(client_os, self.client_identifier)
@@ -325,6 +332,12 @@ class _Core:
         self.grease = grease
         self.psk_mode = psk_mode
         self.udp_proxy = udp_proxy
+        # mimic path: pre-captured key share bytes per curve id (int group -> raw bytes)
+        if key_share_data is not None:
+            if ja3_string is None: raise SessionConfigurationError("key_share_data requires ja3_string")
+            self.key_share_data = {int(group): bytes(data) for group, data in key_share_data.items()}
+        else:
+            self.key_share_data = None
         self.last_fingerprint: dict[str, Any] | None = None
         # session.headers starts as the profile+OS default set; dict(=) keeps insertion order,
         # which is exactly the wire header order when no explicit header_order is given
@@ -354,6 +367,9 @@ class _Core:
                 customData["echConfigList"] = base64.b64encode(self.ech_config_list).decode("ascii")
             if self.grease is not None: customData["grease"] = self.grease
             if self.psk_mode is not None: customData["pskMode"] = self.psk_mode
+            if self.key_share_data:
+                customData["keyShareData"] = {str(group): base64.b64encode(data).decode("ascii")
+                                              for group, data in self.key_share_data.items()}
             self.client_identifier = ""
             self.custom = customData
         elif any(value is not None for key, value in customData.items() if key != "connectionFlow"):
