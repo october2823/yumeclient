@@ -28,4 +28,6 @@ Tests: `python -m pytest tests -q` (offline, local HTTP server); add `--run-onli
 
 Upstream license: MIT; see `UPSTREAM-LICENSE`. Profile names and JSON field spellings track upstream v1.16.0.
 
+Changelog: [CHANGELOG.md](CHANGELOG.md).
+
 Contributors: [randomtempusername123](https://github.com/randomtempusername123).
