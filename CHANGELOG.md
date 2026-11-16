@@ -4,6 +4,31 @@
 Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версионирование — [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [0.4.6] — 2026-11-17
+
+### Fixed
+- **Порядок шифров conscrypt/okhttp-профиля = порядок Conscrypt на проводе.**
+  Было `c02b,c02f,c02c,c030,cca9,cca8`, стало `c02b,c02c,cca9,c02f,c030,cca8`
+  (сначала ECDHE-ECDSA AES128/AES256/CHACHA, потом ECDHE-RSA). JA4 сортирует
+  шифры и совпадал и раньше; теперь совпадает и JA3: `f79b6bad2ad0641e1921aef10262856b`
+  (= tshark на захвате реального приложения), JA3_full и JA4_r — побайтово.
+- **`disable_session_tickets` применяется.** Флаг передавался из Python, но
+  патченные билдеры (профили и ja3-путь) его не применяли — resumption нельзя
+  было выключить.
+
+- **Перемешивание расширений только у Chromium.** `random_tls_extension_order`
+  (Python-дефолт `True`) перемешивал порядок у любых профилей, включая upstream
+  Safari, Firefox, `okhttp4_android_*` и мобильные приложения, хотя реальные
+  клиенты шлют фиксированный порядок. Теперь флаг действует только на
+  `chrome_*`, `brave_*`, `opera_*`, `edge_*`. Побочный эффект: upstream
+  `okhttp4_android_10` … `_13` теперь дают ровно Conscrypt-hello (JA3 `f79b6bad…`).
+
+### Added
+- **TLS 1.3 resumption для conscrypt/okhttp.** В spec добавлен `pre_shared_key`
+  (41) последним расширением: в свежем hello он не отправляется (record 512,
+  handshake 508, padding 21), при повторном соединении с сохранённым тикетом
+  hello несёт PSK — `…,51,45,43,41` вместо padding, как вариант B на телефоне.
+
 ## [0.4.5] — 2026-11-16
 
 ### Fixed

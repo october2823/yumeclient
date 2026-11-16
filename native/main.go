@@ -150,8 +150,10 @@ func profileFromH2(id tls.ClientHelloID, family string) profiles.ClientProfile {
 }
 
 // conscryptOkhttpProfile: wire-accurate Android app hello (okhttp over
-// platform Conscrypt, TLS 1.3). 15 ciphers (TLS1.3 + ECDHE + RSA/CBC
-// fallback, cipher-hash 8daaf6152771), 13 extensions — the 13th is the
+// platform Conscrypt, TLS 1.3). 15 ciphers in Conscrypt's wire order (TLS1.3,
+// then ECDHE-ECDSA AES128/AES256/CHACHA, then ECDHE-RSA AES128/AES256/CHACHA,
+// RSA CBC/GCM fallback; JA3 f79b6bad2ad0641e1921aef10262856b, cipher-hash
+// 8daaf6152771), 13 extensions — the 13th is the
 // padding extension (21): Conscrypt pads the ClientHello to exactly 512
 // handshake bytes (BoringPaddingStyle), without it JA4 reads t13d1512h2
 // instead of the phone's t13d1513h2. No GREASE at all: groups 29-23-24,
@@ -159,8 +161,8 @@ func profileFromH2(id tls.ClientHelloID, family string) profiles.ClientProfile {
 func conscryptOkhttpProfile() profiles.ClientProfile {
  ciphers := []uint16{
   0x1301, 0x1302, 0x1303, // TLS 1.3
-  0xC02B, 0xC02F, 0xC02C, 0xC030, // ECDHE ECDSA/RSA AES128/256 GCM
-  0xCCA9, 0xCCA8, // ECDHE CHACHA20
+  0xC02B, 0xC02C, 0xCCA9, // ECDHE-ECDSA AES128-GCM, AES256-GCM, CHACHA20
+  0xC02F, 0xC030, 0xCCA8, // ECDHE-RSA   AES128-GCM, AES256-GCM, CHACHA20
   0xC013, 0xC014, // ECDHE RSA AES128/256 CBC
   0x009C, 0x009D, // RSA AES128/256 GCM
   0x002F, 0x0035, // RSA AES128/256 CBC fallback
@@ -184,6 +186,10 @@ func conscryptOkhttpProfile() profiles.ClientProfile {
   &tls.PSKKeyExchangeModesExtension{Modes: []uint8{tls.PskModeDHE}},
   &tls.SupportedVersionsExtension{Versions: []uint16{tls.VersionTLS13, tls.VersionTLS12}},
   &tls.UtlsPaddingExtension{GetPaddingLen: tls.BoringPaddingStyle},
+  // pre_shared_key (41) must stay last. Empty (omitted) on a fresh handshake;
+  // on resumption with a cached TLS 1.3 ticket it carries the PSK, as the
+  // phone's resumed hello does (51,45,43,…,41)
+  &tls.UtlsPreSharedKeyExtension{},
  }}
  settings := map[http2.SettingID]uint32{
   http2.SettingHeaderTableSize:   4096,
@@ -229,17 +235,16 @@ var extraProfiles = map[string]profiles.ClientProfile{
  "safari_macos_26_0": profileFromH2(tls.HelloSafari_16_0, "safari"),
 }
 
-// fixedOrderProfiles: stacks that send a fixed extension order. Only Chromium
-// (Chrome/Edge) shuffles; Conscrypt, Apple CFNetwork/SecureTransport and Firefox
-// (Tor) never do, so the session-level random_tls_extension_order (Python default
-// True) is ignored for them — otherwise the order on the wire is not the app's.
-var fixedOrderProfiles = map[string]bool{
- "conscrypt_android_latest": true,
- "okhttp4_conscrypt":        true,
- "tor_145":                  true,
- "safari_macos_17_0":        true,
- "safari_macos_18_0":        true,
- "safari_macos_26_0":        true,
+// shufflesExtensions: only Chromium (Chrome/Brave/Opera/Edge) randomizes the
+// ClientHello extension order. Every other stack — Conscrypt/okhttp, Apple
+// CFNetwork/Safari, Firefox/Tor, the upstream mobile-app captures — sends a fixed
+// order, so the session-level random_tls_extension_order (Python default True)
+// is ignored for them; otherwise the order on the wire is not the client's.
+func shufflesExtensions(identifier string) bool {
+ for _, p := range []string{"chrome_", "brave_", "opera_", "edge_"} {
+  if strings.HasPrefix(identifier, p) { return true }
+ }
+ return false
 }
 
 func lookupExtraProfile(name string) (profiles.ClientProfile, bool) {
@@ -690,6 +695,7 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
   options = append(options, tls_client.WithRandomTLSExtensionOrder())
  }
  if in.ForceHttp1 { options = append(options, tls_client.WithForceHttp1()) }
+ if wantsNoSessionTickets(rawPayload) { options = append(options, tls_client.WithDisableSessionTickets()) }
  if in.DisableHttp3 { options = append(options, tls_client.WithDisableHttp3()) }
  if in.WithProtocolRacing && !hasMLKEMCurveForJa3(ct, sigAlgs, delegAlgs, tlsVersions, keyShares, echSuites, adv) {
   // quic-go rejects MLKEM-family keyshare preferences ("CurvePreferences includes
@@ -935,10 +941,11 @@ func createPatchedClient(in src.RequestInput, rawPayload []byte) (tls_client.Htt
  dialOpts, captured, dialErr := transportDialOptions(proxyUrl, timeoutMs, localAddr, in.WithProtocolRacing, sink)
  if dialErr != nil { return nil, sessionId, false, src.NewTLSClientError(dialErr) }
  options = append(options, dialOpts...)
- if in.WithRandomTLSExtensionOrder && !fixedOrderProfiles[in.TLSClientIdentifier] {
+ if in.WithRandomTLSExtensionOrder && shufflesExtensions(in.TLSClientIdentifier) {
   options = append(options, tls_client.WithRandomTLSExtensionOrder())
  }
  if in.ForceHttp1 { options = append(options, tls_client.WithForceHttp1()) }
+ if wantsNoSessionTickets(rawPayload) { options = append(options, tls_client.WithDisableSessionTickets()) }
  if in.DisableHttp3 { options = append(options, tls_client.WithDisableHttp3()) }
  if in.WithProtocolRacing { options = append(options, tls_client.WithProtocolRacing()) }
  if !in.FollowRedirects { options = append(options, tls_client.WithNotFollowRedirects()) }
@@ -1080,6 +1087,15 @@ func yumeclient_call(input *C.char) *C.char {
   if raw2, err := json.Marshal(payload); err == nil { raw = raw2 }
  }
  return C.CString(string(raw))
+}
+
+// wantsNoSessionTickets reads disableSessionTickets from the raw payload (the
+// Python flag existed but was never applied by the patched builders)
+func wantsNoSessionTickets(rawPayload []byte) bool {
+ var env struct {
+  DisableSessionTickets bool `json:"disableSessionTickets"`
+ }
+ return json.Unmarshal(rawPayload, &env) == nil && env.DisableSessionTickets
 }
 
 func wantsFingerprint(rawPayload []byte) bool {
