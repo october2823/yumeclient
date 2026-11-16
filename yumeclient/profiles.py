@@ -10,6 +10,7 @@ ALL_IDENTIFIERS: Final[tuple[str, ...]] = (
     "edge_99", "edge_101", "edge_131", "edge_latest",
     "tor_145",
     "safari_macos_17_0", "safari_macos_18_0", "safari_macos_26_0",
+    "conscrypt_android_latest", "okhttp4_conscrypt",
 )
 ClientIdentifier: TypeAlias = Literal[tuple(ALL_IDENTIFIERS)]
 
@@ -48,7 +49,7 @@ def validate_os(value: str | ClientOs | None, identifier: str) -> ClientOs:
     if value is None or value == "":
         if "_ios" in identifier or identifier.endswith("_ios") or "ipad" in identifier:
             return "ios"
-        if "_android" in identifier:
+        if "_android" in identifier or "conscrypt" in identifier:
             return "android"
         if identifier in ("safari_15_6_1", "safari_16_0") or identifier.startswith("safari_macos"):
             return "macos"
@@ -241,7 +242,7 @@ def default_headers(identifier: str, os_name: str | None = None) -> dict[str, st
         return _edge_headers(identifier, os_name)
     if identifier.startswith("tor_"):
         return _tor_headers(identifier, os_name)
-    if identifier.startswith("okhttp4"):
+    if identifier.startswith(("okhttp4", "conscrypt_android", "okhttp4_conscrypt")):
         return _okhttp_headers(identifier)
     return _app_headers(identifier, os_name)
 

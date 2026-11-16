@@ -91,8 +91,8 @@ def native():
 # ---------------------------------------------------------------------------
 
 def test_profiles_are_upstream_v116_profiles():
-    # 83 upstream v1.16.0 profiles + 8 extras implemented in the native adapter
-    assert len(ALL_IDENTIFIERS) == 91
+    # 83 upstream v1.16.0 profiles + 10 extras implemented in the native adapter
+    assert len(ALL_IDENTIFIERS) == 93
     assert Profiles.CHROME_152 == "chrome_152"
     assert find("chrome_15") == ["chrome_150", "chrome_150_PSK", "chrome_152", "chrome_152_PSK"]
     assert find("edge") == ["edge_99", "edge_101", "edge_131", "edge_latest"]

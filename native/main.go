@@ -150,7 +150,69 @@ func profileFromH2(id tls.ClientHelloID, family string) profiles.ClientProfile {
  return profiles.NewClientProfile(id, settings, order, pseudo, flow, nil, nil, 0, false, nil, nil, 0, nil, false)
 }
 
+// conscryptOkhttpProfile: wire-accurate Android app hello (okhttp over
+// platform Conscrypt, TLS 1.3). 15 ciphers (TLS1.3 + ECDHE + RSA/CBC
+// fallback, cipher-hash 8daaf6152771), 13 extensions — the 13th is the
+// padding extension (21): Conscrypt pads the ClientHello to exactly 512
+// handshake bytes (BoringPaddingStyle), without it JA4 reads t13d1512h2
+// instead of the phone's t13d1513h2. No GREASE at all: groups 29-23-24,
+// key share X25519 only, sig_algs without the iOS duplicate.
+func conscryptOkhttpProfile() profiles.ClientProfile {
+ ciphers := []uint16{
+  0x1301, 0x1302, 0x1303, // TLS 1.3
+  0xC02B, 0xC02F, 0xC02C, 0xC030, // ECDHE ECDSA/RSA AES128/256 GCM
+  0xCCA9, 0xCCA8, // ECDHE CHACHA20
+  0xC013, 0xC014, // ECDHE RSA AES128/256 CBC
+  0x009C, 0x009D, // RSA AES128/256 GCM
+  0x002F, 0x0035, // RSA AES128/256 CBC fallback
+ }
+ extensions := []tls.TLSExtension{
+  &tls.SNIExtension{},
+  &tls.ExtendedMasterSecretExtension{},
+  &tls.RenegotiationInfoExtension{Renegotiation: tls.RenegotiateOnceAsClient},
+  &tls.SupportedCurvesExtension{Curves: []tls.CurveID{tls.X25519, tls.CurveP256, tls.CurveP384}},
+  &tls.SupportedPointsExtension{SupportedPoints: []byte{0}},
+  &tls.SessionTicketExtension{},
+  &tls.ALPNExtension{AlpnProtocols: []string{"h2", "http/1.1"}},
+  &tls.StatusRequestExtension{},
+  &tls.SignatureAlgorithmsExtension{SupportedSignatureAlgorithms: []tls.SignatureScheme{
+   0x0403, 0x0804, 0x0401, 0x0503, 0x0805, 0x0501, 0x0806, 0x0601, 0x0201,
+  }},
+  &tls.KeyShareExtension{KeyShares: []tls.KeyShare{{Group: tls.X25519}}},
+  &tls.PSKKeyExchangeModesExtension{Modes: []uint8{tls.PskModeDHE}},
+  &tls.SupportedVersionsExtension{Versions: []uint16{tls.VersionTLS13, tls.VersionTLS12}},
+  &tls.UtlsPaddingExtension{GetPaddingLen: tls.BoringPaddingStyle},
+ }
+ settings := map[http2.SettingID]uint32{
+  http2.SettingHeaderTableSize:   4096,
+  http2.SettingEnablePush:        0,
+  http2.SettingInitialWindowSize: 65535,
+  http2.SettingMaxHeaderListSize: 262144,
+ }
+ order := []http2.SettingID{
+  http2.SettingHeaderTableSize,
+  http2.SettingEnablePush,
+  http2.SettingInitialWindowSize,
+  http2.SettingMaxHeaderListSize,
+ }
+ pseudo := []string{":method", ":authority", ":scheme", ":path"}
+ helloID := tls.ClientHelloID{
+  Client: "Conscrypt", Version: "android",
+  SpecFactory: func() (tls.ClientHelloSpec, error) {
+   return tls.ClientHelloSpec{
+    CipherSuites:       ciphers,
+    CompressionMethods: []byte{tls.CompressionNone},
+    Extensions:         extensions,
+    GetSessionID:       sha256.Sum256,
+   }, nil
+  },
+ }
+ return profiles.NewClientProfile(helloID, settings, order, pseudo, 0, nil, nil, 0, false, nil, nil, 0, nil, false)
+}
+
 var extraProfiles = map[string]profiles.ClientProfile{
+ "conscrypt_android_latest": conscryptOkhttpProfile(),
+ "okhttp4_conscrypt":        conscryptOkhttpProfile(),
  // Edge (Chromium TLS stack): edge_99/edge_101 mirror curl_cffi names, edge_131 is current
  "edge_99":     profileFromH2(tls.HelloChrome_100, "chrome"),
  "edge_101":    profileFromH2(tls.HelloChrome_110, "chrome"),
