@@ -212,31 +212,86 @@ func decodeAdvancedTls(rawPayload []byte) *advancedTls {
 }
 
 func applyGrease(spec *tls.ClientHelloSpec, enabled bool) {
+ // Ciphers: strip existing GREASE; when enabled, one GREASE cipher goes FIRST.
  kept := make([]uint16, 0, len(spec.CipherSuites))
  for _, c := range spec.CipherSuites {
-  isGrease := (c&0x0F0F) == 0x0A0A
-  if isGrease && !enabled { continue }
-  if !isGrease && enabled && len(kept) > 0 && kept[0] == tls.GREASE_PLACEHOLDER { kept = append(kept, c); continue }
+  if (c&0x0F0F) == 0x0A0A { continue }
   kept = append(kept, c)
  }
- if enabled && (len(kept) == 0 || kept[0] != tls.GREASE_PLACEHOLDER) {
+ if enabled {
   kept = append([]uint16{tls.GREASE_PLACEHOLDER}, kept...)
  }
  spec.CipherSuites = kept
- filtered := make([]tls.TLSExtension, 0, len(spec.Extensions)+1)
- sawGrease := false
+
+ // Extensions: strip existing GREASE exts; when enabled, iOS CFNetwork structure:
+ //   [0] GREASE ext with EMPTY content (before SNI/0x0000)
+ //   [last] GREASE ext with 1 byte 0x00
+ // utls ApplyPreset fills them: first -> Value=grease1 (Body empty),
+ // second -> Value=grease2 AND Body=0x00 (grease_extensions_seen switch).
+ filtered := make([]tls.TLSExtension, 0, len(spec.Extensions)+2)
  for _, e := range spec.Extensions {
-  if u, ok := e.(*tls.GenericExtension); ok && (u.Id&0x0F0F) == 0x0A0A {
-   sawGrease = true
-   if enabled { filtered = append(filtered, e) }
-   continue
-  }
+  if _, ok := e.(*tls.UtlsGREASEExtension); ok { continue }
+  if gen, ok := e.(*tls.GenericExtension); ok && (gen.Id&0x0F0F) == 0x0A0A { continue }
   filtered = append(filtered, e)
  }
- if enabled && !sawGrease {
-  filtered = append(filtered, &tls.GenericExtension{Id: tls.GREASE_PLACEHOLDER})
+ if enabled {
+  withGrease := make([]tls.TLSExtension, 0, len(filtered)+2)
+  withGrease = append(withGrease, &tls.UtlsGREASEExtension{}) // leading, empty content
+  withGrease = append(withGrease, filtered...)
+  withGrease = append(withGrease, &tls.UtlsGREASEExtension{}) // trailing, utls sets Body=0x00
+  filtered = withGrease
  }
  spec.Extensions = filtered
+
+ // Per-extension GREASE slots (ApplyPreset substitutes boring-GREASE values;
+ // the GREASE key-share entry skips key generation, keeping Data=0x00, len=1).
+ for _, e := range spec.Extensions {
+  switch t := e.(type) {
+  case *tls.SupportedCurvesExtension:
+   if enabled {
+    if len(t.Curves) == 0 || !isGREASEU16(uint16(t.Curves[0])) {
+     t.Curves = append([]tls.CurveID{tls.GREASE_PLACEHOLDER}, t.Curves...)
+    }
+   } else {
+    t.Curves = filterGreaseGroups(t.Curves)
+   }
+  case *tls.KeyShareExtension:
+   if enabled {
+    if len(t.KeyShares) == 0 || !isGREASEU16(uint16(t.KeyShares[0].Group)) {
+     t.KeyShares = append([]tls.KeyShare{{Group: tls.GREASE_PLACEHOLDER, Data: []byte{0}}}, t.KeyShares...)
+    }
+   } else {
+    keptShares := t.KeyShares[:0]
+    for _, k := range t.KeyShares {
+     if isGREASEU16(uint16(k.Group)) { continue }
+     keptShares = append(keptShares, k)
+    }
+    t.KeyShares = keptShares
+   }
+  case *tls.SupportedVersionsExtension:
+   if enabled {
+    if len(t.Versions) == 0 || !isGREASEU16(uint16(t.Versions[0])) {
+     t.Versions = append([]uint16{tls.GREASE_PLACEHOLDER}, t.Versions...)
+    }
+   } else {
+    keptVers := t.Versions[:0]
+    for _, v := range t.Versions {
+     if isGREASEU16(v) { continue }
+     keptVers = append(keptVers, v)
+    }
+    t.Versions = keptVers
+   }
+  }
+ }
+}
+
+func filterGreaseGroups(curves []tls.CurveID) []tls.CurveID {
+ out := curves[:0]
+ for _, c := range curves {
+  if isGREASEU16(uint16(c)) { continue }
+  out = append(out, c)
+ }
+ return out
 }
 
 func applyPskMode(spec *tls.ClientHelloSpec, mode string) {
@@ -318,25 +373,35 @@ func applyExtensionOrder(spec *tls.ClientHelloSpec, order []int) {
 }
 
 func ja3FromSpec(spec *tls.ClientHelloSpec) string {
+ // Canonical JA3 (peet.ws-style): GREASE is stripped from ciphers and
+ // extensions, field 5 is point formats ("0"), NOT signature algorithms.
  ciphers := make([]string, 0, len(spec.CipherSuites))
- for _, c := range spec.CipherSuites { ciphers = append(ciphers, strconv.Itoa(int(c))) }
+ for _, c := range spec.CipherSuites {
+  if (c&0x0F0F) == 0x0A0A { continue }
+  ciphers = append(ciphers, strconv.Itoa(int(c)))
+ }
  exts := make([]string, 0, len(spec.Extensions))
  curves := ""
- sigAlgs := ""
+ pointFormats := "0"
  for _, e := range spec.Extensions {
-  exts = append(exts, strconv.Itoa(int(extensionID(e))))
+  id := extensionID(e)
+  if (id&0x0F0F) == 0x0A0A { continue }
+  exts = append(exts, strconv.Itoa(int(id)))
   if sc, ok := e.(*tls.SupportedCurvesExtension); ok {
    parts := []string{}
-   for _, c := range sc.Curves { parts = append(parts, strconv.Itoa(int(c))) }
+   for _, c := range sc.Curves {
+    if isGREASEU16(uint16(c)) { continue }
+    parts = append(parts, strconv.Itoa(int(c)))
+   }
    curves = strings.Join(parts, "-")
   }
-  if sa, ok := e.(*tls.SignatureAlgorithmsExtension); ok {
+  if sp, ok := e.(*tls.SupportedPointsExtension); ok {
    parts := []string{}
-   for _, s := range sa.SupportedSignatureAlgorithms { parts = append(parts, strconv.Itoa(int(s))) }
-   sigAlgs = strings.Join(parts, "-")
+   for _, p := range sp.SupportedPoints { parts = append(parts, strconv.Itoa(int(p))) }
+   if len(parts) > 0 { pointFormats = strings.Join(parts, "-") }
   }
  }
- return strings.Join([]string{"771", strings.Join(ciphers, "-"), strings.Join(exts, "-"), curves, sigAlgs}, ",")
+ return strings.Join([]string{"771", strings.Join(ciphers, "-"), strings.Join(exts, "-"), curves, pointFormats}, ",")
 }
 
 func ja4FromSpec(spec *tls.ClientHelloSpec) string {
@@ -560,37 +625,44 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
   echSuites = append(echSuites, tls_client.CandidateCipherSuites{KdfId: s.KdfId, AeadId: s.AeadId})
  }
 
- specFactory, err := tls_client.GetSpecFactoryFromJa3String(ct.Ja3String, sigAlgs, delegAlgs, tlsVersions, keyShares, ct.ALPNProtocols, ct.ALPSProtocols, echSuites, ct.ECHCandidatePayloads, ct.CertCompressionAlgos, 0)
+ upstreamFactory, err := tls_client.GetSpecFactoryFromJa3String(ct.Ja3String, sigAlgs, delegAlgs, tlsVersions, keyShares, ct.ALPNProtocols, ct.ALPSProtocols, echSuites, ct.ECHCandidatePayloads, ct.CertCompressionAlgos, 0)
  if err != nil { return nil, sessionId, false, src.NewTLSClientError(fmt.Errorf("ja3 parse: %w", err)) }
 
- spec, err := specFactory()
- if err != nil { return nil, sessionId, false, src.NewTLSClientError(err) }
+ // buildSpec runs for EVERY handshake: utls mutates extension objects during
+ // ApplyPreset (key share bytes, GREASE values), and a shared spec object would
+ // leak the first handshake's key share into the next host's handshake ->
+ // 'local error: tls: internal error' on multi-host sessions.
+ buildSpec := func() (tls.ClientHelloSpec, error) {
+  spec, err := upstreamFactory()
+  if err != nil { return tls.ClientHelloSpec{}, err }
 
- // upstream leaves SupportedVersions nil when the ja3 lacks the versions field,
- // which utls then rejects; fill TLS 1.2+1.3 defaults when present but empty
- ensureSupportedVersions(&spec)
- ensureKeyShare(&spec)
- ensureSignatureAlgorithms(&spec, sigAlgs)
- ensureDelegatedCredentials(&spec, delegAlgs)
- ensureCurves(&spec)
+  // upstream leaves SupportedVersions nil when the ja3 lacks the versions field,
+  // which utls then rejects; fill TLS 1.2+1.3 defaults when present but empty
+  ensureSupportedVersions(&spec)
+  ensureKeyShare(&spec)
+  ensureSignatureAlgorithms(&spec, sigAlgs)
+  ensureDelegatedCredentials(&spec, delegAlgs)
+  ensureCurves(&spec)
 
- // ja3 that includes ext 16 with an empty ALPN list breaks servers; fill h2/http1.1
- for _, e := range spec.Extensions {
-  if alpnExt, ok := e.(*tls.ALPNExtension); ok && len(alpnExt.AlpnProtocols) == 0 {
-   alpnExt.AlpnProtocols = []string{"h2", "http/1.1"}
+  // ja3 that includes ext 16 with an empty ALPN list breaks servers; fill h2/http1.1
+  for _, e := range spec.Extensions {
+   if alpnExt, ok := e.(*tls.ALPNExtension); ok && len(alpnExt.AlpnProtocols) == 0 {
+    alpnExt.AlpnProtocols = []string{"h2", "http/1.1"}
+   }
   }
- }
 
- if adv != nil {
-  if adv.grease != nil { applyGrease(&spec, *adv.grease) }
-  if adv.pskMode != "" { applyPskMode(&spec, adv.pskMode) }
-  applyExtensionOrder(&spec, adv.extOrder)
+  if adv != nil {
+   applyExtensionOrder(&spec, adv.extOrder)
+   if adv.grease != nil { applyGrease(&spec, *adv.grease) }
+   if adv.pskMode != "" { applyPskMode(&spec, adv.pskMode) }
+  }
+  applyKeyShareData(&spec, rawPayload)
+  return spec, nil
  }
- applyKeyShareData(&spec, rawPayload)
 
  helloID := tls.ClientHelloID{
   Client: "Custom", Version: "ja3",
-  SpecFactory: func() (tls.ClientHelloSpec, error) { return spec, nil },
+  SpecFactory: buildSpec,
  }
  h2Settings, h2Order := resolveH2Settings(ct)
  pseudoOrder := ct.PseudoHeaderOrder
@@ -610,10 +682,14 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
   tls_client.WithTimeoutMilliseconds(timeoutMs),
   tls_client.WithCookieJar(tls_client.NewCookieJar()),
  }
- if in.WithRandomTLSExtensionOrder { options = append(options, tls_client.WithRandomTLSExtensionOrder()) }
+ // explicit tls_extension_order wins over shuffle: CFNetwork/iOS sends a fixed
+ // extension order, and ShuffleChromeTLSExtensions would randomize it
+ if in.WithRandomTLSExtensionOrder && (adv == nil || len(adv.extOrder) == 0) {
+  options = append(options, tls_client.WithRandomTLSExtensionOrder())
+ }
  if in.ForceHttp1 { options = append(options, tls_client.WithForceHttp1()) }
  if in.DisableHttp3 { options = append(options, tls_client.WithDisableHttp3()) }
- if in.WithProtocolRacing && !hasMLKEMCurve(&spec) {
+ if in.WithProtocolRacing && !hasMLKEMCurveForJa3(ct, sigAlgs, delegAlgs, tlsVersions, keyShares, echSuites, adv) {
   // quic-go rejects MLKEM-family keyshare preferences ("CurvePreferences includes
   // unsupported curve"); keep h2-only when the ja3 asks for 4588-family curves
   options = append(options, tls_client.WithProtocolRacing())
@@ -693,6 +769,19 @@ func resolveH2Settings(ct *src.CustomTlsClient) (map[http2.SettingID]uint32, []h
 
 // hasMLKEMCurve: true when the spec keyshares/curves include MLKEM-family groups
 // that quic-go's handshake cannot negotiate.
+func hasMLKEMCurveForJa3(ct *src.CustomTlsClient, sigAlgs, delegAlgs, tlsVersions, keyShares []string,
+ echSuites []tls_client.CandidateCipherSuites, adv *advancedTls) bool {
+ factory, err := tls_client.GetSpecFactoryFromJa3String(ct.Ja3String, sigAlgs, delegAlgs, tlsVersions,
+  keyShares, ct.ALPNProtocols, ct.ALPSProtocols, echSuites, ct.ECHCandidatePayloads, ct.CertCompressionAlgos, 0)
+ if err != nil { return false }
+ spec, err := factory()
+ if err != nil { return false }
+ ensureSupportedVersions(&spec)
+ ensureKeyShare(&spec)
+ ensureCurves(&spec)
+ return hasMLKEMCurve(&spec)
+}
+
 func hasMLKEMCurve(spec *tls.ClientHelloSpec) bool {
  for _, e := range spec.Extensions {
   if ks, ok := e.(*tls.KeyShareExtension); ok {
@@ -1012,9 +1101,9 @@ func fingerprintForSession(in src.RequestInput, rawPayload []byte, client tls_cl
    }
   }
   if adv := decodeAdvancedTls(rawPayload); adv != nil {
+   applyExtensionOrder(spec, adv.extOrder)
    if adv.grease != nil { applyGrease(spec, *adv.grease) }
    if adv.pskMode != "" { applyPskMode(spec, adv.pskMode) }
-   applyExtensionOrder(spec, adv.extOrder)
   }
   settings, order = resolveH2Settings(ct)
   pseudo = ct.PseudoHeaderOrder
