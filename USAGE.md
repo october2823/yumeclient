@@ -99,11 +99,13 @@ with Session(client_identifier=Profiles.CHROME_152, client_os="android") as s:
     ...
 ```
 
-- `ALL_IDENTIFIERS` — 83 профиля upstream v1.16.0 + 8 extra-профилей адаптера (итого 91); `Profiles.*` — константы; `find("safari_ios")` — поиск по подстроке.
+- `ALL_IDENTIFIERS` — 83 профиля upstream v1.16.0 + 10 extra-профилей адаптера (итого 93); `Profiles.*` — константы; `find("safari_ios")` — поиск по подстроке.
 - Extra-профили (нет в upstream, TLS-стек собран адаптером и проверен по JA4):
   `edge_99` / `edge_101` / `edge_131` / `edge_latest` — Chromium TLS-стек (JA4 идентичен chrome_131) с Edge UA и sec-ch-ua брендом;
   `safari_macos_17_0` / `safari_macos_18_0` / `safari_macos_26_0` — Apple держит ClientHello стабильным с 16 версии (JA4 идентичен safari_16_0), macOS-baseline, client_os по умолчанию macos;
   `tor_145` — TLS-стек Firefox ESR 128 как в Tor Browser 14+ (15 extensions), Tor-стиль UA без te:trailers.
+  `conscrypt_android_latest` / `okhttp4_conscrypt` — hello Android-приложения (okhttp поверх платформенного Conscrypt, TLS 1.3): 15 шифров без GREASE, 13 расширений с padding до 512 байт, groups 29-23-24, key share только X25519, JA4 `t13d1513h2_8daaf6152771_eca864cca44a`; h2 SETTINGS okhttp `1:4096;2:0;4:65535;6:262144`. App-заголовки (UA приложения и т.п.) передавайте сами.
+- Extra-профили не-Chromium стеков (conscrypt/okhttp, tor_145, safari_macos_*) всегда шлют фиксированный порядок расширений — `random_tls_extension_order` для них игнорируется.
 - `client_os` принимает `"windows"`, `"android"`, `"ios"`, `"macos"` и меняет **только baseline заголовков** (UA, client hints), не сам TLS-фингерпринт.
 - По умолчанию OS выводится из профиля: `*_ios_* → ios`, `*_android_* → android`, desktop-safari → `macos`, остальное → `windows`.
 - Chrome-на-iOS — это CriOS без client hints (как в реальном браузере); okhttp/zalando/nike/mesh/confirmed/mobile-профили получают app-подобные наборы.
@@ -155,6 +157,24 @@ s.post(url, data=[("k", "1"), ("k2", "2")],     # multipart; порядок ча
 `cookies`, `content`, `text`, `encoding`, `url`, `elapsed`, `history`,
 `used_protocol`, `http_version` ("1.1"/"2"/"3"), `ok`, `json()`,
 `raise_for_status()`, `r["Content-Type"]` — регистронезависимо.
+
+## Fingerprint
+
+`r.fingerprint` / `session.last_fingerprint` (запрашивается автоматически):
+
+- `ja3`, `ja3_hash_md5`, `ja4`, `ja4_r`, `tls_extensions`, `client_hello_len` —
+  посчитаны из **фактического ClientHello на проводе** (байты, ушедшие в сокет,
+  для host:port этого ответа), `source == "wire"`. Совпадают с tshark/Wireshark
+  (`tls.handshake.ja3`, `tls.handshake.ja4`).
+- `config_ja3_hash_md5`, `config_ja4` — что сконфигурировано у сессии. Если они
+  отличаются от wire-значений — сессия шлёт не то, что вы ожидаете.
+- `akamai_fingerprint` — из конфигурации HTTP/2 (SETTINGS / WINDOW_UPDATE / порядок псевдо-заголовков).
+- `source == "config"` — провода нет (HTTP/3 racing через прокси, `udp_proxy`
+  поверх http-прокси): значения посчитаны из конфигурации.
+
+`force_http1=True` переписывает ALPN в ClientHello на `http/1.1` (JA4 `…h1_…`),
+то есть меняет фингерпринт — для точной копии приложения, которое предлагает
+`h2,http/1.1`, его не включайте.
 
 ## Транспортные параметры сессии
 

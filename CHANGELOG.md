@@ -4,6 +4,46 @@
 Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версионирование — [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [0.4.5] — 2026-11-16
+
+### Fixed
+- **Extra-профили уходили на провод как Chrome.** `createPatchedClient` отправлял
+  все extra-идентификаторы (`okhttp4_conscrypt`, `conscrypt_android_latest`,
+  `edge_*`, `tor_145`, `safari_macos_*`) в upstream `CreateClient`, который знает
+  только `profiles.MappedTLSClients` и молча подставлял `DefaultClientProfile`
+  (Chrome_150: GREASE, X25519MLKEM768, ext 27/ECH/ALPS, перемешанный порядок,
+  hs_len ~1718). Теперь extra-профили идут через ручной билдер — на проводе их
+  собственный hello. Conscrypt: 15 шифров без GREASE, exts
+  `0,23,65281,10,11,35,16,5,13,51,45,43,21`, groups 29-23-24, key share X25519 32b,
+  hs_len 508, JA4 `t13d1513h2_8daaf6152771_eca864cca44a` (= tshark эталон).
+- **Фиксированный порядок расширений для не-Chromium extra-профилей.**
+  `random_tls_extension_order` (по умолчанию `True`) больше не перемешивает
+  conscrypt/okhttp, tor_145 и safari_macos_* — реальные Conscrypt, Firefox и Apple
+  не шаффлят. Edge (Chromium) шаффлит как раньше.
+- **Conscrypt spec строится заново на каждый handshake** (тот же класс бага,
+  что fresh-spec фикс 0.4.3: общие объекты расширений между соединениями).
+- **JA4 по спецификации FoxIO** (совпадает с Wireshark 4.x `tls.handshake.ja4`):
+  хеш расширений = отсортированные hex-id без SNI/ALPN + `_` + signature
+  algorithms в порядке провода; ALPN-тег = первый+последний символ первого
+  значения (`http/1.1` → `h1`, раньше `t`); версия — максимум supported_versions.
+  Старый `..._02bdef6adf81` считался по id в порядке провода без sigalgs.
+
+### Changed
+- **`Response.fingerprint` читает провод.** Каждое TLS-соединение сессии идёт
+  через захватывающий dialer, который сохраняет первый TLS-record (ClientHello)
+  ровно как он ушёл в сокет — после ApplyPreset, GREASE, padding, перемешивания
+  и ALPN-переписывания `force_http1`. JA3/JA4 считаются из этих байт, по
+  host:port ответа. Новые поля: `source` (`"wire"` / `"config"`),
+  `client_hello_len`, `ja4_r`, `tls_extensions`, `handshakes`,
+  `config_ja3_hash_md5` / `config_ja4` (сконфигурированные значения рядом —
+  расхождение = сессия шлёт не то, что сконфигурировано). `akamai_fingerprint`
+  по-прежнему из конфигурации h2.
+- Прокси-лег не изменён: https:// — тот же insecure CONNECT dialer; http:// и
+  socks5:// — dialer самого upstream (берётся из probe-клиента) в обёртке.
+  `source: "config"` остаётся только для HTTP/3 racing через прокси и `udp_proxy`
+  поверх не-socks5 прокси — там upstream должен сам владеть proxy URL (h3
+  транспорт читает его из конфига), иначе QUIC ушёл бы мимо прокси.
+
 ## [0.4.2] — 2026-11-12
 
 ### Fixed

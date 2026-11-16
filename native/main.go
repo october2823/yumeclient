@@ -17,7 +17,6 @@ import (
  "os"
  "sort"
  "strconv"
- "crypto/md5"
  "crypto/sha256"
  "encoding/hex"
  "strings"
@@ -166,7 +165,10 @@ func conscryptOkhttpProfile() profiles.ClientProfile {
   0x009C, 0x009D, // RSA AES128/256 GCM
   0x002F, 0x0035, // RSA AES128/256 CBC fallback
  }
- extensions := []tls.TLSExtension{
+ // built per handshake: utls mutates extension objects (key share bytes,
+ // padding length) during ApplyPreset; sharing them across connections leaks
+ // one handshake's state into the next (same bug class as the 0.4.3 ja3 fix)
+ newExtensions := func() []tls.TLSExtension { return []tls.TLSExtension{
   &tls.SNIExtension{},
   &tls.ExtendedMasterSecretExtension{},
   &tls.RenegotiationInfoExtension{Renegotiation: tls.RenegotiateOnceAsClient},
@@ -182,7 +184,7 @@ func conscryptOkhttpProfile() profiles.ClientProfile {
   &tls.PSKKeyExchangeModesExtension{Modes: []uint8{tls.PskModeDHE}},
   &tls.SupportedVersionsExtension{Versions: []uint16{tls.VersionTLS13, tls.VersionTLS12}},
   &tls.UtlsPaddingExtension{GetPaddingLen: tls.BoringPaddingStyle},
- }
+ }}
  settings := map[http2.SettingID]uint32{
   http2.SettingHeaderTableSize:   4096,
   http2.SettingEnablePush:        0,
@@ -200,9 +202,9 @@ func conscryptOkhttpProfile() profiles.ClientProfile {
   Client: "Conscrypt", Version: "android",
   SpecFactory: func() (tls.ClientHelloSpec, error) {
    return tls.ClientHelloSpec{
-    CipherSuites:       ciphers,
+    CipherSuites:       append([]uint16(nil), ciphers...),
     CompressionMethods: []byte{tls.CompressionNone},
-    Extensions:         extensions,
+    Extensions:         newExtensions(),
     GetSessionID:       sha256.Sum256,
    }, nil
   },
@@ -225,6 +227,19 @@ var extraProfiles = map[string]profiles.ClientProfile{
  "safari_macos_17_0": profileFromH2(tls.HelloSafari_16_0, "safari"),
  "safari_macos_18_0": profileFromH2(tls.HelloSafari_16_0, "safari"),
  "safari_macos_26_0": profileFromH2(tls.HelloSafari_16_0, "safari"),
+}
+
+// fixedOrderProfiles: stacks that send a fixed extension order. Only Chromium
+// (Chrome/Edge) shuffles; Conscrypt, Apple CFNetwork/SecureTransport and Firefox
+// (Tor) never do, so the session-level random_tls_extension_order (Python default
+// True) is ignored for them — otherwise the order on the wire is not the app's.
+var fixedOrderProfiles = map[string]bool{
+ "conscrypt_android_latest": true,
+ "okhttp4_conscrypt":        true,
+ "tor_145":                  true,
+ "safari_macos_17_0":        true,
+ "safari_macos_18_0":        true,
+ "safari_macos_26_0":        true,
 }
 
 func lookupExtraProfile(name string) (profiles.ClientProfile, bool) {
@@ -434,78 +449,8 @@ func applyExtensionOrder(spec *tls.ClientHelloSpec, order []int) {
  spec.Extensions = keyed
 }
 
-func ja3FromSpec(spec *tls.ClientHelloSpec) string {
- // Canonical JA3 (peet.ws-style): GREASE is stripped from ciphers and
- // extensions, field 5 is point formats ("0"), NOT signature algorithms.
- ciphers := make([]string, 0, len(spec.CipherSuites))
- for _, c := range spec.CipherSuites {
-  if (c&0x0F0F) == 0x0A0A { continue }
-  ciphers = append(ciphers, strconv.Itoa(int(c)))
- }
- exts := make([]string, 0, len(spec.Extensions))
- curves := ""
- pointFormats := "0"
- for _, e := range spec.Extensions {
-  id := extensionID(e)
-  if (id&0x0F0F) == 0x0A0A { continue }
-  exts = append(exts, strconv.Itoa(int(id)))
-  if sc, ok := e.(*tls.SupportedCurvesExtension); ok {
-   parts := []string{}
-   for _, c := range sc.Curves {
-    if isGREASEU16(uint16(c)) { continue }
-    parts = append(parts, strconv.Itoa(int(c)))
-   }
-   curves = strings.Join(parts, "-")
-  }
-  if sp, ok := e.(*tls.SupportedPointsExtension); ok {
-   parts := []string{}
-   for _, p := range sp.SupportedPoints { parts = append(parts, strconv.Itoa(int(p))) }
-   if len(parts) > 0 { pointFormats = strings.Join(parts, "-") }
-  }
- }
- return strings.Join([]string{"771", strings.Join(ciphers, "-"), strings.Join(exts, "-"), curves, pointFormats}, ",")
-}
-
-func ja4FromSpec(spec *tls.ClientHelloSpec) string {
- // JA4: t<proto><ver><sni><cipher_count><ext_count><alpn>_<cipher_hash>_<ext_hash>
- // ciphers sorted numerically, GREASE excluded from count and hashes;
- // extension hash keeps wire order but excludes SNI(0), ALPN(16) and GREASE
- ciphers := make([]int, 0, len(spec.CipherSuites))
- for _, c := range spec.CipherSuites {
-  if (c&0x0F0F) == 0x0A0A { continue }
-  ciphers = append(ciphers, int(c))
- }
- sort.Ints(ciphers)
- cipherCount := len(ciphers)
- extIDs := make([]string, 0, len(spec.Extensions))
- extCount := 0
- alpnFirst := "00"
- for _, e := range spec.Extensions {
-  id := extensionID(e)
-  if (id&0x0F0F) == 0x0A0A { continue }
-  extCount++ // JA4 counts every non-GREASE ext, including SNI and ALPN
-  if id == 0 { continue } // SNI excluded from the hash
-  if id == 16 {
-   if alpn, ok := e.(*tls.ALPNExtension); ok && len(alpn.AlpnProtocols) > 0 {
-    switch alpn.AlpnProtocols[0] {
-    case "h2": alpnFirst = "h2"
-    case "http/1.1", "http/1.0": alpnFirst = "t"
-    default: alpnFirst = "99"
-    }
-   }
-   continue // ALPN excluded from the hash
-  }
-  extIDs = append(extIDs, strconv.Itoa(int(id)))
- }
- cc := fmt.Sprintf("%02d", cipherCount)
- ec := fmt.Sprintf("%02d", extCount)
- cipherStrings := make([]string, 0, len(ciphers))
- for _, c := range ciphers { cipherStrings = append(cipherStrings, fmt.Sprintf("%04x", c)) }
- cipSum := sha256.Sum256([]byte(strings.Join(cipherStrings, ",")))
- extSum := sha256.Sum256([]byte(strings.Join(extIDs, ",")))
- return fmt.Sprintf("t13d%s%s%s_%s_%s", cc, ec, alpnFirst,
-  hex.EncodeToString(cipSum[:6]), hex.EncodeToString(extSum[:6]))
-}
+// ja3/ja4 live in wire.go (helloFields): one implementation for wire bytes
+// and for the configured spec.
 
 func settingIDNum(s http2.SettingID) uint16 {
  switch s {
@@ -542,16 +487,11 @@ func akamaiFromSpec(settings map[http2.SettingID]uint32, order []http2.SettingID
 
 func fingerprintFromSpec(spec *tls.ClientHelloSpec, settings map[http2.SettingID]uint32,
  settingsOrder []http2.SettingID, pseudo []string, flow uint32) map[string]any {
- ja3 := ja3FromSpec(spec)
- ja4 := ja4FromSpec(spec)
  akamai := akamaiFromSpec(settings, settingsOrder, pseudo, flow)
- return map[string]any{
-  "ja3":           ja3,
-  "ja3_hash_md5":  fmt.Sprintf("%x", md5.Sum([]byte(ja3))),
-  "ja4":           ja4,
-  "akamai_fingerprint": akamai,
-  "akamai_hash_sha256_96": fmt.Sprintf("%s", hex.EncodeToString(func() []byte { s := sha256.Sum256([]byte(akamai)); return s[:12] }())),
- }
+ out := fieldsFromSpec(spec).report()
+ out["akamai_fingerprint"] = akamai
+ out["akamai_hash_sha256_96"] = hex.EncodeToString(func() []byte { s := sha256.Sum256([]byte(akamai)); return s[:12] }())
+ return out
 }
 
 func ensureSupportedVersions(spec *tls.ClientHelloSpec) {
@@ -761,34 +701,47 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
  if in.ServerNameOverwrite != nil && *in.ServerNameOverwrite != "" {
   options = append(options, tls_client.WithServerNameOverwrite(*in.ServerNameOverwrite))
  }
+ var localAddr *net.TCPAddr
  if in.LocalAddress != nil {
-  localAddr, resolveErr := net.ResolveTCPAddr("", *in.LocalAddress)
+  la, resolveErr := net.ResolveTCPAddr("", *in.LocalAddress)
   if resolveErr != nil { return nil, sessionId, false, src.NewTLSClientError(resolveErr) }
+  localAddr = la
   options = append(options, tls_client.WithLocalAddr(*localAddr))
  }
  proxyUrl := ""
  if in.ProxyUrl != nil { proxyUrl = *in.ProxyUrl }
- if strings.HasPrefix(strings.ToLower(proxyUrl), "https://") {
-  dialer, dialErr := newInsecureHttpsConnectDialer(proxyUrl, time.Duration(timeoutMs)*time.Millisecond, true)
-  if dialErr != nil { return nil, sessionId, false, src.NewTLSClientError(dialErr) }
-  options = append(options, tls_client.WithProxyDialerFactory(func(_ string, _ time.Duration, _ *net.TCPAddr, _ http.Header, _ tls_client.Logger) (proxy.ContextDialer, error) {
-   return dialer, nil
-  }))
- } else if proxyUrl != "" {
-  options = append(options, tls_client.WithProxyUrl(proxyUrl))
- }
  // udp_proxy for HTTP/3 racing must be socks5 for upstream; apply when main proxy is not socks5
  var udpProxyUrl string
  var envelopeUdp struct {
   UDPProxyUrl string `json:"udpProxyUrl"`
  }
  if json.Unmarshal(rawPayload, &envelopeUdp) == nil { udpProxyUrl = envelopeUdp.UDPProxyUrl }
- if udpProxyUrl != "" && !strings.HasPrefix(strings.ToLower(proxyUrl), "socks5") {
+ udpApplies := udpProxyUrl != "" && !strings.HasPrefix(strings.ToLower(proxyUrl), "socks5")
+
+ sink := &helloSink{}
+ captured := false
+ if udpApplies {
+  // pre-0.4.5 wiring kept verbatim: upstream owns the proxy URL (h3 reads it)
+  if strings.HasPrefix(strings.ToLower(proxyUrl), "https://") {
+   dialer, dialErr := newInsecureHttpsConnectDialer(proxyUrl, time.Duration(timeoutMs)*time.Millisecond, true)
+   if dialErr != nil { return nil, sessionId, false, src.NewTLSClientError(dialErr) }
+   options = append(options, tls_client.WithProxyDialerFactory(func(_ string, _ time.Duration, _ *net.TCPAddr, _ http.Header, _ tls_client.Logger) (proxy.ContextDialer, error) {
+    return dialer, nil
+   }))
+  } else if proxyUrl != "" {
+   options = append(options, tls_client.WithProxyUrl(proxyUrl))
+  }
   options = append(options, tls_client.WithProxyUrl(udpProxyUrl))
+ } else {
+  dialOpts, ok, dialErr := transportDialOptions(proxyUrl, timeoutMs, localAddr, in.WithProtocolRacing, sink)
+  if dialErr != nil { return nil, sessionId, false, src.NewTLSClientError(dialErr) }
+  options = append(options, dialOpts...)
+  captured = ok
  }
 
  client, err := tls_client.NewHttpClient(tls_client.NewNoopLogger(), options...)
  if err != nil { return nil, sessionId, false, src.NewTLSClientError(err) }
+ if captured { helloSinks.Store(client, sink) }
 
  patchedSessions.Lock()
  patchedSessions.m[sessionId] = client
@@ -920,7 +873,6 @@ var patchedSessions = struct {
 func createPatchedClient(in src.RequestInput, rawPayload []byte) (tls_client.HttpClient, string, bool, *src.TLSClientError) {
  proxyUrl := ""
  if in.ProxyUrl != nil { proxyUrl = *in.ProxyUrl }
- _, isExtra := lookupExtraProfile(in.TLSClientIdentifier)
  // ja3_string sessions route through our builder (advanced controls + fingerprint);
  // identifier sessions go through the manual builder so yumeclient_close can always
  // call CloseIdleConnections
@@ -932,7 +884,11 @@ func createPatchedClient(in src.RequestInput, rawPayload []byte) (tls_client.Htt
   if in.SessionId != nil { sessionId = *in.SessionId }
   return buildJa3Client(in, rawPayload, sessionId)
  }
- if isExtra || in.TLSClientIdentifier == "" {
+ // extra profiles (conscrypt/okhttp, edge, tor, safari_macos) MUST stay on the
+ // manual builder: upstream CreateClient only knows profiles.MappedTLSClients and
+ // silently falls back to DefaultClientProfile (Chrome) for unknown identifiers —
+ // before 0.4.5 every extra profile went out on the wire as a Chrome hello.
+ if in.TLSClientIdentifier == "" {
   return src.CreateClient(in)
  }
  sessionId := ""
@@ -969,16 +925,19 @@ func createPatchedClient(in src.RequestInput, rawPayload []byte) (tls_client.Htt
   tls_client.WithTimeoutMilliseconds(timeoutMs),
   tls_client.WithCookieJar(tls_client.NewCookieJar()),
  }
- if strings.HasPrefix(strings.ToLower(proxyUrl), "https://") {
-  dialer, err := newInsecureHttpsConnectDialer(proxyUrl, time.Duration(timeoutMs)*time.Millisecond, true)
-  if err != nil { return nil, sessionId, false, src.NewTLSClientError(err) }
-  options = append(options, tls_client.WithProxyDialerFactory(func(_ string, _ time.Duration, _ *net.TCPAddr, _ http.Header, _ tls_client.Logger) (proxy.ContextDialer, error) {
-   return dialer, nil
-  }))
- } else if proxyUrl != "" {
-  options = append(options, tls_client.WithProxyUrl(proxyUrl))
+ var localAddr *net.TCPAddr
+ if in.LocalAddress != nil {
+  la, resolveErr := net.ResolveTCPAddr("", *in.LocalAddress)
+  if resolveErr != nil { return nil, sessionId, false, src.NewTLSClientError(resolveErr) }
+  localAddr = la
  }
- if in.WithRandomTLSExtensionOrder { options = append(options, tls_client.WithRandomTLSExtensionOrder()) }
+ sink := &helloSink{}
+ dialOpts, captured, dialErr := transportDialOptions(proxyUrl, timeoutMs, localAddr, in.WithProtocolRacing, sink)
+ if dialErr != nil { return nil, sessionId, false, src.NewTLSClientError(dialErr) }
+ options = append(options, dialOpts...)
+ if in.WithRandomTLSExtensionOrder && !fixedOrderProfiles[in.TLSClientIdentifier] {
+  options = append(options, tls_client.WithRandomTLSExtensionOrder())
+ }
  if in.ForceHttp1 { options = append(options, tls_client.WithForceHttp1()) }
  if in.DisableHttp3 { options = append(options, tls_client.WithDisableHttp3()) }
  if in.WithProtocolRacing { options = append(options, tls_client.WithProtocolRacing()) }
@@ -987,13 +946,10 @@ func createPatchedClient(in src.RequestInput, rawPayload []byte) (tls_client.Htt
  if in.ServerNameOverwrite != nil && *in.ServerNameOverwrite != "" {
   options = append(options, tls_client.WithServerNameOverwrite(*in.ServerNameOverwrite))
  }
- if in.LocalAddress != nil {
-  localAddr, resolveErr := net.ResolveTCPAddr("", *in.LocalAddress)
-  if resolveErr != nil { return nil, sessionId, false, src.NewTLSClientError(resolveErr) }
-  options = append(options, tls_client.WithLocalAddr(*localAddr))
- }
+ if localAddr != nil { options = append(options, tls_client.WithLocalAddr(*localAddr)) }
  tlsClient, err := tls_client.NewHttpClient(tls_client.NewNoopLogger(), options...)
  if err != nil { return nil, sessionId, false, src.NewTLSClientError(err) }
+ if captured { helloSinks.Store(tlsClient, sink) }
 
  patchedSessions.Lock()
  patchedSessions.m[sessionId] = tlsClient
@@ -1117,7 +1073,9 @@ func yumeclient_call(input *C.char) *C.char {
   if resp.Request != nil && resp.Request.URL != nil { currentHost = resp.Request.URL.Hostname() }
   payload["jarDump"] = jarDump(client, cookies, currentHost)
   if wantsFingerprint(rawInput) {
-   if fp := fingerprintForSession(in, rawInput, client); fp != nil { payload["fingerprint"] = fp }
+   var target *url.URL
+   if resp.Request != nil { target = resp.Request.URL }
+   if fp := fingerprintForSession(in, rawInput, client, target); fp != nil { payload["fingerprint"] = fp }
   }
   if raw2, err := json.Marshal(payload); err == nil { raw = raw2 }
  }
@@ -1135,7 +1093,47 @@ func wantsFingerprint(rawPayload []byte) bool {
 // profile and returns JA3/JA4/Akamai strings. For identifier-based sessions the
 // spec comes from the mapped/extra profile; for ja3 sessions — from the same
 // spec buildJa3Client constructed (identical because SpecFactory is deterministic).
-func fingerprintForSession(in src.RequestInput, rawPayload []byte, client tls_client.HttpClient) map[string]any {
+// fingerprintForSession: TLS part (ja3/ja4/extensions) from the ClientHello
+// captured on the socket when available ("source": "wire"), otherwise from the
+// configured spec ("source": "config"). Akamai is always the configured h2
+// SETTINGS/WINDOW_UPDATE/pseudo order (what the transport is told to send).
+func fingerprintForSession(in src.RequestInput, rawPayload []byte, client tls_client.HttpClient, target *url.URL) map[string]any {
+ cfg := fingerprintFromConfig(in, rawPayload)
+ var wire []byte
+ handshakes := 0
+ addr := ""
+ if target != nil {
+  port := target.Port()
+  if port == "" { port = "443" }
+  addr = net.JoinHostPort(target.Hostname(), port)
+ }
+ if sink := sinkFor(client); sink != nil { wire, handshakes = sink.get(addr) }
+ if len(wire) == 0 {
+  if cfg != nil { cfg["source"] = "config" }
+  return cfg
+ }
+ f, err := parseClientHelloRecord(wire)
+ if err != nil {
+  if cfg != nil { cfg["source"] = "config"; cfg["wire_error"] = err.Error() }
+  return cfg
+ }
+ out := f.report()
+ out["source"] = "wire"
+ out["client_hello_len"] = f.hsLen
+ out["handshakes"] = handshakes
+ if cfg != nil {
+  for _, k := range []string{"akamai_fingerprint", "akamai_hash_sha256_96"} {
+   if v, ok := cfg[k]; ok { out[k] = v }
+  }
+  // configured values next to the wire ones: a mismatch means the session's
+  // spec is not what goes out (the 0.4.4 okhttp4_conscrypt symptom)
+  out["config_ja3_hash_md5"] = cfg["ja3_hash_md5"]
+  out["config_ja4"] = cfg["ja4"]
+ }
+ return out
+}
+
+func fingerprintFromConfig(in src.RequestInput, rawPayload []byte) map[string]any {
  var spec *tls.ClientHelloSpec
  var settings map[http2.SettingID]uint32
  var order []http2.SettingID
@@ -1207,6 +1205,7 @@ func removePatchedSession(session string) {
  patchedSessions.Lock()
  if client, ok := patchedSessions.m[session]; ok {
   client.CloseIdleConnections()
+  helloSinks.Delete(client)
   delete(patchedSessions.m, session)
  }
  patchedSessions.Unlock()
