@@ -89,6 +89,71 @@ r = s.get(url, headers={"Accept": "text/css"})  # разовый override пов
 - `header_order` не задан → порядок на проводе равен порядку вставки в `session.headers`.
 - `header_order=[...]` или `header_order=` в запросе задаёт порядок явно.
 - `default_headers(identifier, os)` возвращает baseline без сессии.
+- Исключение — okhttp-профили (`okhttp4_*`, `conscrypt_android_latest`): у okhttp нет
+  дефолтных заголовков уровня приложения, сессия стартует с пустого `session.headers`,
+  а `Accept-Encoding: gzip` / `User-Agent: okhttp/4.12.0` дописывает сетевой слой на
+  их собственных местах (см. «HTTP-слой okhttp»).
+
+## HTTP-слой okhttp (`header_style`)
+
+`header_style="okhttp"` — запросы собираются как у okhttp 4.x (BridgeInterceptor +
+`Http1ExchangeCodec`). Для `okhttp4_android_7…13`, `okhttp4_conscrypt`,
+`conscrypt_android_latest` включён по умолчанию; для остальных профилей —
+`header_style="raw"` (заголовки ровно как переданы + то, что добавит Go-транспорт).
+
+На проводе (HTTP/1.1):
+
+```
+POST /v1/api HTTP/1.1
+x-app-version: 5.2.0               ← заголовки приложения: как переданы, в порядке добавления
+user-agent: MyApp/5.2.0 (Android 14)
+Content-Type: application/json     ← запросы с телом; значение — из ваших заголовков
+Content-Length: 9                  ← считает транспорт
+Host: api.example.com              ← порт только если не 443/80
+Connection: Keep-Alive
+Accept-Encoding: gzip              ← если вы не задали Accept-Encoding или Range
+Cookie: a=1; b=2                   ← из cookie jar сессии
+User-Agent: okhttp/4.12.0          ← только если вы не задали свой user-agent
+```
+
+- Сверено побайтово с настоящим okhttp 4.12.0 на одном и том же локальном сервере:
+  GET/POST/HEAD/PUT, cookie, 302 POST→GET (без тела и без `Referer`), 307 с телом,
+  `Range`, заданные приложением `Host`/`Accept-Encoding`/`Connection`.
+- `Host`, `Connection`, `Accept-Encoding`, `User-Agent`, заданные вами, остаются на
+  вашем месте и в вашем регистре — okhttp дописывает только отсутствующие.
+- `Content-Type` для `json=` — `application/json`, для `data=dict` —
+  `application/x-www-form-urlencoded` (как `FormBody`); для `data=bytes` неявного
+  Content-Type нет (RequestBody без MediaType). Если приложение шлёт
+  `application/json; charset=utf-8` (okhttp `String.toRequestBody`) — передайте его явно.
+- Keep-alive как у okhttp `ConnectionPool`: соединения переиспользуются, до 5 простаивающих,
+  5 минут; `r.fingerprint["connection_reused"]` показывает факт переиспользования.
+- Запрос до 8 KiB (заголовки + тело) уходит одной записью: один TLS-record, как
+  Conscrypt после flush Okio. Раньше Go-стек отправлял заголовки отдельно, а
+  тело резал по ~1.2 KiB (dynamic record sizing).
+- HTTP/2: тот же порядок; `Host` → `:authority`, `Connection` выкидывается.
+  Профиль `conscrypt_android_latest`/`okhttp4_conscrypt` шлёт h2 как okhttp:
+  SETTINGS `4:16777216`, WINDOW_UPDATE `16711681`, псевдо `m,p,a,s`, HEADERS без
+  priority, первый stream id 3 (Akamai `4:16777216|16711681|0|m,p,a,s`).
+  Известное отличие: Go-кодер h2 режет `cookie` на отдельные поля, okhttp шлёт одно.
+- Вернуть прежнее поведение для okhttp-профиля: `header_style="raw"`.
+
+## HTTP/1.1 и ALPN (`http_version`, `keep_alpn`)
+
+Протокол после хендшейка выбирает **сервер** из списка ALPN в ClientHello
+(RFC 7301); клиент обязан говорить на выбранном.
+
+| Настройка | ALPN в hello (JA4) | Протокол |
+|---|---|---|
+| `http_version="auto"` (по умолчанию) | профиль: `h2,http/1.1` (`…h2_…`) | что выбрал сервер — ровно как okhttp |
+| `http_version="1.1"` / `force_http1=True` | переписан на `http/1.1` (`…h1_…`) | HTTP/1.1, но hello уже не как у приложения |
+| `http_version="1.1", keep_alpn=True` | профиль: `h2,http/1.1` (`…h2_…`) | HTTP/1.1, если сервер выбрал `http/1.1` (или не выбрал ничего); если выбрал `h2` — соединение закрывается сразу после хендшейка, ни одного байта HTTP не отправлено, `RequestError` |
+
+Если с hello приложения сервер отдаёт приложению `http/1.1`, а вам `h2`, то
+hello отличается тем, на что смотрит сервер, — клиентская настройка это не
+исправит. Проверка: `r.fingerprint["alpn_offered"]` / `["alpn_negotiated"]`;
+у эталона — `tshark -o tls.keylog_file:keys.log -Y "tls.handshake.type==8" -T
+fields -e tls.handshake.extensions_alpn_str` (EncryptedExtensions TLS 1.3 видны
+только с keylog).
 
 ## Профили и client_os
 
@@ -104,7 +169,7 @@ with Session(client_identifier=Profiles.CHROME_152, client_os="android") as s:
   `edge_99` / `edge_101` / `edge_131` / `edge_latest` — Chromium TLS-стек (JA4 идентичен chrome_131) с Edge UA и sec-ch-ua брендом;
   `safari_macos_17_0` / `safari_macos_18_0` / `safari_macos_26_0` — Apple держит ClientHello стабильным с 16 версии (JA4 идентичен safari_16_0), macOS-baseline, client_os по умолчанию macos;
   `tor_145` — TLS-стек Firefox ESR 128 как в Tor Browser 14+ (15 extensions), Tor-стиль UA без te:trailers.
-  `conscrypt_android_latest` / `okhttp4_conscrypt` — hello Android-приложения (okhttp поверх платформенного Conscrypt, TLS 1.3): 15 шифров без GREASE в порядке Conscrypt, 13 расширений с padding до 512 байт, groups 29-23-24, key share только X25519, JA3 `f79b6bad2ad0641e1921aef10262856b`, JA4 `t13d1513h2_8daaf6152771_eca864cca44a`; при повторном соединении с TLS 1.3 тикетом — resumption hello с `pre_shared_key` (41) вместо padding (выключается `disable_session_tickets=True`); h2 SETTINGS okhttp `1:4096;2:0;4:65535;6:262144`. App-заголовки (UA приложения и т.п.) передавайте сами.
+  `conscrypt_android_latest` / `okhttp4_conscrypt` — hello Android-приложения (okhttp поверх платформенного Conscrypt, TLS 1.3): 15 шифров без GREASE в порядке Conscrypt, 13 расширений с padding до 512 байт, groups 29-23-24, key share только X25519, JA3 `f79b6bad2ad0641e1921aef10262856b`, JA4 `t13d1513h2_8daaf6152771_eca864cca44a`; при повторном соединении с TLS 1.3 тикетом — resumption hello с `pre_shared_key` (41) вместо padding (выключается `disable_session_tickets=True`); h2 как okhttp: Akamai `4:16777216|16711681|0|m,p,a,s`, первый stream 3; HTTP-слой okhttp (`header_style`, см. выше). App-заголовки (UA приложения и т.п.) передавайте сами.
 - Upstream `okhttp4_android_7` … `_9` — TLS 1.2-only hello старых Android (JA4 `t12d…`); `okhttp4_android_10` … `_13` — тот же Conscrypt TLS 1.3 hello, что и `conscrypt_android_latest` (идентичны с 0.4.6, когда порядок расширений перестал перемешиваться). Для современного Android-приложения — `conscrypt_android_latest` / `okhttp4_conscrypt`.
 - `random_tls_extension_order` (по умолчанию `True`) действует только на Chromium-профили (`chrome_*`, `brave_*`, `opera_*`, `edge_*`) — только Chromium перемешивает расширения. Остальные стеки (Conscrypt/okhttp, Safari/CFNetwork, Firefox/Tor, мобильные приложения) всегда шлют свой фиксированный порядок.
 - `client_os` принимает `"windows"`, `"android"`, `"ios"`, `"macos"` и меняет **только baseline заголовков** (UA, client hints), не сам TLS-фингерпринт.
@@ -172,17 +237,25 @@ s.post(url, data=[("k", "1"), ("k2", "2")],     # multipart; порядок ча
 - `akamai_fingerprint` — из конфигурации HTTP/2 (SETTINGS / WINDOW_UPDATE / порядок псевдо-заголовков).
 - `source == "config"` — провода нет (HTTP/3 racing через прокси, `udp_proxy`
   поверх http-прокси): значения посчитаны из конфигурации.
+- `alpn_offered` — список ALPN из hello; `alpn_negotiated` — что выбрал сервер
+  (`""` — сервер ALPN не прислал); `tls_version`, `tls_resumed`;
+  `http_protocol` (`HTTP/1.1`/`HTTP/2.0`); `connection_reused` — запрос ушёл по
+  keep-alive соединению.
+- `request_headers` — `[[имя, значение], ...]` ровно в том порядке и регистре, в
+  каком транспорт записал их в соединение (h2 — список полей HPACK с псевдо-заголовками).
+  Для редиректов — последний хоп.
 
 `force_http1=True` переписывает ALPN в ClientHello на `http/1.1` (JA4 `…h1_…`),
 то есть меняет фингерпринт — для точной копии приложения, которое предлагает
-`h2,http/1.1`, его не включайте.
+`h2,http/1.1`, используйте `keep_alpn=True` (см. «HTTP/1.1 и ALPN»).
 
 ## Транспортные параметры сессии
 
 `client_identifier`, `client_os`, `random_tls_extension_order=True`,
 `http_version` (`"auto"`/`"1.1"`/`"2"`/`"3"` или числа/`"h2"`/`"h3"`),
 `proxy` (`http(s)://`, `socks5://`; для HTTP/3 — только socks5),
-`timeout`, `verify`, `force_http1`, `disable_http3`, `disable_session_tickets`,
+`timeout`, `verify`, `force_http1`, `keep_alpn`, `header_style` (`"okhttp"`/`"raw"`),
+`disable_http3`, `disable_session_tickets`,
 `server_name_overwrite`, `local_address`, `header_order`, `headers`, `cookies`,
 полный набор custom-JA3 полей (`ja3_string`, `h2_settings`, `pseudo_header_order`, ... —
 только вместе с `ja3_string`).

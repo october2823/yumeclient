@@ -26,6 +26,7 @@ import (
 
  http2 "github.com/bogdanfinn/fhttp/http2"
  http "github.com/bogdanfinn/fhttp"
+ "github.com/bogdanfinn/fhttp/httptrace"
  "github.com/bogdanfinn/tls-client/profiles"
  src "github.com/bogdanfinn/tls-client/cffi_src"
  tls_client "github.com/bogdanfinn/tls-client"
@@ -191,19 +192,19 @@ func conscryptOkhttpProfile() profiles.ClientProfile {
   // phone's resumed hello does (51,45,43,…,41)
   &tls.UtlsPreSharedKeyExtension{},
  }}
+ // okhttp4 Http2Connection: SETTINGS carries only INITIAL_WINDOW_SIZE=16 MiB,
+ // then a connection WINDOW_UPDATE of 16 MiB - 65535; Http2ExchangeCodec writes
+ // :method, :path, :authority, :scheme and HEADERS without a priority block.
+ // Akamai: 4:16777216|16711681|0|m,p,a,s (same as upstream okhttp4_android_*).
+ // The first request goes on stream 3: okhttp reserves stream 1 for clients
+ // that upgrade from HTTP/1.1 (Http2Connection.nextStreamId = 3).
  settings := map[http2.SettingID]uint32{
-  http2.SettingHeaderTableSize:   4096,
-  http2.SettingEnablePush:        0,
-  http2.SettingInitialWindowSize: 65535,
-  http2.SettingMaxHeaderListSize: 262144,
+  http2.SettingInitialWindowSize: 16777216,
  }
  order := []http2.SettingID{
-  http2.SettingHeaderTableSize,
-  http2.SettingEnablePush,
   http2.SettingInitialWindowSize,
-  http2.SettingMaxHeaderListSize,
  }
- pseudo := []string{":method", ":authority", ":scheme", ":path"}
+ pseudo := []string{":method", ":path", ":authority", ":scheme"}
  helloID := tls.ClientHelloID{
   Client: "Conscrypt", Version: "android",
   SpecFactory: func() (tls.ClientHelloSpec, error) {
@@ -215,7 +216,7 @@ func conscryptOkhttpProfile() profiles.ClientProfile {
    }, nil
   },
  }
- return profiles.NewClientProfile(helloID, settings, order, pseudo, 0, nil, nil, 0, false, nil, nil, 0, nil, false)
+ return profiles.NewClientProfile(helloID, settings, order, pseudo, 16711681, nil, &http2.PriorityParam{}, 3, false, nil, nil, 0, nil, false)
 }
 
 var extraProfiles = map[string]profiles.ClientProfile{
@@ -684,17 +685,22 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
  if timeoutMs == 0 && in.TimeoutSeconds != 0 { timeoutMs = in.TimeoutSeconds * 1000 }
  if timeoutMs == 0 { timeoutMs = 30000 }
 
+ extras := decodeSessionExtras(rawPayload)
+ keepAlpn := extras.KeepAlpn && in.ForceHttp1
  options := []tls_client.HttpClientOption{
   tls_client.WithClientProfile(profile),
   tls_client.WithTimeoutMilliseconds(timeoutMs),
   tls_client.WithCookieJar(tls_client.NewCookieJar()),
  }
+ if extras.okhttp() { options = append(options, tls_client.WithTransportOptions(okhttpTransportOptions())) }
  // explicit tls_extension_order wins over shuffle: CFNetwork/iOS sends a fixed
  // extension order, and ShuffleChromeTLSExtensions would randomize it
- if in.WithRandomTLSExtensionOrder && (adv == nil || len(adv.extOrder) == 0) {
+ shuffle := in.WithRandomTLSExtensionOrder && (adv == nil || len(adv.extOrder) == 0)
+ if shuffle {
   options = append(options, tls_client.WithRandomTLSExtensionOrder())
  }
- if in.ForceHttp1 { options = append(options, tls_client.WithForceHttp1()) }
+ // keep_alpn: the hello keeps its ALPN list, HTTP/1.1 is enforced by the strict transport
+ if in.ForceHttp1 && !keepAlpn { options = append(options, tls_client.WithForceHttp1()) }
  if wantsNoSessionTickets(rawPayload) { options = append(options, tls_client.WithDisableSessionTickets()) }
  if in.DisableHttp3 { options = append(options, tls_client.WithDisableHttp3()) }
  if in.WithProtocolRacing && !hasMLKEMCurveForJa3(ct, sigAlgs, delegAlgs, tlsVersions, keyShares, echSuites, adv) {
@@ -726,7 +732,9 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
 
  sink := &helloSink{}
  captured := false
+ var sessionDialer proxy.ContextDialer
  if udpApplies {
+  if keepAlpn { return nil, sessionId, false, src.NewTLSClientError(fmt.Errorf("keep_alpn cannot be combined with udp_proxy")) }
   // pre-0.4.5 wiring kept verbatim: upstream owns the proxy URL (h3 reads it)
   if strings.HasPrefix(strings.ToLower(proxyUrl), "https://") {
    dialer, dialErr := newInsecureHttpsConnectDialer(proxyUrl, time.Duration(timeoutMs)*time.Millisecond, true)
@@ -739,14 +747,22 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
   }
   options = append(options, tls_client.WithProxyUrl(udpProxyUrl))
  } else {
-  dialOpts, ok, dialErr := transportDialOptions(proxyUrl, timeoutMs, localAddr, in.WithProtocolRacing, sink)
+  dialOpts, d, dialErr := transportDialOptions(proxyUrl, timeoutMs, localAddr, in.WithProtocolRacing, sink)
   if dialErr != nil { return nil, sessionId, false, src.NewTLSClientError(dialErr) }
   options = append(options, dialOpts...)
-  captured = ok
+  sessionDialer, captured = d, d != nil
  }
 
  client, err := tls_client.NewHttpClient(tls_client.NewNoopLogger(), options...)
  if err != nil { return nil, sessionId, false, src.NewTLSClientError(err) }
+ var strict *strictH1Config
+ if keepAlpn {
+  if sessionDialer == nil { return nil, sessionId, false, src.NewTLSClientError(fmt.Errorf("keep_alpn: no dialer for this proxy configuration")) }
+  strict = &strictH1Config{dialer: sessionDialer, helloID: helloID, shuffle: shuffle, disableHttp3: in.DisableHttp3,
+   insecure: in.InsecureSkipVerify, noTickets: wantsNoSessionTickets(rawPayload)}
+  if in.ServerNameOverwrite != nil { strict.serverName = *in.ServerNameOverwrite }
+ }
+ if layerErr := applySessionLayer(client, extras.okhttp(), strict); layerErr != nil { return nil, sessionId, false, src.NewTLSClientError(layerErr) }
  if captured { helloSinks.Store(client, sink) }
 
  patchedSessions.Lock()
@@ -926,11 +942,14 @@ func createPatchedClient(in src.RequestInput, rawPayload []byte) (tls_client.Htt
  // the proxy, and https:// proxies in the wild (IP hosts, self-signed/domain certs
  // without IP SANs) fail strict verification — every practical TLS client defaults
  // to lenient proxy TLS. Target verification is still governed by InsecureSkipVerify.
+ extras := decodeSessionExtras(rawPayload)
+ keepAlpn := extras.KeepAlpn && in.ForceHttp1
  options := []tls_client.HttpClientOption{
   tls_client.WithClientProfile(profile),
   tls_client.WithTimeoutMilliseconds(timeoutMs),
   tls_client.WithCookieJar(tls_client.NewCookieJar()),
  }
+ if extras.okhttp() { options = append(options, tls_client.WithTransportOptions(okhttpTransportOptions())) }
  var localAddr *net.TCPAddr
  if in.LocalAddress != nil {
   la, resolveErr := net.ResolveTCPAddr("", *in.LocalAddress)
@@ -938,13 +957,16 @@ func createPatchedClient(in src.RequestInput, rawPayload []byte) (tls_client.Htt
   localAddr = la
  }
  sink := &helloSink{}
- dialOpts, captured, dialErr := transportDialOptions(proxyUrl, timeoutMs, localAddr, in.WithProtocolRacing, sink)
+ dialOpts, sessionDialer, dialErr := transportDialOptions(proxyUrl, timeoutMs, localAddr, in.WithProtocolRacing, sink)
  if dialErr != nil { return nil, sessionId, false, src.NewTLSClientError(dialErr) }
+ captured := sessionDialer != nil
  options = append(options, dialOpts...)
- if in.WithRandomTLSExtensionOrder && shufflesExtensions(in.TLSClientIdentifier) {
+ shuffle := in.WithRandomTLSExtensionOrder && shufflesExtensions(in.TLSClientIdentifier)
+ if shuffle {
   options = append(options, tls_client.WithRandomTLSExtensionOrder())
  }
- if in.ForceHttp1 { options = append(options, tls_client.WithForceHttp1()) }
+ // keep_alpn: the hello keeps its ALPN list, HTTP/1.1 is enforced by the strict transport
+ if in.ForceHttp1 && !keepAlpn { options = append(options, tls_client.WithForceHttp1()) }
  if wantsNoSessionTickets(rawPayload) { options = append(options, tls_client.WithDisableSessionTickets()) }
  if in.DisableHttp3 { options = append(options, tls_client.WithDisableHttp3()) }
  if in.WithProtocolRacing { options = append(options, tls_client.WithProtocolRacing()) }
@@ -956,6 +978,14 @@ func createPatchedClient(in src.RequestInput, rawPayload []byte) (tls_client.Htt
  if localAddr != nil { options = append(options, tls_client.WithLocalAddr(*localAddr)) }
  tlsClient, err := tls_client.NewHttpClient(tls_client.NewNoopLogger(), options...)
  if err != nil { return nil, sessionId, false, src.NewTLSClientError(err) }
+ var strict *strictH1Config
+ if keepAlpn {
+  if sessionDialer == nil { return nil, sessionId, false, src.NewTLSClientError(fmt.Errorf("keep_alpn: no dialer for this proxy configuration")) }
+  strict = &strictH1Config{dialer: sessionDialer, helloID: profile.GetClientHelloId(), shuffle: shuffle, disableHttp3: in.DisableHttp3,
+   insecure: in.InsecureSkipVerify, noTickets: wantsNoSessionTickets(rawPayload)}
+  if in.ServerNameOverwrite != nil { strict.serverName = *in.ServerNameOverwrite }
+ }
+ if layerErr := applySessionLayer(tlsClient, extras.okhttp(), strict); layerErr != nil { return nil, sessionId, false, src.NewTLSClientError(layerErr) }
  if captured { helloSinks.Store(tlsClient, sink) }
 
  patchedSessions.Lock()
@@ -1059,6 +1089,8 @@ func yumeclient_call(input *C.char) *C.char {
   }
   if len(jarCookies) > 0 && req.URL != nil { client.SetCookies(req.URL, jarCookies) }
  }
+ trace := &connTrace{}
+ req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace.clientTrace()))
  resp, err := wrapClient(client, sessionProxy).Do(req)
  if err != nil {
   if withSession { src.RemoveSession(session); removePatchedSession(session) }
@@ -1082,7 +1114,10 @@ func yumeclient_call(input *C.char) *C.char {
   if wantsFingerprint(rawInput) {
    var target *url.URL
    if resp.Request != nil { target = resp.Request.URL }
-   if fp := fingerprintForSession(in, rawInput, client, target); fp != nil { payload["fingerprint"] = fp }
+   fp := fingerprintForSession(in, rawInput, client, target)
+   if fp == nil { fp = map[string]any{} }
+   trace.report(fp, resp)
+   payload["fingerprint"] = fp
   }
   if raw2, err := json.Marshal(payload); err == nil { raw = raw2 }
  }
@@ -1222,6 +1257,14 @@ func removePatchedSession(session string) {
  if client, ok := patchedSessions.m[session]; ok {
   client.CloseIdleConnections()
   helloSinks.Delete(client)
+  sessionStyles.Delete(client)
+  plainTransports.Range(func(k, v any) bool {
+   if k.(plainKey).client == client {
+    v.(*http.Transport).CloseIdleConnections()
+    plainTransports.Delete(k)
+   }
+   return true
+  })
   delete(patchedSessions.m, session)
  }
  patchedSessions.Unlock()
@@ -1253,11 +1296,35 @@ func proxyFuncFromUrl(raw string) func(*http.Request) (*url.URL, error) {
  return func(*http.Request) (*url.URL, error) { return parsed, nil }
 }
 
+// plainTransports: one plain-http transport per (session, proxy), so http://
+// requests keep their connections alive between calls like any client does
+type plainKey struct {
+ client tls_client.HttpClient
+ proxy  string
+}
+
+var plainTransports sync.Map
+
 func (g *schemeGuard) buildPlainHTTPClient() *http.Client {
  inner := g.inner
- transport := http.DefaultTransport.(*http.Transport).Clone()
- if pf := proxyFuncFromUrl(g.proxyUrl); pf != nil { transport.Proxy = pf }
- client := &http.Client{Timeout: 30 * time.Second, Transport: transport}
+ key := plainKey{client: inner, proxy: g.proxyUrl}
+ _, ownSession := sessionStyles.Load(inner) // cached only for sessions removePatchedSession cleans up
+ var transport *http.Transport
+ if v, ok := plainTransports.Load(key); ok && ownSession {
+  transport = v.(*http.Transport)
+ } else {
+  transport = http.DefaultTransport.(*http.Transport).Clone()
+  if pf := proxyFuncFromUrl(g.proxyUrl); pf != nil { transport.Proxy = pf }
+  if isOkhttpSession(inner) {
+   transport.IdleConnTimeout, transport.MaxIdleConns, transport.MaxIdleConnsPerHost = okhttpKeepAlive, okhttpMaxIdle, okhttpMaxIdle
+  }
+  if ownSession {
+   if v, loaded := plainTransports.LoadOrStore(key, transport); loaded { transport = v.(*http.Transport) }
+  }
+ }
+ var rt http.RoundTripper = transport
+ if isOkhttpSession(inner) { rt = &okhttpBridge{inner: transport, jar: inner.GetCookieJar()} }
+ client := &http.Client{Timeout: 30 * time.Second, Transport: rt}
  if fr, ok := inner.(interface{ GetFollowRedirect() bool }); ok && !fr.GetFollowRedirect() {
   client.CheckRedirect = httpErrUseLast
  }

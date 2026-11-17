@@ -17,6 +17,26 @@ ClientIdentifier: TypeAlias = Literal[tuple(ALL_IDENTIFIERS)]
 ClientOs: TypeAlias = Literal["windows", "android", "ios", "macos"]
 ALL_CLIENT_OS: Final[tuple[str, ...]] = ("windows", "android", "ios", "macos")
 
+# HTTP layer of a session: "okhttp" = okhttp 4.x BridgeInterceptor semantics
+# (header order/case, Host, Connection: Keep-Alive, Accept-Encoding: gzip, Cookie,
+# User-Agent: okhttp/4.12.0, 5 idle connections x 5 min), "raw" = the headers
+# exactly as given plus whatever the Go transport adds.
+HeaderStyle: TypeAlias = Literal["okhttp", "raw"]
+ALL_HEADER_STYLES: Final[tuple[str, ...]] = ("okhttp", "raw")
+# profiles whose HTTP client is okhttp: header_style defaults to "okhttp"
+OKHTTP_IDENTIFIERS: Final[frozenset[str]] = frozenset(
+    {"okhttp4_conscrypt", "conscrypt_android_latest"} | {f"okhttp4_android_{v}" for v in range(7, 14)})
+
+
+def resolve_header_style(identifier: str, header_style: str | None = None) -> HeaderStyle:
+    """None -> "okhttp" for okhttp profiles, "raw" otherwise."""
+    if header_style is None or header_style == "":
+        return "okhttp" if identifier in OKHTTP_IDENTIFIERS else "raw"
+    normalized = str(header_style).lower()
+    if normalized in ALL_HEADER_STYLES:
+        return normalized  # type: ignore[return-value]
+    raise ValueError(f"unknown header_style {header_style!r}; expected one of: {', '.join(ALL_HEADER_STYLES)}")
+
 
 class Profiles:
     LATEST_CHROME = "chrome_152"
@@ -223,8 +243,14 @@ def _tor_headers(identifier: str, os_name: str) -> dict[str, str]:
     return headers
 
 
-def default_headers(identifier: str, os_name: str | None = None) -> dict[str, str]:
-    """Browser-plausible baseline headers for a profile; any key can be overridden."""
+def default_headers(identifier: str, os_name: str | None = None, header_style: str | None = None) -> dict[str, str]:
+    """Browser-plausible baseline headers for a profile; any key can be overridden.
+
+    header_style="okhttp" (the default for okhttp profiles) starts empty: okhttp has
+    no application-level default headers, its bridge adds Accept-Encoding and
+    User-Agent at the network layer, in their own slots."""
+    if resolve_header_style(identifier, header_style) == "okhttp":
+        return {}
     os_name = validate_os(os_name, identifier)
     if identifier.startswith("chrome_") or identifier == "cloudscraper":
         return _chrome_headers(identifier if identifier != "cloudscraper" else "chrome_131", os_name)

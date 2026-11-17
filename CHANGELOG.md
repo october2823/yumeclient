@@ -4,6 +4,48 @@
 Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версионирование — [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [0.4.7] — 2026-11-17
+
+### Added
+- **HTTP-слой okhttp 4.x (`header_style="okhttp"`)** — по умолчанию для
+  `okhttp4_android_7…13`, `okhttp4_conscrypt`, `conscrypt_android_latest`. Каждый
+  запрос (включая redirect-хопы) собирается как у BridgeInterceptor +
+  Http1ExchangeCodec: заголовки приложения как переданы → `Content-Type` →
+  `Content-Length` → `Host` (без порта по умолчанию) → `Connection: Keep-Alive` →
+  `Accept-Encoding: gzip` → `Cookie` (из jar) → `User-Agent: okhttp/4.12.0` (если
+  приложение не задало свой). Заданные приложением Host/Connection/Accept-Encoding/
+  User-Agent остаются на своём месте; при `Range` нет `Accept-Encoding`; 302/303 →
+  GET без body-заголовков и без `Referer`. Сверено побайтово с настоящим okhttp
+  4.12.0 (13 запросов, один и тот же сервер): идентично.
+  Пул как у okhttp `ConnectionPool`: keep-alive, 5 простаивающих соединений, 5 минут.
+  Запрос до 8 KiB уходит одной записью, одним TLS-record (как Conscrypt после flush
+  Okio): без отдельного flush заголовков (fhttp не узнавал `io.NopCloser` Go ≥ 1.20)
+  и без dynamic record sizing Go (первые record ~1.2 KiB).
+  `header_style="raw"` — прежнее поведение.
+- **`keep_alpn=True`** (вместе с `http_version="1.1"`): hello сохраняет ALPN профиля
+  (`h2,http/1.1`, JA4 `…h2_…`), запросы идут по HTTP/1.1, если сервер выбрал
+  `http/1.1`. Если сервер выбрал `h2`, соединение закрывается сразу после
+  хендшейка (ни байта HTTP) и поднимается `RequestError`. Без `keep_alpn`
+  `http_version="1.1"`/`force_http1` по-прежнему переписывает ALPN на `http/1.1` (JA4 `…h1_…`).
+- **`Response.fingerprint`**: `alpn_offered`, `alpn_negotiated`, `tls_version`,
+  `tls_resumed`, `http_protocol`, `connection_reused`, `request_headers` (поля
+  заголовков ровно в том порядке и регистре, в каком транспорт записал их в соединение).
+
+### Fixed
+- **h2 conscrypt/okhttp-профиля = okhttp.** Было `1:4096;2:0;4:65535;6:262144|0|m,a,s,p`
+  с Chrome-priority в HEADERS, стало как у okhttp `Http2Connection`: SETTINGS
+  `4:16777216`, WINDOW_UPDATE `16711681`, псевдо `:method,:path,:authority,:scheme`,
+  HEADERS без priority, первый stream 3 (Akamai `4:16777216|16711681|0|m,p,a,s`) —
+  сверено с okhttp 4.12.0 через tls.peet.ws.
+- **http:// держит keep-alive.** Plain-HTTP транспорт кэшируется на сессию (и прокси),
+  а не создаётся заново на каждый запрос.
+
+### Changed
+- `session.headers` okhttp-профилей стартует пустым (у okhttp нет дефолтных заголовков
+  приложения; `Accept-Encoding`/`User-Agent` дописывает сетевой слой). Прежний набор
+  (`user-agent`, `accept: */*`, `accept-encoding`) — `header_style="raw"`.
+- okhttp-стиль: `data=bytes` без неявного `Content-Type: application/octet-stream`.
+
 ## [0.4.6] — 2026-11-17
 
 ### Fixed

@@ -24,6 +24,7 @@ import (
 	"time"
 
 	http "github.com/bogdanfinn/fhttp"
+	"github.com/bogdanfinn/fhttp/httptrace"
 	tls_client "github.com/bogdanfinn/tls-client"
 	tls "github.com/bogdanfinn/utls"
 	proxy "golang.org/x/net/proxy"
@@ -136,10 +137,14 @@ func sinkFor(client tls_client.HttpClient) *helloSink {
 // leaves upstream WithProxyUrl in charge, because the h3 transport reads the
 // proxy URL from config: hiding it behind a dialer factory would send QUIC direct.
 // Those sessions report "source": "config".
-func transportDialOptions(proxyUrl string, timeoutMs int, localAddr *net.TCPAddr, keepUpstreamProxy bool, sink *helloSink) ([]tls_client.HttpClientOption, bool, error) {
+//
+// The returned ContextDialer is the capturing dialer itself (nil when upstream
+// keeps the proxy URL): the strict HTTP/1.1 transport (keep_alpn) dials through it.
+func transportDialOptions(proxyUrl string, timeoutMs int, localAddr *net.TCPAddr, keepUpstreamProxy bool, sink *helloSink) ([]tls_client.HttpClientOption, proxy.ContextDialer, error) {
 	timeout := time.Duration(timeoutMs) * time.Millisecond
+	var cd *captureDialer
 	factory := func(inner proxy.ContextDialer) tls_client.HttpClientOption {
-		cd := &captureDialer{inner: inner, sink: sink}
+		cd = &captureDialer{inner: inner, sink: sink}
 		return tls_client.WithProxyDialerFactory(func(_ string, _ time.Duration, _ *net.TCPAddr, _ http.Header, _ tls_client.Logger) (proxy.ContextDialer, error) {
 			return cd, nil
 		})
@@ -149,11 +154,12 @@ func transportDialOptions(proxyUrl string, timeoutMs int, localAddr *net.TCPAddr
 	case strings.HasPrefix(lower, "https://"):
 		dialer, err := newInsecureHttpsConnectDialer(proxyUrl, timeout, true)
 		if err != nil {
-			return nil, false, err
+			return nil, nil, err
 		}
-		return []tls_client.HttpClientOption{factory(dialer)}, true, nil
+		opt := factory(dialer)
+		return []tls_client.HttpClientOption{opt}, cd, nil
 	case proxyUrl != "" && keepUpstreamProxy:
-		return []tls_client.HttpClientOption{tls_client.WithProxyUrl(proxyUrl)}, false, nil
+		return []tls_client.HttpClientOption{tls_client.WithProxyUrl(proxyUrl)}, nil, nil
 	case proxyUrl != "":
 		probeOpts := []tls_client.HttpClientOption{
 			tls_client.WithProxyUrl(proxyUrl),
@@ -164,19 +170,110 @@ func transportDialOptions(proxyUrl string, timeoutMs int, localAddr *net.TCPAddr
 		}
 		probe, err := tls_client.NewHttpClient(tls_client.NewNoopLogger(), probeOpts...)
 		if err != nil {
-			return nil, false, err
+			return nil, nil, err
 		}
 		inner := probe.GetDialer()
 		if inner == nil { // defensive: never fall back to a direct connection
-			return []tls_client.HttpClientOption{tls_client.WithProxyUrl(proxyUrl)}, false, nil
+			return []tls_client.HttpClientOption{tls_client.WithProxyUrl(proxyUrl)}, nil, nil
 		}
-		return []tls_client.HttpClientOption{factory(inner)}, true, nil
+		opt := factory(inner)
+		return []tls_client.HttpClientOption{opt}, cd, nil
 	default:
 		nd := &net.Dialer{Timeout: timeout}
 		if localAddr != nil {
 			nd.LocalAddr = localAddr
 		}
-		return []tls_client.HttpClientOption{factory(nd)}, true, nil
+		opt := factory(nd)
+		return []tls_client.HttpClientOption{opt}, cd, nil
+	}
+}
+
+// ---------------------------------------------------------------------------
+// per-request connection trace (0.4.7): what the request actually rode on —
+// negotiated ALPN, TLS version/resumption, keep-alive reuse — and the header
+// fields in the order the transport wrote them (h1: names as sent; h2: the
+// HPACK field list incl. pseudo-headers). Redirect hops reset it, so the
+// report describes the final hop.
+// ---------------------------------------------------------------------------
+
+type connTrace struct {
+	mu         sync.Mutex
+	got        bool
+	reused     bool
+	wasIdle    bool
+	haveTLS    bool
+	negotiated string
+	tlsVersion uint16
+	resumed    bool
+	headers    [][2]string
+}
+
+func (t *connTrace) clientTrace() *httptrace.ClientTrace {
+	return &httptrace.ClientTrace{
+		GotConn: func(info httptrace.GotConnInfo) {
+			t.mu.Lock()
+			defer t.mu.Unlock()
+			t.got, t.reused, t.wasIdle, t.headers = true, info.Reused, info.WasIdle, nil
+			t.haveTLS, t.negotiated, t.tlsVersion, t.resumed = false, "", 0, false
+			if cs, ok := info.Conn.(interface{ ConnectionState() tls.ConnectionState }); ok {
+				st := cs.ConnectionState()
+				t.haveTLS, t.negotiated, t.tlsVersion, t.resumed = true, st.NegotiatedProtocol, st.Version, st.DidResume
+			}
+		},
+		WroteHeaderField: func(key string, values []string) {
+			t.mu.Lock()
+			defer t.mu.Unlock()
+			for _, v := range values {
+				t.headers = append(t.headers, [2]string{key, v})
+			}
+		},
+	}
+}
+
+func (t *connTrace) report(out map[string]any, resp *http.Response) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if resp != nil {
+		out["http_protocol"] = resp.Proto
+	}
+	if !t.got {
+		return
+	}
+	out["connection_reused"] = t.reused
+	if t.haveTLS {
+		out["alpn_negotiated"] = t.negotiated
+		out["tls_version"] = map[uint16]string{0x0304: "1.3", 0x0303: "1.2", 0x0302: "1.1", 0x0301: "1.0"}[t.tlsVersion]
+		out["tls_resumed"] = t.resumed
+	}
+	headers := t.headers
+	if resp != nil && resp.ProtoMajor == 1 {
+		// fhttp's transfer writer reports Content-Length / Transfer-Encoding /
+		// Connection: close / Trailer once when it adds them to the header map,
+		// then again when the map is written: drop that leading echo
+		for len(headers) > 0 {
+			h := headers[0]
+			if h[0] != "Content-Length" && h[0] != "Transfer-Encoding" && h[0] != "Connection" && h[0] != "Trailer" {
+				break
+			}
+			later := false
+			for _, x := range headers[1:] {
+				if x == h {
+					later = true
+					break
+				}
+			}
+			if !later {
+				break
+			}
+			headers = headers[1:]
+		}
+	}
+	if len(headers) > 0 {
+		lines := make([][]string, 0, len(headers))
+		for _, h := range headers {
+			lines = append(lines, []string{h[0], h[1]})
+		}
+		out["request_headers"] = lines
 	}
 }
 
@@ -454,5 +551,6 @@ func (f *helloFields) report() map[string]any {
 		exts = append(exts, int(e))
 	}
 	out["tls_extensions"] = exts
+	out["alpn_offered"] = append([]string{}, f.alpn...)
 	return out
 }

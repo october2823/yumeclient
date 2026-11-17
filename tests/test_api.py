@@ -122,10 +122,15 @@ def test_client_os_validation():
 
 
 def test_default_headers_per_profile_and_os():
-    for identifier in ("chrome_152", "firefox_148", "safari_ios_26_0", "okhttp4_android_13", "opera_91", "brave_146"):
+    for identifier in ("chrome_152", "firefox_148", "safari_ios_26_0", "opera_91", "brave_146"):
         headers = default_headers(identifier)
         assert "user-agent" in headers and "accept" in headers and "accept-encoding" in headers
         assert "go-http-client" not in headers["user-agent"].lower()
+    # okhttp profiles: no application defaults (the okhttp bridge adds UA/Accept-Encoding
+    # on the wire); header_style="raw" keeps the old baseline
+    assert default_headers("okhttp4_android_13") == {}
+    raw = default_headers("okhttp4_android_13", header_style="raw")
+    assert raw == {"user-agent": "okhttp/4.12.0", "accept": "*/*", "accept-encoding": "gzip"}
     chrome_win = default_headers("chrome_152", "windows")
     chrome_android = default_headers("chrome_152", "android")
     assert chrome_win["sec-ch-ua-mobile"] == "?0" and chrome_android["sec-ch-ua-mobile"] == "?1"

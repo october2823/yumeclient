@@ -28,11 +28,12 @@ from urllib.parse import urlencode, urlsplit
 
 from .cookies import CookieJar
 from .multipart import choose_boundary, encode_multipart
-from .profiles import (ALL_CLIENT_OS, ALL_IDENTIFIERS, ClientIdentifier, ClientOs,
-                       Profiles, default_headers, find, validate, validate_os)
+from .profiles import (ALL_CLIENT_OS, ALL_HEADER_STYLES, ALL_IDENTIFIERS, ClientIdentifier, ClientOs,
+                       HeaderStyle, Profiles, default_headers, find, resolve_header_style,
+                       validate, validate_os)
 
 __all__ = ["Session", "AsyncSession", "Response", "CookieJar", "Headers", "Profiles",
-           "ALL_IDENTIFIERS", "ALL_CLIENT_OS", "ClientIdentifier", "ClientOs",
+           "ALL_IDENTIFIERS", "ALL_CLIENT_OS", "ALL_HEADER_STYLES", "ClientIdentifier", "ClientOs", "HeaderStyle",
            "find", "default_headers", "TLSClientError", "RequestError",
            "SessionConfigurationError", "close_runtime", "encode_multipart", "choose_boundary"]
 
@@ -172,10 +173,15 @@ def _applyJarDump(jar: CookieJar, jarDump: Mapping[str, Any] | None) -> None:
 
 
 def _validateTransport(*, http_version: str, force_http1: bool, disable_http3: bool,
-                       proxy: str | None, client_identifier: str) -> dict[str, bool]:
+                       proxy: str | None, client_identifier: str, keep_alpn: bool = False,
+                       udp_proxy: str | None = None) -> dict[str, bool]:
     httpVer = _version(http_version)
     forceHttp1 = force_http1 or httpVer == "1.1"
     racing = httpVer == "3"
+    if keep_alpn and not forceHttp1:
+        raise SessionConfigurationError("keep_alpn=True needs http_version='1.1' (or force_http1=True); "
+                                        "with http_version='auto' the profile's ALPN is already sent unchanged")
+    if keep_alpn and udp_proxy: raise SessionConfigurationError("keep_alpn cannot be combined with udp_proxy")
     if forceHttp1 and racing: raise SessionConfigurationError("http_version=3 cannot be combined with force_http1")
     if disable_http3 and racing: raise SessionConfigurationError("http_version=3 conflicts with disable_http3")
     if racing and proxy and not proxy.lower().startswith("socks5://"):
@@ -187,8 +193,12 @@ def _validateTransport(*, http_version: str, force_http1: bool, disable_http3: b
     return {"forceHttp1": forceHttp1, "disableHttp3": disable_http3 or httpVer == "2", "withProtocolRacing": racing}
 
 
-def _encodeBody(*, data: Any, jsonBody: Any, files: Any, headers: dict[str, str]) -> tuple[str | None, bool]:
-    """Returns (body, isByteRequest); mutates headers to add a matching Content-Type."""
+def _encodeBody(*, data: Any, jsonBody: Any, files: Any, headers: dict[str, str],
+                okhttp: bool = False) -> tuple[str | None, bool]:
+    """Returns (body, isByteRequest); mutates headers to add a matching Content-Type.
+
+    okhttp style: raw bytes get no implicit Content-Type (an okhttp RequestBody
+    without a MediaType sends none); pass Content-Type to match the app."""
     if files is not None:
         bodyBytes, contentType = encode_multipart(data if isinstance(data, (dict, list, tuple)) else None, files)
         headers.setdefault("Content-Type", contentType)
@@ -198,7 +208,7 @@ def _encodeBody(*, data: Any, jsonBody: Any, files: Any, headers: dict[str, str]
         return json.dumps(jsonBody, separators=(",", ":")), False
     if data is not None:
         if isinstance(data, bytes):
-            headers.setdefault("Content-Type", "application/octet-stream")
+            if not okhttp: headers.setdefault("Content-Type", "application/octet-stream")
             return base64.b64encode(data).decode(), True
         if isinstance(data, (dict, list, tuple)):
             headers.setdefault("Content-Type", "application/x-www-form-urlencoded")
@@ -215,7 +225,8 @@ def _buildPayload(sessionId: str, *, method: str, url: str, params: Any, headers
                   disable_session_tickets: bool, server_name_overwrite: str | None,
                   local_address: str | None, custom: dict[str, Any] | None,
                   request_header_order: Sequence[str] | None, udp_proxy: str | None = None,
-                  want_fingerprint: bool = False) -> dict[str, Any]:
+                  want_fingerprint: bool = False, header_style: str = "raw",
+                  keep_alpn: bool = False) -> dict[str, Any]:
     requestUrl = url
     if params:
         query = urlencode(params, doseq=True)
@@ -230,6 +241,8 @@ def _buildPayload(sessionId: str, *, method: str, url: str, params: Any, headers
         "withCustomCookieJar": True, "withRandomTLSExtensionOrder": random_tls_extension_order,
         "forceHttp1": flags["forceHttp1"], "disableHttp3": flags["disableHttp3"],
         "withProtocolRacing": flags["withProtocolRacing"], "disableSessionTickets": disable_session_tickets}
+    if header_style == "okhttp": payload["headerStyle"] = "okhttp"
+    if keep_alpn: payload["keepAlpn"] = True
     if proxy is not None: payload["proxyUrl"] = proxy
     if udp_proxy is not None: payload["udpProxyUrl"] = udp_proxy
     if want_fingerprint: payload["withFingerprint"] = True
@@ -302,11 +315,21 @@ class _Core:
                  grease: bool | None = None,
                  psk_mode: str | None = None,
                  udp_proxy: str | None = None,
-                 key_share_data: Mapping[int, bytes] | None = None) -> None:
+                 key_share_data: Mapping[int, bytes] | None = None,
+                 header_style: HeaderStyle | str | None = None,
+                 keep_alpn: bool = False) -> None:
         try:
             self.client_identifier = validate(client_identifier)
             self.client_os = validate_os(client_os, self.client_identifier)
+            # ja3 sessions have no profile: raw unless header_style says otherwise
+            self.header_style = resolve_header_style("" if ja3_string else self.client_identifier, header_style)
         except ValueError as exc: raise SessionConfigurationError(str(exc)) from exc
+        self.keep_alpn = bool(keep_alpn)
+        if self.keep_alpn and not (force_http1 or _version(http_version) == "1.1"):
+            raise SessionConfigurationError("keep_alpn=True needs http_version='1.1' (or force_http1=True); "
+                                            "with http_version='auto' the profile's ALPN is already sent unchanged")
+        if self.keep_alpn and udp_proxy is not None:
+            raise SessionConfigurationError("keep_alpn cannot be combined with udp_proxy")
         self.random_tls_extension_order = random_tls_extension_order
         self.http_version = _version(http_version)
         self.proxy, self.timeout, self.verify = proxy, timeout, verify
@@ -341,7 +364,7 @@ class _Core:
         self.last_fingerprint: dict[str, Any] | None = None
         # session.headers starts as the profile+OS default set; dict(=) keeps insertion order,
         # which is exactly the wire header order when no explicit header_order is given
-        self.headers = Headers(default_headers(self.client_identifier, self.client_os))
+        self.headers = Headers(default_headers(self.client_identifier, self.client_os, self.header_style))
         if headers: self.headers.update(headers)
         self.header_order: list[str] | None = list(header_order) if header_order else None
         self.cookies = cookies if isinstance(cookies, CookieJar) else CookieJar(cookies)
@@ -384,7 +407,7 @@ class _Core:
                 self.timeout, self.verify, self.force_http1, self.disable_http3, self.disable_session_tickets,
                 self.server_name_overwrite, self.local_address, self.grease, self.psk_mode,
                 tuple(self.tls_extension_order or ()), self.ech_config_list, self.udp_proxy,
-                json.dumps(self.custom, sort_keys=True))
+                self.header_style, self.keep_alpn, json.dumps(self.custom, sort_keys=True))
 
     def _markIfChanged(self) -> str | None:
         mark = self._transportMark()
@@ -405,7 +428,8 @@ class _Core:
         self._checkOpen()
         merged = Headers(self.headers)
         if headers: merged.update(headers)
-        body, byteRequest = _encodeBody(data=data, jsonBody=json, files=files, headers=merged)
+        body, byteRequest = _encodeBody(data=data, jsonBody=json, files=files, headers=merged,
+                                        okhttp=self.header_style == "okhttp")
         cookieData = dict(self.cookies.to_dict(domain=urlsplit(url).hostname or ""))
         if cookies:
             if isinstance(cookies, Mapping): extra = dict(cookies)
@@ -414,7 +438,8 @@ class _Core:
             cookieData.update(extra)
         flags = _validateTransport(http_version=self.http_version, force_http1=self.force_http1,
                                    disable_http3=self.disable_http3, proxy=proxy if proxy is not None else self.proxy,
-                                   client_identifier=self.client_identifier)
+                                   client_identifier=self.client_identifier, keep_alpn=self.keep_alpn,
+                                   udp_proxy=self.udp_proxy)
         payload = _buildPayload(self._sessionId, method=method, url=url, params=params, headers=merged,
                                 header_order=self.header_order, body=body, byteRequest=byteRequest,
                                 cookies=cookieData, flags=flags,
@@ -425,7 +450,8 @@ class _Core:
                                 disable_session_tickets=self.disable_session_tickets,
                                 server_name_overwrite=self.server_name_overwrite, local_address=self.local_address,
                                 custom=self.custom, request_header_order=header_order,
-                                udp_proxy=self.udp_proxy, want_fingerprint=True)
+                                udp_proxy=self.udp_proxy, want_fingerprint=True,
+                                header_style=self.header_style, keep_alpn=self.keep_alpn)
         start = time.perf_counter()
         result = _call(payload)
         elapsed = time.perf_counter() - start
@@ -469,6 +495,8 @@ class Session:
     @property
     def client_identifier(self) -> str: return self._core.client_identifier
     @property
+    def header_style(self) -> str: return self._core.header_style
+    @property
     def client_os(self) -> str: return self._core.client_os
     @property
     def cookies(self) -> CookieJar: return self._core.cookies
@@ -508,6 +536,8 @@ class AsyncSession:
 
     @property
     def client_identifier(self) -> str: return self._core.client_identifier
+    @property
+    def header_style(self) -> str: return self._core.header_style
     @property
     def client_os(self) -> str: return self._core.client_os
     @property
