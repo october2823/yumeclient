@@ -38,6 +38,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 async def _async_checks(base: str) -> None:
+    loop_errors: list[str] = []
+    asyncio.get_running_loop().set_exception_handler(lambda _loop, ctx: loop_errors.append(str(ctx.get("message"))))
     async with yumeclient.AsyncSession(timeout=10) as session:
         response = await session.get(base + "/a")
         assert response.status_code == 200 and response.content == b"smoke-ok", response
@@ -50,6 +52,8 @@ async def _async_checks(base: str) -> None:
             raise AssertionError("slow request was not cancelled")
         elapsed = time.monotonic() - started
         assert elapsed < 1.0, f"cancellation took {elapsed:.2f}s"
+        await asyncio.sleep(0.3)  # the aborted native call finishes in the executor
+    assert not loop_errors, loop_errors
 
 
 def main() -> int:

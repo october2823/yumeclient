@@ -458,11 +458,10 @@ class Response:
             data = self._content
             for start in range(0, len(data), chunk_size): yield data[start:start + chunk_size]
             return
-        loop = asyncio.get_running_loop()
         try:
             while not stream.eof:
-                future = loop.run_in_executor(_executor, stream.read, chunk_size, self._method, self.url)
-                try: chunk = await asyncio.shield(future)
+                future = _executor.submit(stream.read, chunk_size, self._method, self.url)
+                try: chunk = await asyncio.wrap_future(future)
                 except asyncio.CancelledError:
                     stream.cancel()
                     raise
@@ -1020,8 +1019,10 @@ class AsyncSession:
         try:
             loop = asyncio.get_running_loop()
             for oldId in oldIds: await loop.run_in_executor(_executor, _closeNative, oldId)
-            future = loop.run_in_executor(_executor, functools.partial(fn, *args, _handle=handle, **kwargs))
-            try: return await asyncio.shield(future)
+            # wrap_future, not shield(run_in_executor): a shielded inner future that fails after
+            # the outer one was cancelled is reported to the loop's exception handler (3.14)
+            future = _executor.submit(functools.partial(fn, *args, _handle=handle, **kwargs))
+            try: return await asyncio.wrap_future(future)
             except asyncio.CancelledError:
                 # abort the native request (connect, TLS, headers or body) instead of waiting
                 # for it; a result that still arrives is dropped by _request / _discardLate

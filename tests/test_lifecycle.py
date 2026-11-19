@@ -447,3 +447,26 @@ def test_per_request_proxy_is_not_ignored_by_an_existing_session(server, raw):
         assert routed.text == "via-proxy"
         assert proxy.seen and proxy.seen[0].startswith(b"GET http://127.0.0.1:")
         assert session.get(server + "/").text == "direct"
+
+
+def test_cancellation_logs_nothing_to_the_event_loop(server):
+    # asyncio.shield (Python 3.14) reported every aborted native call as
+    # "RequestCancelled exception in shielded future" through the loop's exception handler
+    errors: list[dict] = []
+
+    async def main() -> None:
+        asyncio.get_running_loop().set_exception_handler(lambda _loop, context: errors.append(context))
+        async with AsyncSession(timeout=10) as session:
+            with pytest.raises(asyncio.TimeoutError):
+                await asyncio.wait_for(session.get(server + "/slow-headers?d=1"), 0.1)
+            response = await session.get(server + "/slow-body?d=1", stream=True)
+
+            async def consume() -> None:
+                async for _ in response.aiter_bytes():
+                    pass
+            with pytest.raises(asyncio.TimeoutError):
+                await asyncio.wait_for(consume(), 0.2)
+            await asyncio.sleep(0.5)  # aborted native calls finish in the executor
+            gc.collect()
+    asyncio.run(main())
+    assert errors == [], [str(item.get("message")) for item in errors]

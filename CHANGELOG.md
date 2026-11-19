@@ -4,6 +4,15 @@
 Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версионирование — [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [0.5.1] — 2026-11-20
+
+### Fixed
+- **Python 3.14: шум в логе при отмене.** Каждая отменённая async-задача (и прерванное
+  чтение `aiter_bytes()`) попадала в обработчик ошибок event loop как
+  `RequestCancelled exception in shielded future` с трейсбеком: в 3.14 `asyncio.shield`
+  сообщает об ошибке внутреннего future после отмены внешнего. Executor-future теперь
+  ожидается через `asyncio.wrap_future`; поведение отмены прежнее.
+
 ## [0.5.0] — 2026-11-20
 
 ### Added
