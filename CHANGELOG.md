@@ -4,6 +4,80 @@
 Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версионирование — [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [0.5.0] — 2026-11-20
+
+### Added
+- **Стриминг ответа.** `request(..., stream=True)` (и `await` в `AsyncSession`): тело
+  остаётся в нативном слое и читается кусками прямо в буфер Python, без base64/JSON —
+  `iter_bytes(chunk_size)`, `iter_content()`, `read()`, `close()`, `with`-блок;
+  async: `aiter_bytes()`, `aread()`, `aclose()`, `async with`. Ответ 64 MiB читается
+  с пиком памяти Python < 8 MiB. Ранний выход из цикла, `close()`, закрытие сессии и
+  сборка мусора освобождают нативный поток. `is_stream_consumed`.
+- **Нативная отмена.** У каждого запроса есть `request_id`; отмена asyncio-задачи
+  (`wait_for`, `TaskGroup`, `task.cancel()`) обрывает запрос в Go на любой стадии
+  (DNS/прокси/TCP/TLS, ожидание заголовков, чтение тела) и возвращает управление
+  < 0.5 с вместо ожидания ответа. Поздний результат отменённого запроса не трогает jar.
+- **Раздельные таймауты** — `TimeoutConfig(total, connect, read, write)`; `timeout=`
+  принимает число (total), кортеж `(connect, read)`, `TimeoutConfig` или `None`.
+  `connect` — DNS + прокси + TCP + TLS каждого хопа, `read` — ожидание заголовков и
+  пауза между кусками тела, `write` — отправка запроса.
+- **Структурированные ошибки** (все — подклассы `RequestError`, атрибуты `kind`, `stage`,
+  `method`, `url`, `elapsed`, `request_id`, `retryable`, `detail`): `ConnectError`
+  (+ `ProxyError`, `TLSError`), `ConnectionClosed`, `Timeout` (+ `ConnectTimeout`,
+  `ReadTimeout`, `WriteTimeout`), `RequestCancelled`, `ResponseTooLarge`, `StreamClosed`,
+  `InvalidRequestError`, `HTTPStatusError` (из `raise_for_status()`, ответ в `.response`).
+  `Timeout` — ещё и `TimeoutError`, `ConnectError`/`ConnectionClosed` — `ConnectionError`.
+  Логины/пароли из URL и Basic/Bearer-токены вырезаются из текста ошибок.
+- **`response.connection_info`**: переиспользование соединения, ALPN, версия TLS,
+  resumption, адреса сокета, тайминги фаз последнего хопа (`connect`, `write`, `wait`,
+  `body`, `redirects`, `first_byte`, `total`; фазы в сумме дают `total`).
+- **`max_content_size`** (сессия или запрос): лимит распакованного тела, иначе `ResponseTooLarge`.
+- **`close(grace=5.0)`** у `Session`/`AsyncSession`: запросы в полёте получают `grace`
+  секунд, затем отменяются; открытые потоки закрываются.
+- **`CookieJar.for_url(url)`**, `to_dict(url=...)`, флаг `host_only` (`hostOnly` в
+  `export()`/импорте).
+- **Wheels:** `py3-none` — один wheel на платформу для любого Python ≥ 3.11
+  (вместо cp311…cp314): Windows x64, Linux x86_64 и **aarch64** (manylinux_2_28),
+  macOS **universal2** (arm64 + x86_64, macOS 11+). Релиз публикуется только после
+  проверки содержимого каждого wheel и smoke-теста установленного wheel на
+  Linux/Windows/macOS (arm64 и Intel) × Python 3.11–3.14.
+
+### Fixed
+- **Отмена `AsyncSession` ждала нативный запрос** (`wait_for(..., 0.1)` возвращался через
+  1.5 с — вместе с медленным ответом).
+- **`http://` игнорировал таймаут сессии** (жёсткие 30 с): `Session(timeout=1)` ждал ответа 3 с.
+- **`timeout=` отдельного запроса игнорировался**, если Go-сессия уже существовала
+  (таймаут фиксировался при создании клиента).
+- **`proxy=` отдельного запроса игнорировался** после первого запроса сессии: запрос шёл
+  через прокси сессии или **напрямую**. Теперь для другого прокси используется отдельная
+  нативная сессия.
+- **Cookie: области видимости.** Cookie выбираются по RFC 6265 на каждом хопе: domain /
+  host-only, path (длинный путь первым), Secure — только по https, срок действия.
+  Раньше jar tls-client отдавал все cookie «домена из двух меток» без учёта Path/Secure
+  (Secure-cookie с https://a.example.com уходила на http://b.example.com, cookie с
+  `Path=/admin` — на `/public`), сервер мог выставить cookie чужому домену, одноимённые
+  cookie с разными path затирали друг друга.
+- **Cookie, удалённая в Python** (`session.cookies.remove(...)`), продолжала отправляться и
+  возвращалась в jar: Go-jar сессии жил отдельно. Теперь `session.cookies` — единственный
+  источник истины: каждый запрос получает свой jar из снимка, обратно приходят только
+  изменения (`Set-Cookie`, удаление через `Max-Age=0`/прошедший `Expires`). Параллельные
+  запросы одной сессии больше не затирают cookie друг друга.
+- **Wheels:** в Windows-wheel лежал второй PE-образ под именем `yumeclient.so`;
+  macOS-wheel содержал только arm64 с `minos 26.0` (не ставился на macOS < 26 и Intel).
+
+### Changed
+- `timeout=0` / отрицательный → `SessionConfigurationError` (раньше 0 значил «30 с»).
+- Текст ошибок дополнен `[METHOD url]`; исключения таймаутов/соединения наследуют
+  `OSError` (через `TimeoutError`/`ConnectionError`).
+- `close()` отменяет запросы в полёте через `grace` секунд (раньше ждал без ограничения;
+  прежнее поведение — `close(grace=None)`).
+- `Response` — обычный класс со `__slots__` (не dataclass); позиционный конструктор прежний.
+- Смена `timeout` больше не пересоздаёт Go-сессию; ошибка невалидного запроса (URL/метод)
+  больше не сбрасывает её соединения.
+- Cookie без домена (`jar["k"] = "v"`) по-прежнему уходят на любой хост (как в requests),
+  но не перекрывают одноимённую cookie, привязанную к хосту/домену.
+- Secure-cookie, выставленная по `http://`, сохраняется, но отправляется только по https.
+
 ## [0.4.7] — 2026-11-17
 
 ### Added

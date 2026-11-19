@@ -3,9 +3,13 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Upload the verified wheels to PyPI (otherwise build + smoke only)"
+        type: boolean
+        default: false
 permissions:
   contents: read
-  id-token: write
 jobs:
   build:
     strategy:
@@ -13,41 +17,58 @@ jobs:
       matrix:
         include:
           - os: ubuntu-22.04
-            artifact: linux-py311
-            python: "3.11.6"
-          - os: ubuntu-22.04
-            artifact: linux-py312
-            python: "3.12"
-          - os: ubuntu-22.04
-            artifact: linux-py313
-            python: "3.13"
-          - os: ubuntu-22.04
-            artifact: linux-py314
-            python: "3.14"
+            artifact: wheel-linux-x86_64
+            linux_arch: x86_64
+          - os: ubuntu-24.04-arm
+            artifact: wheel-linux-aarch64
+            linux_arch: aarch64
           - os: windows-latest
-            artifact: windows-py311
-            python: "3.11.6"
-          - os: windows-latest
-            artifact: windows-py312
-            python: "3.12"
-          - os: windows-latest
-            artifact: windows-py313
-            python: "3.13"
-          - os: windows-latest
-            artifact: windows-py314
-            python: "3.14"
+            artifact: wheel-windows-amd64
           - os: macos-latest
-            artifact: macos-py311
-            python: "3.11.6"
-          - os: macos-latest
-            artifact: macos-py312
-            python: "3.12"
-          - os: macos-latest
-            artifact: macos-py313
-            python: "3.13"
-          - os: macos-latest
-            artifact: macos-py314
-            python: "3.14"
+            artifact: wheel-macos-universal2
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - if: runner.os != 'Linux'
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+      # one native build per platform; each script only produces its own binary
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/build-native.ps1
+      - if: runner.os == 'macOS'
+        shell: bash
+        run: sh ./scripts/build-native.sh
+      - if: runner.os == 'Linux'
+        shell: bash
+        run: sh ./scripts/build-linux-wheel.sh ${{ matrix.linux_arch }}
+      - if: runner.os == 'Windows'
+        shell: bash
+        run: python -m pip install setuptools wheel && python setup.py bdist_wheel
+      - if: runner.os == 'macOS'
+        shell: bash
+        run: python -m pip install setuptools wheel && python setup.py bdist_wheel --plat-name macosx-11.0-universal2
+      - shell: bash
+        run: python scripts/check_wheel.py dist/*.whl
+      - shell: bash
+        run: python -m pip install twine && python -m twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/*.whl
+          if-no-files-found: error
+
+  smoke:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04-arm, windows-latest, macos-latest, macos-15-intel]
+        python: ["3.11", "3.12", "3.13", "3.14"]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -55,38 +76,22 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           allow-prereleases: true
-      - uses: actions/setup-go@v5
+      - uses: actions/download-artifact@v4
         with:
-          go-version: "1.24.x"
-      - if: runner.os == 'Windows'
-        shell: pwsh
-        run: ./scripts/build-native.ps1
-      - if: runner.os == 'Linux'
-        shell: bash
-        run: docker version
-      - if: runner.os == 'Linux'
-        shell: bash
-        run: sh ./scripts/build-linux-wheel.sh
-      - if: runner.os != 'Linux'
-        shell: bash
-        run: sh ./scripts/build-native.sh
-      - if: runner.os != 'Linux'
-        shell: bash
-        run: python -m pip install setuptools wheel
-      - if: runner.os != 'Linux'
-        shell: bash
-        run: python setup.py bdist_wheel
+          path: wheelhouse
+          merge-multiple: true
       - shell: bash
-        run: python -m pip install twine
+        run: "python -m pip install --only-binary=:all: --no-index --find-links wheelhouse yumeclient"
+      # scripts/ is sys.path[0], so the installed wheel is imported, not the checkout
       - shell: bash
-        run: python -m twine check dist/*
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: dist/*.whl
+        run: python scripts/smoke_wheel.py
+
   publish:
-    needs: build
+    needs: [build, smoke]
+    if: github.event_name == 'release' || inputs.publish
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     environment:
       name: pypi
       url: https://pypi.org/p/yumeclient

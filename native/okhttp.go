@@ -105,7 +105,11 @@ func (b *okhttpBridge) RoundTrip(req *http.Request) (*http.Response, error) {
 		},
 	})
 	r := req.Clone(ctx) // RoundTrippers must not modify the caller's request
-	okhttpLayout(r, b.jar)
+	jar := b.jar
+	if c := controlFrom(req.Context()); c != nil && c.jar != nil {
+		jar = c.jar // the per-request jar hopTransport took the cookies from
+	}
+	okhttpLayout(r, jar)
 	singleWriteBody(req, r)
 	return b.inner.RoundTrip(r)
 }
@@ -505,6 +509,9 @@ func applySessionLayer(client tls_client.HttpClient, okhttp bool, strict *strict
 		if err := swapTransport(client, func(rt http.RoundTripper) http.RoundTripper { return &okhttpBridge{inner: rt, jar: jar} }); err != nil {
 			return err
 		}
+	}
+	if err := installRequestControl(client); err != nil {
+		return err
 	}
 	sessionStyles.Store(client, okhttp)
 	return nil

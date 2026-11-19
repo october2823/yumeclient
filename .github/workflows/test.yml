@@ -23,5 +23,7 @@ jobs:
       - if: runner.os != 'Windows'
         shell: bash
         run: sh ./scripts/build-native.sh
+        env:
+          YUMECLIENT_MAC_ARCHS: arm64
       - run: python -m pip install ".[test]"
       - run: python -m pytest -q

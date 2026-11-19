@@ -3,18 +3,19 @@
 Синхронный и асинхронный Python-клиент в стиле `requests` поверх
 [bogdanfinn/tls-client](https://github.com/bogdanfinn/tls-client) v1.16.0.
 Python-слой не подменяет TLS-реализацию: каждый запрос уходит через Go-cffi
-адаптер (`native/main.go`), который держит uTLS-фингерпринты, HTTP/2/3,
-прокси и cookie-jar на стороне Go. Cookie, выставленные на любом hop'е
-редиректа или для любого хоста внутри jar, возвращаются в Python (`jarDump`)
-и мержатся в `session.cookies`.
+адаптер (`native/`), который держит uTLS-фингерпринты, HTTP/2/3 и прокси.
+Cookie хранятся в `session.cookies` (Python — единственный источник истины):
+каждый запрос получает снимок jar'а, Go выбирает cookie по RFC 6265 на каждом
+hop'е редиректа и возвращает только то, что сервер выставил или удалил.
 
 ## Установка
-
-Для полноценного `pip install` нужен wheel под ОС и архитектуру — релизный workflow собирает их для Windows, Linux и macOS. После настройки PyPI Trusted Publishing:
 
 ```sh
 python -m pip install yumeclient
 ```
+
+Готовые wheels (`py3-none`, любой Python ≥ 3.11): Windows x64, Linux x86_64 и
+aarch64 (glibc ≥ 2.28), macOS universal2 (11+). Для других платформ — локальная сборка.
 
 Локальная сборка: Go 1.24+, cgo, C-компилятор (Windows: MinGW-w64).
 
@@ -53,7 +54,8 @@ async def main():
 
 Методы: `get`, `post`, `put`, `patch`, `delete`, `head`, `options` (+ `request(method, url)`).
 Общие параметры запроса: `params`, `data`, `json`, `files`, `headers`, `cookies`,
-`timeout`, `proxy`, `allow_redirects`, `header_order`, `host_override`.
+`timeout`, `proxy`, `allow_redirects`, `header_order`, `host_override`, `stream`,
+`max_content_size`.
 
 ### Sync / Async — что выбрать
 
@@ -177,10 +179,93 @@ with Session(client_identifier=Profiles.CHROME_152, client_os="android") as s:
 - Chrome-на-iOS — это CriOS без client hints (как в реальном браузере); okhttp/zalando/nike/mesh/confirmed/mobile-профили получают app-подобные наборы.
 - Неизвестный профиль или OS → `SessionConfigurationError` с подсказкой похожих вариантов.
 
+## Таймауты
+
+```python
+from yumeclient import Session, TimeoutConfig
+
+Session(timeout=30)                                   # total: весь обмен (по умолчанию 30 с)
+Session(timeout=(5, 30))                              # (connect, read), без total
+Session(timeout=TimeoutConfig(connect=5, read=30, total=120, write=10))
+s.get(url, timeout=3)                                 # переопределение для одного запроса
+Session(timeout=None)                                 # без лимитов
+```
+
+- `connect` — DNS + прокси (CONNECT/SOCKS) + TCP + TLS каждого хопа, включая редиректы;
+- `write` — отправка заголовков и тела запроса;
+- `read` — ожидание заголовков ответа и максимальная пауза между кусками тела
+  (медленный, но «живой» ответ не обрывается);
+- `total` — весь обмен. При `stream=True` — до получения заголовков; тело дальше
+  ограничено `read` (если `read` не задан — значением `total` как паузой).
+
+Для HTTP/3 (racing, `http_version="3"`) стадии connect/write/read-заголовков не
+отслеживаются (quic-go их не сообщает) — работают `total` и пауза чтения тела.
+
+## Ошибки
+
+Все ошибки запроса — подклассы `RequestError` с атрибутами `kind`, `stage`
+(`connect`/`write`/`read`/`body`), `method`, `url` (без логина/пароля), `elapsed`,
+`request_id`, `retryable`, `detail`; исходный текст Go — в `__cause__`.
+
+| класс | `kind` | когда |
+|---|---|---|
+| `ConnectError` (`ConnectionError`) | `connect`, `dns` | соединение отклонено, хост не найден |
+| `ProxyError` (`ConnectError`) | `proxy` | прокси недоступен, CONNECT/SOCKS/авторизация |
+| `TLSError` (`ConnectError`) | `tls` | рукопожатие, сертификат |
+| `ConnectionClosed` (`ConnectionError`) | `connection_closed` | соединение закрыто/сброшено после установки |
+| `Timeout` (`TimeoutError`) | `timeout` | истёк `total` |
+| `ConnectTimeout` (`Timeout`, `ConnectError`) | `connect_timeout` | истёк `connect` |
+| `ReadTimeout` (`Timeout`) | `read_timeout` | истёк `read` (stage `read` или `body`) |
+| `WriteTimeout` (`Timeout`) | `write_timeout` | истёк `write` |
+| `RequestCancelled` | `cancelled` | запрос отменён (закрытие сессии) |
+| `ResponseTooLarge` | `body_too_large` | тело больше `max_content_size` |
+| `InvalidRequestError` (`ValueError`) | `invalid_request`, `configuration` | URL/метод/конфигурация отклонены до сети |
+| `StreamClosed` | `stream_closed` | поток уже прочитан или закрыт |
+| `HTTPStatusError` | `http_status` | `raise_for_status()`; ответ в `.response` |
+
+```python
+from yumeclient import ConnectTimeout, ProxyError, ReadTimeout, RequestError
+
+try:
+    r = s.get(url, timeout=TimeoutConfig(connect=5, read=20))
+except (ConnectTimeout, ProxyError) as e:
+    print("сменить прокси:", e.kind, e.url)
+except ReadTimeout as e:
+    print("сервер молчит на стадии", e.stage)
+except RequestError as e:
+    if e.retryable: ...
+```
+
+## Стриминг и отмена
+
+```python
+with s.get(url, stream=True) as r:           # тело не буферизуется
+    for chunk in r.iter_bytes(256 * 1024):   # память ограничена размером куска
+        f.write(chunk)
+
+async with await a.get(url, stream=True) as r:
+    async for chunk in r.aiter_bytes():
+        ...
+
+r = s.get(url, stream=True); body = r.read()          # дочитать в r.content
+r = await a.get(url, stream=True); body = await r.aread()
+```
+
+- Выход из цикла, `close()`/`aclose()`, `with`, закрытие сессии и сборка мусора
+  освобождают нативный поток. У sync-стрима `r.content` дочитывает тело; у async —
+  нужен `await r.aread()`.
+- Отмена задачи (`asyncio.wait_for`, `task.cancel()`, `TaskGroup`) обрывает запрос
+  в Go сразу — и во время соединения, и при чтении тела.
+- `session.close(grace=5.0)` даёт запросам в полёте `grace` секунд, затем отменяет
+  их (`RequestCancelled`); `close(grace=None)` — ждать до конца.
+- `max_content_size=...` (сессия или запрос) — лимит распакованного тела в байтах.
+
 ## Cookies
 
 `session.cookies` — `CookieJar` с идентичностью `(name, domain, path)` и
-браузерной семантикой:
+семантикой RFC 6265: на каждом хопе (включая редиректы) уходят только cookie,
+подходящие по домену (host-only — ровно этот хост, `Domain=` — и поддомены),
+по пути (длинный путь первым) и по Secure (только https), не истёкшие:
 
 ```python
 s.get("https://httpbin.org/cookies/set/k/v")   # Set-Cookie → jar автоматически (включая redirect-хопы)
@@ -195,8 +280,15 @@ s.get(url, cookies={"temp": "1"})   # разовые cookie: уйдут, но в
 ```
 
 Cookie с любого redirect-хопа и любого хоста сохраняются (в отличие от
-наивного `resp.cookies`): адаптер отдаёт полный дамп jar'а после каждого запроса.
+наивного `resp.cookies`); удаление сервером (`Max-Age=0`, прошедший `Expires`)
+убирает cookie из jar. Удалённая в Python cookie больше не отправляется.
 Куки без expires живут до конца сессии; с `expires` — до истечения.
+
+- `s.cookies.for_url(url)` / `s.cookies.to_dict(url=url)` — что уйдёт на этот URL.
+- Cookie без домена (`s.cookies["k"] = "v"`) уходит на любой хост (как в requests),
+  но не перекрывает одноимённую cookie, привязанную к хосту/домену.
+- Сервер не может выставить cookie чужому домену; Secure-cookie, полученная по
+  `http://`, сохраняется, но уходит только по https.
 
 ## Тело запроса
 
@@ -222,7 +314,21 @@ s.post(url, data=[("k", "1"), ("k2", "2")],     # multipart; порядок ча
 `Response`: `status_code` / `status`, `headers` (dict[str, list[str]]),
 `cookies`, `content`, `text`, `encoding`, `url`, `elapsed`, `history`,
 `used_protocol`, `http_version` ("1.1"/"2"/"3"), `ok`, `json()`,
-`raise_for_status()`, `r["Content-Type"]` — регистронезависимо.
+`raise_for_status()` (→ `HTTPStatusError`), `r["Content-Type"]` — регистронезависимо,
+`request_id`, `connection_info`, стрим-методы (см. «Стриминг и отмена»).
+
+`r.connection_info`:
+
+```python
+{"connection_reused": False, "alpn_negotiated": "h2", "tls_version": "1.3",
+ "tls_resumed": False, "http_protocol": "HTTP/2.0",
+ "remote_address": "203.0.113.5:443", "local_address": "192.168.1.10:51123",
+ "timings": {"redirects": 0.0, "connect": 0.081, "write": 0.0002, "wait": 0.064,
+             "body": 0.003, "first_byte": 0.145, "total": 0.148}}
+```
+
+Тайминги относятся к последнему хопу; `redirects` — всё время до него; фазы в сумме
+дают `total`. Через прокси `remote_address` — адрес прокси.
 
 ## Fingerprint
 
@@ -263,7 +369,9 @@ s.post(url, data=[("k", "1"), ("k2", "2")],     # multipart; порядок ча
 Транспортные атрибуты можно менять между запросами — сессия пересоздаст
 Go-клиент. `await session.reset_connection()` (или `session.reset_connection()`
 для sync) пересоздаёт соединение принудительно. Смена `proxy` между запросами
-поддержана.
+поддержана; `proxy=` отдельного запроса идёт через отдельную нативную сессию
+(свой пул соединений), а не через прокси сессии. `timeout` применяется к каждому
+запросу и Go-клиент не пересоздаёт.
 
 ## Multipart
 
@@ -271,7 +379,7 @@ Mapping или последовательность пар принимаютс�
 
 ## Ограничения
 
-`stream=True` не поддерживается: ответ целиком буферизуется в памяти. Upstream CFFI не отдаёт redirect history, поэтому `history` пока пуст. Автодополнение custom JA3 из Chrome defaults не реализовано — передавайте поддерживаемые поля через схему upstream. Для некоторых профилей нет браузерно-точных HTTP/3 настроек; при запросе HTTP/3 используются параметры upstream по умолчанию. Публикация выполняется только после успешных CI-сборок и настройки Trusted Publishing в PyPI.
+Upstream CFFI не отдаёт redirect history, поэтому `history` пока пуст. Автодополнение custom JA3 из Chrome defaults не реализовано — передавайте поддерживаемые поля через схему upstream. Для некоторых профилей нет браузерно-точных HTTP/3 настроек; при запросе HTTP/3 используются параметры upstream по умолчанию. Публикация выполняется только после успешных CI-сборок и настройки Trusted Publishing в PyPI.
 
 ## Примеры и тесты
 

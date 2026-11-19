@@ -103,11 +103,20 @@ func (c *captureConn) Write(p []byte) (int, error) {
 type captureDialer struct {
 	inner proxy.ContextDialer
 	sink  *helloSink
+	// proxied: inner is a proxy dialer, so its failures are proxy-leg errors
+	proxied bool
 }
 
 func (d *captureDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	conn, err := d.inner.DialContext(ctx, network, addr)
+	if c := controlFrom(ctx); c != nil && d.proxied {
+		c.dialing.Add(1)
+		defer c.dialing.Add(-1)
+	}
+	conn, err := dialWithContext(ctx, func(ctx context.Context) (net.Conn, error) { return d.inner.DialContext(ctx, network, addr) })
 	if err != nil {
+		if d.proxied && ctx.Err() == nil {
+			return nil, &proxyDialError{err: err}
+		}
 		return nil, err
 	}
 	return &captureConn{Conn: conn, sink: d.sink, addr: addr}, nil
@@ -144,7 +153,7 @@ func transportDialOptions(proxyUrl string, timeoutMs int, localAddr *net.TCPAddr
 	timeout := time.Duration(timeoutMs) * time.Millisecond
 	var cd *captureDialer
 	factory := func(inner proxy.ContextDialer) tls_client.HttpClientOption {
-		cd = &captureDialer{inner: inner, sink: sink}
+		cd = &captureDialer{inner: inner, sink: sink, proxied: proxyUrl != ""}
 		return tls_client.WithProxyDialerFactory(func(_ string, _ time.Duration, _ *net.TCPAddr, _ http.Header, _ tls_client.Logger) (proxy.ContextDialer, error) {
 			return cd, nil
 		})
