@@ -4,6 +4,137 @@
 Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версионирование — [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [0.8.0] — 2026-11-20
+
+### Added
+- **HTTP/3 и QUIC как у браузера — для 53 профилей.** Раньше QUIC-рукопожатие у всех
+  профилей было quic-go: его ClientHello (JA4 `q…` одинаковый для всех), его transport
+  parameters, его Initial-пакеты; HTTP/3-параметры были только у 13 профилей. Теперь
+  для Chrome 103–152, Edge 99/101/131/latest, Brave 146, Opera 89–91 и Firefox 102–148
+  (включая `_PSK`) всё берётся из записей самих браузеров (`native/h3profiles.json`):
+  - ClientHello внутри QUIC (свой у QUIC: только TLS 1.3, без GREASE у Chromium),
+    перемешивание расширений как у Chromium (Firefox — с 135), ECH GREASE;
+  - transport parameters: набор, значения, порядок (перемешанный у Chromium и Firefox
+    104–135), GREASE-параметр, `version_information`, `google_connection_options`,
+    `google_initial_rtt` на повторных соединениях;
+  - Initial-пакеты: длины Connection ID (у Firefox — случайная), номер первого пакета
+    (у Firefox 146+ — случайный, как в neqo), размер датаграммы (1250 у Chromium,
+    1357/1252 у Firefox), заполнение (PADDING-фреймы у Chromium, нули после пакета у
+    Firefox), раскладка ClientHello по пакетам: chaos protection Chromium (≤122, 124–131,
+    133+ — три разных схемы) и SNI slicing Firefox 146+;
+  - HTTP/3: SETTINGS и их порядок, GREASE-фрейм, порядок открытия QPACK-потоков,
+    PRIORITY_UPDATE у Chromium, заголовок `priority`, порядок псевдозаголовков.
+  Тест `tests/test_h3_fingerprints.py` сверяет каждый профиль с записью браузера на
+  aioquic-сервере. Записи собираются `scripts/h3_browsers.py` (скачивает нужную версию
+  браузера), `scripts/h3_capture.py` (сервер-регистратор), `scripts/h3_profiles.py`
+  (собирает `h3profiles.json`).
+- **HTTP/2 без TLS (h2c, prior knowledge) для `http_version="2"` на `http://`**, как
+  `Protocol.H2_PRIOR_KNOWLEDGE` у OkHttp и gRPC: SETTINGS, WINDOW_UPDATE, приоритеты и
+  порядок псевдозаголовков — профиля. Сервер без h2c — `ProtocolError`.
+- **HTTP/3, сломанный у сервера, как в Chrome.** Если HTTP/3-соединение установилось,
+  а затем закрылось с кодом ошибки HTTP/3, QPACK или QUIC (сервером или клиентом из-за
+  нарушения протокола), HTTP/3 для этого адреса помечается сломанным на 5 минут
+  (при повторах — вдвое дольше, до 2 суток), запрос — если его можно повторить —
+  сразу уходит по TCP, следующие тоже идут по TCP, без UDP-попытки и задержки гонки.
+  Раньше каждый запрос снова выигрывал HTTP/3 и падал. Закрытие без ошибки (QUIC
+  NO_ERROR, H3_NO_ERROR, код 0, неизвестные и зарезервированные коды — RFC 9114 §8.1 —
+  и транспортный APPLICATION_ERROR, которым приходит закрытие во время рукопожатия),
+  сброс сервером одного запроса, отказ от слишком большого ответа, таймауты и
+  соединение, которое сервер забыл (idle timeout, stateless reset), HTTP/3 не ломают:
+  следующий запрос — по новому QUIC-соединению.
+- `yumeclient.profiles.HTTP3_FINGERPRINTS` (профили с записью браузера) и
+  `yumeclient.profiles.NO_HTTP3` (клиенты без HTTP/3 с причиной).
+
+### Fixed
+- **HTTP/3 с серверами, использующими динамическую таблицу QPACK** (google.com и др.):
+  каждый запрос падал с `qpack: expected Required Insert Count to be zero` — профили
+  объявляли таблицу 64 KiB, а декодер её не поддерживал. Реализован декодер динамической
+  таблицы (RFC 9204) с потоками энкодера/декодера.
+- **Редирект с `http://` на `https://` уходил не с профилем**: `http://`-запросы шли
+  через отдельный клиент, и `https://`-хоп после редиректа открывал TLS со стека Go
+  (его ClientHello вместо профиля, системная проверка сертификата вопреки
+  `verify=False`). Теперь все хопы идут через сессию: `https://` — профилем, `http://` —
+  простым транспортом сессии.
+- `http://`-запросы игнорировали `local_address` и брали прокси из переменных окружения
+  `HTTP_PROXY`/`HTTPS_PROXY` (запросы `https://` — нет). Теперь у обоих — только `proxy=`
+  сессии и её адрес.
+- **Лимит размера заголовков ответа HTTP/3 не действовал** у профилей, не отправляющих
+  `SETTINGS_MAX_FIELD_SECTION_SIZE` сами (у `firefox_147`/`148` уже в 0.7.0, в 0.8.0 — у всех
+  профилей с записью браузера): HEADERS-фрейм, объявивший 2^40 байт, заставлял выделить
+  эту память (процесс падал с `out of memory`), а одна запись динамической таблицы,
+  повторённая 2000 раз, давала 120 МБ заголовков. Теперь действует объявленный профилем
+  лимит (Chrome — 256 KiB), иначе 10 МБ, — и для трейлеров.
+- Трейлеры, ждущие запись динамической таблицы QPACK, ждали её дольше любых таймаутов.
+  QPACK: отменённые и отвергнутые секции и брошенные до конца ответы отменяются у
+  энкодера (Stream Cancellation, один раз на поток), обрыв потока энкодера закрывает
+  соединение (H3_CLOSED_CRITICAL_STREAM), ошибочная инструкция в нём —
+  QPACK_ENCODER_STREAM_ERROR.
+- Сервер, не дающий кредита flow control нашим однонаправленным потокам, держал запросы
+  дольше любых таймаутов: подтверждения QPACK (Section Acknowledgment) и PRIORITY_UPDATE
+  Chrome писались на пути запроса. Теперь они уходят из очереди в фоне; переполненная
+  очередь (64 KiB) закрывает соединение (H3_EXCESSIVE_LOAD). Порядок между потоками
+  прежний: PRIORITY_UPDATE уходит до HEADERS своего запроса (как у Chrome), типы
+  QPACK-потоков Firefox — до SETTINGS; поток без кредита задерживает запрос не больше
+  чем на 50 мс.
+- `max_idle_timeout` сервера меньше 5 секунд поднимался до 5 секунд (а 0 — «без таймаута» —
+  превращался в 5 секунд): после того как сервер закрыл простаивающее соединение,
+  следующий запрос до 5 секунд ждал на мёртвом соединении. Теперь, как в Chrome и Firefox,
+  действует объявленное значение и запрос сразу идёт по новому соединению; keep-alive
+  профилей без QUIC-отпечатка — не чаще раза в секунду.
+- Полностью прочитанный по HTTP/3 ответ с `Content-Encoding: deflate`, у которого конец
+  потока (FIN) пришёл после последнего DATA, закрывался как брошенный: STOP_SENDING и
+  отмена секции QPACK, чего браузеры не делают. Тело deflate теперь дочитывается до конца
+  потока, как gzip.
+- `http://` через `socks5h://` и `socks4://` уходил на прокси как запрос к HTTP-прокси
+  (`GET http://...` открытым текстом); теперь через SOCKS, как `https://`.
+- **Стадийные таймауты HTTP/3** (`connect`, `write`, `read`) не работали: `read=0.5` ждал
+  ответа 2 с, `connect=0.5` при молчащем UDP кончался `ConnectError` через 5 с.
+- Заголовок `priority: u=0, i` по HTTP/2 отправляется с Chrome 124 (записи Chrome 99–152):
+  у `chrome_124`, `chrome_130_PSK`, `chrome_131`, `chrome_133` (+`_PSK`), `edge_131`,
+  `edge_latest` его не было.
+- Edge-профили отправляли SETTINGS HTTP/2 Chrome 107–116 при любой версии: у `edge_131`/
+  `edge_latest` лишний `MAX_CONCURRENT_STREAMS`, у `edge_99`/`edge_101` лишний
+  `ENABLE_PUSH`. Теперь — как у Chromium той же версии.
+- `chrome_116_PSK_PQ` по QUIC объявляет X25519Kyber768, как Chrome 116 с PostQuantumKyber.
+- **Заголовки браузеров сверены с записями самих браузеров** (Chromium 99–152, Opera 89–91,
+  Firefox 102–148; `tests/fixtures/browser_headers.json`):
+  - HTTP/1.1: `Host` уходил последним (теперь первым, как у любого клиента), имена — в
+    нижнем регистре (теперь как у браузера: `User-Agent`, `Sec-Fetch-Mode`, у Chromium —
+    `sec-ch-ua`), не было `Connection: keep-alive` у Chrome и Firefox;
+  - `Sec-CH-UA` у всех версий был `"Not(A:Brand";v="24"` в одном порядке — теперь по
+    алгоритму Chromium: GREASE-бренд, его версия и порядок брендов свои у каждой версии
+    (Chrome, Edge, Brave; Opera — значения релизных сборок);
+  - Chrome: `Accept` с `signed-exchange;v=b3;q=0.9` до 109, `zstd` в `Accept-Encoding` только
+    с 123 (раньше у всех версий);
+  - Opera: в User-Agent стояла версия Opera вместо версии Chromium (`Chrome/91.0.0.0`
+    вместо `Chrome/105.0.0.0`) и не та `OPR/`;
+  - Firefox: место `Accept-Encoding`, значения `Accept`/`Accept-Language`/`Accept-Encoding`
+    по версиям, `Priority: u=0, i` с 128, `te: trailers` только по HTTP/2 и на всех ОС
+    (раньше — по всем протоколам и только на Windows), `rv:109.0` у Firefox 110–119;
+  - HTTP/2 HEADERS у `firefox_132`/`133`/`135` несли приоритет Chrome (exclusive, вес 256)
+    вместо Firefox (вес 42); `tor_145` — SETTINGS, приоритет и заголовки Firefox 128 ESR
+    (база Tor Browser 14), а не Firefox 133+.
+- Akamai-отпечаток печатал SETTINGS `NO_RFC7540_PRIORITIES` (9) как `0:1`.
+
+### Changed
+- `http_version="3"` с клиентом, у которого HTTP/3 нет (`okhttp4_*`, `okhttp4_conscrypt`,
+  `conscrypt_android_latest`, `cloudscraper`, `tor_145`), — `SessionConfigurationError`
+  (раньше предупреждение и QUIC-рукопожатие quic-go). Для профилей без записи браузера
+  (Safari, iOS- и Android-приложения) предупреждение остаётся.
+- `http_version="2"` на `http://` — h2c вместо HTTP/1.1 (при `"auto"`, `"1.1"`, `"3"` по
+  `http://` по-прежнему HTTP/1.1).
+- HTTP/3 с записью браузера не использует 0-RTT (браузерное рукопожатие без early data).
+- `default_headers()` и стартовые `session.headers` браузерных профилей пишут имена как
+  браузер по HTTP/1.1 (`User-Agent` вместо `user-agent`). `default_headers()` возвращает
+  `Headers`: чтение, запись, `del`, `pop`, `setdefault` — без учёта регистра, с сохранением
+  написания (`h["user-agent"] = ...` заменяет `User-Agent`).
+- По HTTP/1.1 `Host` идёт первым и тогда, когда его задали вы (`headers={"Host": ...}`)
+  без `header_order`; порядок с `Host` в `header_order` соблюдается как есть.
+- `edge_latest`: заголовки Edge 131 (`Edg/131`, `Sec-CH-UA` Edge 131, `zstd`), как его
+  TLS- и HTTP/2-профиль Chromium 131; раньше — Edge 120.
+- Удалена недокументированная отладочная переменная `YUMECLIENT_UPSTREAM_JA3` (https с ней
+  не работал с 0.7.0).
+
 ## [0.7.0] — 2026-11-20
 
 ### Added

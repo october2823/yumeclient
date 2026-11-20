@@ -226,9 +226,8 @@ def test_sync_session_default_headers_on_wire(server, native):
         sent = r.json()["headers"]
         assert sent["user-agent"].startswith("Mozilla/5.0")
         assert "sec-ch-ua" in sent
-        # header order: defaults in insertion order, custom appended last
-        order = [line.split(":")[0] for line in []]  # order is not observable in echo headers; verified by dict order
-        assert list(session.headers)[0] == "sec-ch-ua"
+        # defaults in Chrome's HTTP/1.1 order and spelling: Connection, then the client hints
+        assert list(session.headers)[:2] == ["Connection", "sec-ch-ua"]
 
 
 def test_sync_session_headers_update_and_replacement(server, native):

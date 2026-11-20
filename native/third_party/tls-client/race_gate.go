@@ -16,11 +16,13 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	http "github.com/bogdanfinn/fhttp"
 	"github.com/bogdanfinn/fhttp/httptrace"
 	quic "github.com/bogdanfinn/quic-go-utls"
 	"github.com/bogdanfinn/quic-go-utls/http3"
+	"github.com/bogdanfinn/tls-client/profiles"
 	tls "github.com/bogdanfinn/utls"
 )
 
@@ -153,6 +155,12 @@ type racedHTTP3 struct {
 	mu     sync.Mutex
 	udp    *quic.Transport
 	closed bool
+
+	// with a fingerprint every connection has its own socket (Chrome's connection
+	// IDs are empty), and later connections announce the RTT measured before
+	fp      *profiles.HTTP3Fingerprint
+	sockets map[net.PacketConn]struct{}
+	rtts    map[string]time.Duration
 }
 
 // newHTTP3 builds a gated HTTP/3 transport (an already decided gate for a transport
@@ -162,7 +170,8 @@ func (pr *protocolRacer) newHTTP3(gate *raceGate) (*racedHTTP3, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newRacedHTTP3(built.(*http3.Transport), gate), nil
+	r := newRacedHTTP3(built.(*http3.Transport), gate, pr.http3Fingerprint)
+	return r, nil
 }
 
 func (r *racedHTTP3) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -186,11 +195,14 @@ func (r *racedHTTP3) retire() {
 	r.use.retire(func() { _ = r.Close() })
 }
 
-func newRacedHTTP3(t3 *http3.Transport, gate *raceGate) *racedHTTP3 {
-	r := &racedHTTP3{Transport: t3}
+func newRacedHTTP3(t3 *http3.Transport, gate *raceGate, fp *profiles.HTTP3Fingerprint) *racedHTTP3 {
+	r := &racedHTTP3{Transport: t3, fp: fp}
 	dial := t3.Dial
 	if dial == nil {
 		dial = r.dialUDP
+		if fp != nil {
+			dial = r.dialOwnSocket
+		}
 	}
 	t3.Dial = func(ctx context.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (*quic.Conn, error) {
 		if gate.lost("h3") {
@@ -316,13 +328,136 @@ func (r *racedHTTP3) Close() error {
 	err := r.Transport.Close()
 	r.mu.Lock()
 	udp := r.udp
-	r.udp, r.closed = nil, true
+	sockets := r.sockets
+	r.udp, r.sockets, r.closed = nil, nil, true
 	r.mu.Unlock()
 	if udp != nil {
 		_ = udp.Close()
 		_ = udp.Conn.Close()
 	}
+	for s := range sockets {
+		_ = s.Close()
+	}
 	return err
+}
+
+// dialOwnSocket dials a fingerprinted connection from a socket of its own, as
+// browsers do, with the fingerprint's connection ID length.
+func (r *racedHTTP3) dialOwnSocket(ctx context.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (*quic.Conn, error) {
+	udpAddr, err := resolveRaceUDPAddr(ctx, addr)
+	if err != nil {
+		return nil, err
+	}
+	network := "udp4"
+	if udpAddr.IP.To4() == nil {
+		network = "udp6"
+	}
+	sock, err := net.ListenUDP(network, nil)
+	if err != nil {
+		return nil, err
+	}
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		_ = sock.Close()
+		return nil, http3.ErrTransportClosed
+	}
+	if r.sockets == nil {
+		r.sockets = make(map[net.PacketConn]struct{})
+	}
+	r.sockets[sock] = struct{}{}
+	rtt := r.rtts[addr]
+	r.mu.Unlock()
+	release := func() {
+		r.mu.Lock()
+		delete(r.sockets, sock)
+		r.mu.Unlock()
+		_ = sock.Close()
+	}
+	cfg = withInitialRTT(cfg, rtt)
+
+	trace := httptrace.ContextClientTrace(ctx)
+	if trace != nil && trace.ConnectStart != nil {
+		trace.ConnectStart("udp", udpAddr.String())
+	}
+	if trace != nil && trace.TLSHandshakeStart != nil {
+		trace.TLSHandshakeStart()
+	}
+	var conn *quic.Conn
+	var tr *quic.Transport
+	if r.fp.SrcConnIDLen == 0 {
+		conn, err = quic.DialEarly(ctx, sock, udpAddr, tlsCfg, cfg)
+	} else {
+		tr = &quic.Transport{Conn: sock, ConnectionIDLength: r.fp.SrcConnIDLen}
+		conn, err = tr.DialEarly(ctx, udpAddr, tlsCfg, cfg)
+	}
+	var state tls.ConnectionState
+	if conn != nil {
+		state = conn.ConnectionState().TLS
+	}
+	if trace != nil && trace.TLSHandshakeDone != nil {
+		trace.TLSHandshakeDone(state, err)
+	}
+	if trace != nil && trace.ConnectDone != nil {
+		trace.ConnectDone("udp", udpAddr.String(), err)
+	}
+	if err != nil {
+		if tr != nil {
+			_ = tr.Close()
+		}
+		release()
+		return nil, err
+	}
+	go func() {
+		select {
+		case <-conn.HandshakeComplete():
+			r.noteRTT(addr, conn)
+		case <-conn.Context().Done():
+		}
+		<-conn.Context().Done()
+		r.noteRTT(addr, conn)
+		if tr != nil {
+			_ = tr.Close()
+		}
+		release()
+	}()
+	return conn, nil
+}
+
+func (r *racedHTTP3) noteRTT(addr string, conn *quic.Conn) {
+	rtt := conn.ConnectionStats().SmoothedRTT
+	if rtt <= 0 {
+		return
+	}
+	r.mu.Lock()
+	if r.rtts == nil {
+		r.rtts = make(map[string]time.Duration)
+	}
+	r.rtts[addr] = rtt
+	r.mu.Unlock()
+}
+
+// withInitialRTT fills in the optional google_initial_rtt transport parameter
+// (microseconds) Chrome sends on later connections to a server.
+func withInitialRTT(cfg *quic.Config, rtt time.Duration) *quic.Config {
+	if cfg == nil || cfg.Fingerprint == nil || rtt <= 0 {
+		return cfg
+	}
+	fp := *cfg.Fingerprint
+	fp.TransportParameters = append([]quic.TransportParameter(nil), fp.TransportParameters...)
+	changed := false
+	for i, tp := range fp.TransportParameters {
+		if tp.ID == 0x3127 && tp.Optional {
+			fp.TransportParameters[i].Value = uint64(rtt / time.Microsecond)
+			changed = true
+		}
+	}
+	if !changed {
+		return cfg
+	}
+	c := cfg.Clone()
+	c.Fingerprint = &fp
+	return c
 }
 
 // closeTransport closes an HTTP/3 transport (its UDP socket too) once its open

@@ -27,5 +27,9 @@ jobs:
         run: sh ./scripts/build-native.sh
         env:
           YUMECLIENT_MAC_ARCHS: arm64
+      - name: native unit tests
+        shell: bash
+        working-directory: native
+        run: go test -count=1 ./...
       - run: python -m pip install ".[test]"
       - run: python -m pytest -q

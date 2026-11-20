@@ -28,6 +28,8 @@ require (
 // patched copies, see scripts/third_party.py and native/third_party/patches
 replace (
 	github.com/bogdanfinn/fhttp => ./third_party/fhttp
+	github.com/bogdanfinn/quic-go-utls => ./third_party/quic-go-utls
 	github.com/bogdanfinn/tls-client => ./third_party/tls-client
 	github.com/bogdanfinn/utls => ./third_party/utls
+	github.com/quic-go/qpack => ./third_party/qpack
 )

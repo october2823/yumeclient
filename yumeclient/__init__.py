@@ -32,11 +32,12 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Iterator, Mapping, Sequence
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
+from ._headers import Headers
 from .cookies import CookieJar
 from .multipart import choose_boundary, encode_multipart
-from .profiles import (ALL_CLIENT_OS, ALL_HEADER_STYLES, ALL_IDENTIFIERS, ClientIdentifier, ClientOs,
-                       HeaderStyle, Profiles, default_headers, find, resolve_header_style,
-                       validate, validate_os)
+from .profiles import (ALL_CLIENT_OS, ALL_HEADER_STYLES, ALL_IDENTIFIERS, FIREFOX_H2_EXTRA, HTTP3_FINGERPRINTS, NO_HTTP3,
+                       ClientIdentifier, ClientOs, HeaderStyle, Profiles, default_headers, find,
+                       resolve_header_style, validate, validate_os)
 
 __all__ = ["Session", "AsyncSession", "Response", "CookieJar", "Headers", "Profiles",
            "ALL_IDENTIFIERS", "ALL_CLIENT_OS", "ALL_HEADER_STYLES", "ClientIdentifier", "ClientOs", "HeaderStyle",
@@ -46,7 +47,7 @@ __all__ = ["Session", "AsyncSession", "Response", "CookieJar", "Headers", "Profi
            "ConnectionClosed", "Timeout", "ConnectTimeout", "ReadTimeout", "WriteTimeout", "ResponseTooLarge",
            "StreamClosed", "HTTPStatusError", "ProtocolError", "fingerprint_diff", "__version__"]
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 
 class TLSClientError(RuntimeError): pass
@@ -263,57 +264,6 @@ def _version(value: Any) -> str:
     if value in (2, "2", "h2"): return "2"
     if value in (3, "3", "h3", "quic"): return "3"
     raise SessionConfigurationError(f"invalid http_version: {value!r}")
-
-
-class Headers(dict):
-    """Case-insensitive ordered header mapping: update()/[] replace in place, keeping wire order
-    and the first spelling of the name. Lookup, ``in``, ``del``, ``get`` and ``pop`` ignore case."""
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__()
-        self.update(*args, **kwargs)
-    def _resolve(self, key: Any) -> Any:
-        if not isinstance(key, str): return None
-        if dict.__contains__(self, key): return key
-        lowered = key.lower()
-        return next((existing for existing in self if isinstance(existing, str) and existing.lower() == lowered), None)
-    def __getitem__(self, key: Any) -> Any:
-        existing = self._resolve(key)
-        return dict.__getitem__(self, key if existing is None else existing)
-    def __contains__(self, key: Any) -> bool: return self._resolve(key) is not None
-    def __delitem__(self, key: Any) -> None:
-        existing = self._resolve(key)
-        dict.__delitem__(self, key if existing is None else existing)
-    def get(self, key: Any, default: Any = None) -> Any:
-        existing = self._resolve(key)
-        return default if existing is None else dict.__getitem__(self, existing)
-    def pop(self, key: Any, *default: Any) -> Any:
-        existing = self._resolve(key)
-        if existing is None:
-            if default: return default[0]
-            raise KeyError(key)
-        return dict.pop(self, existing)
-    def copy(self) -> "Headers": return Headers(self)
-    def __setitem__(self, key: str, value: str) -> None:
-        existing = self._resolve(key)
-        dict.__setitem__(self, existing if existing is not None else key, value)
-    def setdefault(self, key: str, default: Any = None) -> Any:
-        existing = self._resolve(key)
-        if existing is not None: return self[existing]
-        dict.__setitem__(self, key, default); return default
-    def update(self, *args: Any, **kwargs: Any) -> None:  # type: ignore[override]
-        for mapping in args:
-            items = mapping.items() if hasattr(mapping, "items") else mapping
-            for key, value in items: self[key] = value
-        for key, value in kwargs.items(): self[key] = value
-    def set(self, key: str, value: str) -> None: self[key] = value
-    def __ior__(self, other: Any) -> "Headers":
-        self.update(other); return self
-    def __or__(self, other: Any) -> "Headers":
-        if not isinstance(other, Mapping): return NotImplemented
-        merged = Headers(self); merged.update(other); return merged
-    def __ror__(self, other: Any) -> "Headers":
-        if not isinstance(other, Mapping): return NotImplemented
-        merged = Headers(other); merged.update(self); return merged
 
 
 _PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -643,21 +593,26 @@ def _checkProtocol(*, http_version: str, force_http1: bool, disable_http3: bool,
         raise SessionConfigurationError(f"http_version='2' with alpn_protocols={offer!r}: h2 is not offered")
 
 
-# profiles with browser HTTP/3 parameters (SETTINGS, pseudo-header order, priority, GREASE);
-# chrome_146..152 / brave_146 get chrome_144's in the native layer (see native/main.go
-# h3FromChrome144). "*chrome" = custom JA3 filled with Chrome defaults.
-_HTTP3_PROFILES = frozenset({
-    "chrome_144", "chrome_144_PSK", "chrome_146", "chrome_146_PSK", "chrome_150", "chrome_150_PSK",
-    "chrome_152", "chrome_152_PSK", "brave_146", "brave_146_PSK", "firefox_147", "firefox_147_PSK",
-    "firefox_148", "*chrome"})
+# profiles whose QUIC handshake and HTTP/3 layer come from captures of the real client
+# (profiles.HTTP3_FINGERPRINTS); "*chrome" = custom JA3 filled with Chrome defaults,
+# which takes that Chrome's.
+_HTTP3_PROFILES = HTTP3_FINGERPRINTS | {"*chrome"}
 
 
-# Chromium sends "priority: u=0, i" (RFC 9218) with a navigation over HTTP/2 and HTTP/3,
-# not over HTTP/1.1 (Chrome 157 capture); HTTP/3 adds it from the profile's priority
-# parameter, HTTP/2 from the request (native h2Headers). Unless the request sets its own.
+# Chromium 124+ sends "priority: u=0, i" (RFC 9218) with a navigation over HTTP/2 and
+# HTTP/3, not over HTTP/1.1 (captures of Chrome 99-157, Opera 89-91, 2026-11-20); HTTP/3
+# adds it from the profile's captured fingerprint, HTTP/2 from the request (native
+# h2Headers). Unless the request sets its own.
 _H2_PRIORITY_PROFILES = frozenset({
+    "chrome_124", "chrome_130_PSK", "chrome_131", "chrome_131_PSK", "chrome_133", "chrome_133_PSK",
     "chrome_144", "chrome_144_PSK", "chrome_146", "chrome_146_PSK", "chrome_150", "chrome_150_PSK",
-    "chrome_152", "chrome_152_PSK", "brave_146", "brave_146_PSK", "*chrome"})
+    "chrome_152", "chrome_152_PSK", "brave_146", "brave_146_PSK", "edge_131", "edge_latest", "*chrome"})
+
+
+def _checkHttp3Client(httpVer: str, client_identifier: str) -> None:
+    if httpVer == "3" and client_identifier in NO_HTTP3:
+        raise SessionConfigurationError(f"http_version='3' with client_identifier={client_identifier!r}: "
+                                        f"{NO_HTTP3[client_identifier]}; this client never sends HTTP/3")
 
 
 def _validateTransport(*, http_version: str, force_http1: bool, disable_http3: bool,
@@ -667,8 +622,10 @@ def _validateTransport(*, http_version: str, force_http1: bool, disable_http3: b
     _checkProtocol(http_version=httpVer, force_http1=force_http1, disable_http3=disable_http3, keep_alpn=keep_alpn,
                    udp_proxy=udp_proxy, proxy=proxy, alpn=alpn)
     racing = httpVer == "3"
+    _checkHttp3Client(httpVer, client_identifier)
     if racing and client_identifier not in _HTTP3_PROFILES:
-        _warn("this profile has no browser-specific HTTP/3 settings; using library defaults")
+        _warn("no captured HTTP/3 fingerprint for this profile: the QUIC handshake and HTTP/3 "
+              "settings are the library's defaults, not this client's")
     if httpVer == "2" and client_identifier.startswith("chrome_133"):
         _warn("HTTP/2-only selection may alter this profile's ALPN fingerprint")
     return {"forceHttp1": force_http1 or httpVer == "1.1", "disableHttp3": disable_http3 or httpVer == "2",
@@ -720,6 +677,15 @@ def _buildPayload(sessionId: str, *, method: str, url: str, params: Any, headers
         query = urlencode(params, doseq=True)
         requestUrl += ("&" if "?" in requestUrl else "?") + query
     order = list(request_header_order) if request_header_order is not None else (list(header_order) if header_order is not None else list(headers))
+    # HTTP/1.1: Host first, as every browser and client sends it (the transport put it
+    # last when the order did not name it); HTTP/2 and HTTP/3 carry it as :authority
+    if header_style != "okhttp":
+        named = [k for k in order if isinstance(k, str) and k.lower() == "host"]
+        if not named:
+            order.insert(0, "Host")
+        elif request_header_order is None and header_order is None:
+            # a Host header set by the user, without an order naming it: still first
+            order = named[:1] + [k for k in order if k not in named]
     payload: dict[str, Any] = {"requestMethod": method.upper(), "requestUrl": requestUrl,
         "tlsClientIdentifier": identifier, "sessionId": sessionId, "headers": headers,
         "headerOrder": order, "requestBody": body,
@@ -894,6 +860,7 @@ class _Core:
         _checkProtocol(http_version=_version(http_version), force_http1=force_http1, disable_http3=disable_http3,
                        keep_alpn=self.keep_alpn, udp_proxy=udp_proxy, proxy=proxy,
                        alpn=list(alpn_protocols) if alpn_protocols is not None else None)
+        if ja3_string is None: _checkHttp3Client(_version(http_version), self.client_identifier)
         self.random_tls_extension_order = random_tls_extension_order
         self.http_version = _version(http_version)
         self.proxy, self.verify = proxy, verify
@@ -1064,8 +1031,13 @@ class _Core:
                                 header_style=self.header_style, keep_alpn=self.keep_alpn)
         payload["requestId"] = handle.id
         if _version(self.http_version) == "2": payload["requireProtocol"] = "h2"
-        if self._h3Identity() in _H2_PRIORITY_PROFILES and self.header_style != "okhttp" and "priority" not in omitted:
-            payload["h2Headers"] = [["priority", "u=0, i"]]
+        h2Extra = []
+        if self.header_style != "okhttp":
+            if self._h3Identity() in _H2_PRIORITY_PROFILES and "priority" not in omitted:
+                h2Extra.append(["priority", "u=0, i"])
+            if self.client_identifier.startswith("firefox_") and self.custom is None:
+                h2Extra += [[k, v] for k, v in FIREFOX_H2_EXTRA if k not in omitted and k not in merged]
+        if h2Extra: payload["h2Headers"] = h2Extra
         if omitted: payload["omitHeaders"] = omitted
         payload["jar"] = self.cookies._snapshot()
         if stream: payload["stream"] = True

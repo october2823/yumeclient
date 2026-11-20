@@ -1,0 +1,5592 @@
+{
+ "captures": {
+  "chrome_101": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 3,
+    "priority": "u=0",
+    "priority_header": false,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "single_packet",
+    "client_hello": "010001130303e675c7f3d55999701aa44367962b4852ae7c99dc5622aad0dbe751af9b96e9d9000006130113021303010000e40000000e000c0000096c6f63616c686f7374446900050003026833001000050003026833002b0003020304003300260024001d0020ec8e22b590ed96210c895cbb5fe7fbe140d17b00fc3658302f5f141fea5aea16002d000201010039005ad2effe08a06547c605c146a9914a200480010000030245c00704806000000104800075300902406780ff73db0c000000012a0aba9a000000010f00060480600000050480600000040480f0000080004752040000000108024064001b0003020002000d00140012040308040401050308050501080606010201000a00080006001d00170018",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0310h3_55b375c5d22e_cd85d2d88918",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     }
+    ]
+   },
+   "source": {
+    "branch_position": 982481,
+    "client_version": "101.0.4951.0",
+    "milestone_version": "101.0.4951.67",
+    "snapshot_position": 982435,
+    "source": "chromium-snapshot",
+    "url": "https://storage.googleapis.com/chromium-browser-snapshots/Win_x64/982435/chrome-win.zip"
+   }
+  },
+  "chrome_103": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 1,
+    "priority": "u=0",
+    "priority_header": false,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "single_packet",
+    "client_hello": "0100011b0303c18c8721d0bcd9d95e52b226e8ebb355b2f5797d769f971ccf437dd9676a2a71000006130113021303010000ec002d00020101000a00080006001d00170018446900050003026833002b0003020304000d0014001204030804040105030805050108060601020100390062070480600000040480f00000d0aa27fba356b2540d7681020b3b8f9d898da5d5f1b40604806000000802406480ff73db0c00000001000000014a5a6afa030245c0050480600000090240672004800100008000475204000000010104800075300f000010000500030268330000000e000c0000096c6f63616c686f7374003300260024001d0020b970c6377b9378c96df9d24056c21afef13f26be2b75e0571626fcb2a4987902001b0003020002",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0310h3_55b375c5d22e_cd85d2d88918",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     }
+    ]
+   },
+   "source": {
+    "branch_position": 1002911,
+    "client_version": "103.0.5060.0",
+    "milestone_version": "103.0.5060.134",
+    "snapshot_position": 1002885,
+    "source": "chromium-snapshot",
+    "url": "https://storage.googleapis.com/chromium-browser-snapshots/Win_x64/1002885/chrome-win.zip"
+   }
+  },
+  "chrome_104": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 2,
+    "priority": "u=0",
+    "priority_header": false,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "single_packet",
+    "client_hello": "010001140303890331f45fc4acaa11cf66928edb24c2fd3f894c9df2a19a94ee347991aefcc4000006130113021303010000e5003300260024001d00203cc67ea05c13fa342317dcdb427060628acf249bc9cbfa174bdaa2571f81a4330039005b800047520400000001050480600000060480600000030245c0ed0393a31a506119068eddfe8a6c5b010480007530040480f000000704806000000802406480ff73db0c0000000100000001aa9afa0a090240670f002004800100000000000e000c0000096c6f63616c686f7374446900050003026833001b0003020002000d00140012040308040401050308050501080606010201002d00020101001000050003026833000a00080006001d00170018002b0003020304",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0310h3_55b375c5d22e_cd85d2d88918",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     }
+    ]
+   },
+   "source": {
+    "branch_position": 1012729,
+    "client_version": "104.0.5112.0",
+    "milestone_version": "104.0.5112.102",
+    "snapshot_position": 1012699,
+    "source": "chromium-snapshot",
+    "url": "https://storage.googleapis.com/chromium-browser-snapshots/Win_x64/1012699/chrome-win.zip"
+   }
+  },
+  "chrome_105": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 2,
+    "priority": "u=0",
+    "priority_header": false,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "single_packet",
+    "client_hello": "01000119030389463c3f93761360bc69624e490ebcb8331383b0b8f6159e7d2bae2ddfe54adc000006130113021303010000ea000a00080006001d00170018003300260024001d0020bc59081cb9ff5719caadc9239e9b15dac98be33c30e092707a42f405317d9d18001b000302000200390060d4bf1e8d0f274e3604fabeea7607048060000009024067050480600000040480f000000f00030245c080ff73db0c000000016a0aeada000000017128045256434d800047520400000001200480010000010480007530060480600000080240644469000500030268330000000e000c0000096c6f63616c686f7374000d00140012040308040401050308050501080606010201001000050003026833002b0003020304002d00020101",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0310h3_55b375c5d22e_cd85d2d88918",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "hex": "5256434d",
+      "id": 12584,
+      "kind": "bytes"
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     }
+    ]
+   },
+   "source": {
+    "branch_position": 1027018,
+    "client_version": "105.0.5195.0",
+    "milestone_version": "105.0.5195.128",
+    "snapshot_position": 1027004,
+    "source": "chromium-snapshot",
+    "url": "https://storage.googleapis.com/chromium-browser-snapshots/Win_x64/1027004/chrome-win.zip"
+   }
+  },
+  "chrome_106": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 3,
+    "priority": "u=0",
+    "priority_header": false,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "single_packet",
+    "client_hello": "01000116030333418d737669307cac6022915f55c35b0d7f3d6ca87cea8b4ca685110db44159000006130113021303010000e7000d001400120403080404010503080505010806060102010039005d0f00040480f00000030245c0090240670604806000007128045256434d20048001000001048000753080ff73db0c00000001dabaaaca00000001050480600000e0b403b70936376701ba80004752040000000107048060000008024064002d00020101001000050003026833001b00030200020000000e000c0000096c6f63616c686f7374002b0003020304000a00080006001d00170018003300260024001d00207a7cc10a4f6bfe1e96c063d1fc2ee798bb3359ec8050505d7db8dd37ffff790a446900050003026833",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0310h3_55b375c5d22e_cd85d2d88918",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "hex": "5256434d",
+      "id": 12584,
+      "kind": "bytes"
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     }
+    ]
+   },
+   "source": {
+    "branch_position": 1036826,
+    "client_version": "106.0.5249.0",
+    "milestone_version": "106.0.5249.120",
+    "snapshot_position": 1036788,
+    "source": "chromium-snapshot",
+    "url": "https://storage.googleapis.com/chromium-browser-snapshots/Win_x64/1036788/chrome-win.zip"
+   }
+  },
+  "chrome_107": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 2,
+    "priority": "u=0",
+    "priority_header": false,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "single_packet",
+    "client_hello": "0100011c0303ce710cadc17c4a56ced2d9d519a0cd3f89675ce8dff93b189e6c1bbacc61ae28000006130113021303010000ed000a00080006001d00170018002b00030203040000000e000c0000096c6f63616c686f7374003900632004800100007128045256434d070480600000800047520400000001010480007530e5ee06387eb8ce8e07d4c91149ec1d4a08024064030245c00504806000000902406780ff73db0c00000001daba2a9a00000001060480600000040480f000000f00001b0003020002001000050003026833002d00020101000d00140012040308040401050308050501080606010201446900050003026833003300260024001d002049599fa48789e84b61fb791ec91fd9614d6ddd84fd0ca87903ef5175d9bcb429",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0310h3_55b375c5d22e_cd85d2d88918",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "hex": "5256434d",
+      "id": 12584,
+      "kind": "bytes"
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     }
+    ]
+   },
+   "source": {
+    "branch_position": 1047731,
+    "client_version": "107.0.5304.0",
+    "milestone_version": "107.0.5304.123",
+    "snapshot_position": 1047708,
+    "source": "chromium-snapshot",
+    "url": "https://storage.googleapis.com/chromium-browser-snapshots/Win_x64/1047708/chrome-win.zip"
+   }
+  },
+  "chrome_108": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 3,
+    "priority": "u=0",
+    "priority_header": false,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "single_packet",
+    "client_hello": "010001180303bb48c505dad78479d637bbcd8d76942af2dfe4f27b21ee234694bd762fa5bbf5000006130113021303010000e9000d00140012040308040401050308050501080606010201446900050003026833002b00030203040010000500030268330039005f08024064040480f00000800047520400000001050480600000d7d61f77d3cfeff403284eb70604806000000f0009024067070480600000200480010000030245c080ff73db0c00000001000000019acada5a7128045256434d010480007530001b0003020002003300260024001d0020c5b00b69b2e13f5c7d4287703c19c19fc5f263bf94736f0f99f6875075b0a91e000a00080006001d001700180000000e000c0000096c6f63616c686f7374002d00020101",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0310h3_55b375c5d22e_cd85d2d88918",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "hex": "5256434d",
+      "id": 12584,
+      "kind": "bytes"
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     }
+    ]
+   },
+   "source": {
+    "branch_position": 1058933,
+    "client_version": "108.0.5359.0",
+    "milestone_version": "108.0.5359.126",
+    "snapshot_position": 1058931,
+    "source": "chromium-snapshot",
+    "url": "https://storage.googleapis.com/chromium-browser-snapshots/Win_x64/1058931/chrome-win.zip"
+   }
+  },
+  "chrome_109": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 1,
+    "priority": "u=0",
+    "priority_header": false,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "single_packet",
+    "client_hello": "01000122030391a3e331ef36f6f9c550b4b82ea6b330f99e771ac0c3ac2e308260fcc5e8ea6c000006130113021303010000f3001000050003026833003300260024001d0020184677f6bf941bef7b99dd2014f21764c618f26dac5606564eb8717d06797b1c000a00080006001d001700180000000e000c0000096c6f63616c686f7374446900050003026833001b000302000200390069cb9949f3020ea35c0d77d897df438fa36e0e81d8c1f8050480600000080240640604806000002004800100007128045256434d070480600000800047520400000001030245c080ff73db0c00000001000000011a9a5aba0104800075300f0009024067040480f00000002b0003020304002d00020101000d00140012040308040401050308050501080606010201",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0310h3_55b375c5d22e_cd85d2d88918",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "hex": "5256434d",
+      "id": 12584,
+      "kind": "bytes"
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     }
+    ]
+   },
+   "source": {
+    "branch_position": 1070088,
+    "client_version": "109.0.5414.0",
+    "milestone_version": "109.0.5414.121",
+    "snapshot_position": 1070054,
+    "source": "chromium-snapshot",
+    "url": "https://storage.googleapis.com/chromium-browser-snapshots/Win_x64/1070054/chrome-win.zip"
+   }
+  },
+  "chrome_110": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 2,
+    "priority": "u=0",
+    "priority_header": false,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "single_packet",
+    "client_hello": "010001200303c6f52c6f598d39f362187c405bb3b0d4043018c8b94a95ede102acd970d2efa3000006130113021303010000f1002d00020101003300260024001d0020136834e77a906f8ccd275265ad2c36d7d88478b3f921cd0b6dff97cb5681a024001000050003026833001b0003020002000a00080006001d001700180000000e000c0000096c6f63616c686f7374002b0003020304000d00140012040308040401050308050501080606010201446900050003026833003900670902406705048060000080ff73db0c00000001000000019adaba3a060480600000030245c008024064070480600000040480f00000800047520400000001ee4ef7ae300187150b437b74ec31aee2e410a6dc0104800075307128045256434d0f00200480010000",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0310h3_55b375c5d22e_cd85d2d88918",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "hex": "5256434d",
+      "id": 12584,
+      "kind": "bytes"
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     }
+    ]
+   },
+   "source": {
+    "branch_position": 1084008,
+    "client_version": "110.0.5481.0",
+    "milestone_version": "110.0.5481.179",
+    "snapshot_position": 1083966,
+    "source": "chromium-snapshot",
+    "url": "https://storage.googleapis.com/chromium-browser-snapshots/Win_x64/1083966/chrome-win.zip"
+   }
+  },
+  "chrome_111": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 0,
+    "priority": "u=0, i",
+    "priority_header": false,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "single_packet",
+    "client_hello": "010001160303c74b642c3f4e2280a7d6e7b00d0f76882b02c51aeba12e74ac9b9c872082465b000006130113021303010000e7000a00080006001d001700180000000e000c0000096c6f63616c686f7374002b0003020304002d000201010039005d040480f00000070480600000030245c0c8c42689ccf8b0bf01390104800075308000475204000000017128045256434d0604806000000f00080240642004800100000504806000000902406780ff73db0c00000001ea8a7a4a00000001446900050003026833000d00140012040308040401050308050501080606010201001000050003026833001b0003020002003300260024001d00206420b1522162b096a10d1ab1e455c3de9f9e61ce50fd03128af836f86e7f183e",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0310h3_55b375c5d22e_cd85d2d88918",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "hex": "5256434d",
+      "id": 12584,
+      "kind": "bytes"
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     }
+    ]
+   },
+   "source": {
+    "branch_position": 1097615,
+    "client_version": "111.0.5563.0",
+    "milestone_version": "111.0.5563.148",
+    "snapshot_position": 1097610,
+    "source": "chromium-snapshot",
+    "url": "https://storage.googleapis.com/chromium-browser-snapshots/Win_x64/1097610/chrome-win.zip"
+   }
+  },
+  "chrome_112": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 2,
+    "priority": "u=0, i",
+    "priority_header": false,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "single_packet",
+    "client_hello": "0100011e030302597b7ea10e65c1d59d60d3ba6b699b68306c2d082af59348ce2c0f697f0f61000006130113021303010000ef003300260024001d0020c4760b259f0f7aefaf8a7ef3cec49a068d057d525e952630cef1e235cd71871f446900050003026833000d00140012040308040401050308050501080606010201000a00080006001d00170018001b00030200020039006520048001000080ff73db0c00000001da7aeaaa000000010704806000000f00050480600000060480600000800047520400000001040480f000000802406409024067010480007530030245c0e086e0d37c98d5d909717c3cb8cf142d252e7128045256434d0000000e000c0000096c6f63616c686f7374001000050003026833002d00020101002b0003020304",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0310h3_55b375c5d22e_cd85d2d88918",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "hex": "5256434d",
+      "id": 12584,
+      "kind": "bytes"
+     }
+    ]
+   },
+   "source": {
+    "branch_position": 1109224,
+    "client_version": "112.0.5615.0",
+    "milestone_version": "112.0.5615.139",
+    "snapshot_position": 1109208,
+    "source": "chromium-snapshot",
+    "url": "https://storage.googleapis.com/chromium-browser-snapshots/Win_x64/1109208/chrome-win.zip"
+   }
+  },
+  "chrome_116": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 2,
+    "priority": "u=0, i",
+    "priority_header": false,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "single_packet",
+    "client_hello": "0100011d03030534cf175b065e03b0f4888e09a8119c47262e451c7ab7eee42861aa2801da25000006130113021303010000ee002d00020101001b0003020002002b000302030400390064030245c009024067060480600000010480007530e3f361d92ad94e3d0f2ea595e9ebcea9421028ad86c60867200480010000050480600000040480f000000704806000008000475204000000010f000802406480ff73db0c00000001000000014a8a5aaa0000000e000c0000096c6f63616c686f7374003300260024001d0020bee354b31f3329c97b4d57e2fe840a87c4436af9e467d6476737d31151e2b52b446900050003026833000d00140012040308040401050308050501080606010201000a00080006001d00170018001000050003026833",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0310h3_55b375c5d22e_cd85d2d88918",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     }
+    ]
+   },
+   "source": {
+    "client_version": "116.0.5845.96",
+    "source": "chrome-for-testing",
+    "url": "https://storage.googleapis.com/chrome-for-testing-public/116.0.5845.96/win64/chrome-win64.zip",
+    "version": "116.0.5845.96"
+   }
+  },
+  "chrome_116_pq": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 2,
+    "priority": "u=0, i",
+    "priority_header": false,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "last_packet",
+    "client_hello": "010005dc0303ebb4120e54d9fec748b6e218e7537dd8d70833b832fe6c3c2698f021b5c12b80000006130113021303010005ad003304ea04e8639904c0fef4cca23be377b9ccf8aa447bf727d6b0306a9c059ab710ef35b3305dab5c03012c3491ca4ed8e46a2fcc8bb124993304bfea774bfefc959c481063e9523d2a1461065ab4ea647ac00b9d215dd8e5bb1fd99cbdc88a1972a0500696cd69bf88f777c03cc948f5a285828fc85474ee5c56f5e3a430429f4cc826ccd53a3eb3b1ae980368f13c575a569ce5096a27a3af81c987d941d2436a5df8a229e5018e92259dfbc8a588058b63ac91441b373c6ceb32011ca484ca288737467a981bc30071afc0dc04d658768706b56bf4851da0a56503c463684101f8476970aabd0103b7392f8d6ab2af8bc5d4507d07917aa030c2a0b316b7d05a87566c5eb703146a761f4917e2d660e037cd7600336b469276a8b6c381aff6860436889758a549c76c40f00bc579e3015d28536fa0b106395d4ef165f003c1947828e36350cc8715979a41b89068461a407b0917846bc617687f72028fe3f3aa685311f161bdbf2533a4b4123db51d41402aba3418a5902141679270a5967c8899559a63ffb4aed8b4b2cb82488c647ba16c45aa526ef87a3447bb15daf195c634096dc6c32a7b93c2c8b0d8f67a071a60d3f747bbf9b7bb6bc2168292f7c8006601b66178530c8639591a19642123a66c94e9853d6c5a8011206cb9c8c05c43a9a02a5a7ba3aadc745bbd79a8c7aa4250c942a03272ba48a851993953f75458b5a20c1c3f5fe5bd1e548fc979be7476802af0c68d5915612620abb5086a202ca144aed72a6e4ce8208e48c10b108963f7c744211cd8e3433c52761b4a0833911926d22bce21b1e008c7bf4c6730576fc8931028778be4c5bca943cf9ab03b2b6c2eeeaa8d9b6ab551665a1fc371056c0868a805e3290c856a7429a11ccc6633763491c5b00283a71da0899ec6cca0573a775fc78f9aba3ca1324543f4510914b85177a45d463216585afb18b4aae708305c0b000079460b6b89eb768e918bfa813ee3ec39bdbcbc86648aa862b310a59aac66141317c08e0c0ee1a95de4082e42a966f08576570220c216bddc4ac0964b148bb56d32e77748824ff828167f77ccc6f8548b3b0c30a2b72fc454cf28b7d9f5576ca383ac14287e495ecadbb446e0bc0851c26b6c3edc99c971753c01e468e1f2bba5b51d8df4427c3a64952498cbf7ccf9d2a739a274b7ea196eec34946449edf217dd808fa0922857a55477c698fc6750be68c71080b39f51c12ef5a733908b93525d44c14aab02a38a8158370098f8b89585376129447cbc878906570754150fc8f8107f464e3f621c88c5634aec39f72949d643a64cc105d06b2e90ea4404cc715b94134e614f0baa6a3dbc366f70a155482f6d58acf4b522c4b47090783dc47b40cdb4b801e960a30056061940a1717bd81754729aa94128bb9b80cc2620515a241bd5d014447348e80baf3d1829004798e70b98b1d27d5d417328cca92c63805da96ae123b8a8e4aa9f017265996d5a1864693a387512764fb44b338347653a92fcf6c517954955d9bb728136c5758e547ac7da436e1bc8ce3e56986752295e94750023a61d2724a14899c9422208832705c45a13823090168e046c1787c0c2e4132f97a483a234c811111258a92ea5874b49b383cb582325f781af6c1aa43a1fcb39187a7a82e6575d1d9b4908d81c524754b3e87f6c7d203b05a23e3720332a2452d7dd6467d9f2ae851a6ec84a049cc9b9001d002070e75cdc139e2275f2d5b37750341921d38a4c78fd9caba77aae0dbc6505ba310000000e000c0000096c6f63616c686f7374000a000a00086399001d001700180039005d040480f000000104800075300f00c82fded3a87c81b50857a8bb898ea0dd4b0802406420048001000006048060000080004752040000000180ff73db0c000000013a1aea9a00000001030245c005048060000009024067070480600000002b0003020304000d00140012040308040401050308050501080606010201001b0003020002002d00020101446900050003026833001000050003026833",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0310h3_55b375c5d22e_cd85d2d88918",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     }
+    ]
+   },
+   "source": {
+    "client_version": "116.0.5845.96",
+    "source": "chrome-for-testing",
+    "url": "https://storage.googleapis.com/chrome-for-testing-public/116.0.5845.96/win64/chrome-win64.zip",
+    "version": "116.0.5845.96"
+   }
+  },
+  "chrome_117": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 3,
+    "priority": "u=0, i",
+    "priority_header": false,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "single_packet",
+    "client_hello": "010001140303929b1f616fc4a7c1e7f4b2360ec74709ece442f10c196c430a7dd0c2e3d445fe000006130113021303010000e5000d001400120403080404010503080505010806060102010000000e000c0000096c6f63616c686f7374000a00080006001d00170018003300260024001d00204ca9ace7d4d48b781521c1c803e90fb857febb3e4ca326e36690dfc46f4f0337002d000201010039005b09024067f839f6ae0088be4906184f06c41e5a030245c080ff73db0c0000000100000001ea4a9a3a040480f00000050480600000060480600000010480007530070480600000080240640f00200480010000800047520400000001002b0003020304001000050003026833446900050003026833001b0003020002",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0310h3_55b375c5d22e_cd85d2d88918",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     }
+    ]
+   },
+   "source": {
+    "client_version": "117.0.5938.149",
+    "source": "chrome-for-testing",
+    "url": "https://storage.googleapis.com/chrome-for-testing-public/117.0.5938.149/win64/chrome-win64.zip",
+    "version": "117.0.5938.149"
+   }
+  },
+  "chrome_120": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 2,
+    "priority": "u=0, i",
+    "priority_header": false,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      51,
+      1
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "single_packet",
+    "client_hello": "010001ec0303d89dd1aacffdd27e4256fbfc5c1bb8dde31e080005a5746b65c4d4b0e1453119000006130113021303010001bd002b0003020304003300260024001d002053a0660c160019884eda97201741bad4ae4808c5112663f79dc74b69247c876f001b0003020002001000050003026833003900552004800100000504806000000604806000000802406407048060000001048000753080ff73db0c0000000100000001aa6afa8a0f00030245c0040480f0000080004752040000000109024067ec0520754a051f7f00fe0d00da0000010001a00020efd12a0a114666f897047fc77005797f66c1a6ee3e8ccb2ccef456bb541a061300b09021f3ae45fbafa50514101147a458ff27f0402b541d876b43f8c774fba2bca7496950d73462628c1886aa4bcfe642f62f6f25f12515116239931b3510e9336c8f2375903bae9b8e0f7e3f8378d64ca3c5f6f22c6bb782f5e6d0161ccc11fa3cb8e6320e999c5add056dadd2f0bf71e82525e57719ddc318af8b9b6df6e23f9215f5f023a525171d5008c878d8be599841908152241d510bf2fb6851cdcfb6310c6eb2ab1c2580830be68d0f1509c3820000000e000c0000096c6f63616c686f7374000d00140012040308040401050308050501080606010201002d00020101000a00080006001d00170018446900050003026833",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [
+     128,
+     160,
+     192,
+     224
+    ],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0311h3_55b375c5d22e_5a1f323ef56d",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     }
+    ]
+   },
+   "source": {
+    "client_version": "120.0.6099.109",
+    "source": "chrome-for-testing",
+    "url": "https://storage.googleapis.com/chrome-for-testing-public/120.0.6099.109/win64/chrome-win64.zip",
+    "version": "120.0.6099.109"
+   }
+  },
+  "chrome_124": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 2,
+    "priority": "u=0, i",
+    "priority_header": true,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      51,
+      1
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "last_packet",
+    "client_hello": "010006f6030316f55bf5c034fa1d09098093896e4ab39abba1f1eba3d07fef4918663d94724b000006130113021303010006c70000000e000c0000096c6f63616c686f7374446900050003026833003304ea04e8639904c0622b94ab30f357824677c164c5370acf8dc09450d8ecb778b1d98bb267ddac775b6655ad035d28660f8ae524158cbe8935b4338a4e22b38e36c0563e39b453f9ae61d1476a18cbf8454ad978680a6212428691d2700528596176dc45b46914a8d552855676ac79406815390fea1820519baafc38a5b00774b5713a99722d0974baf1ae597037015b0fe625a8b9b92ef43b5368020b8e9916f925b7e1448c43681204544e8ceb625229658289ce90cb6921ec16e50c8fda2a014a28b28f985f2bd548d85c166fd8c26900053c404de3246d683c677ef2b6745a04a9e32ede29be52d39e68593b77e8585b790d47f278f906159c25087661bb30a276fbd7072f61a6e9ac76c00109a7d84b56ba5d355cc3134c6d8729797f4563366c228e15a27e6cb97d6c64fb6a10e6d4c0f361a294b87d91fc143084c111a001586781fac6bcf8f490a9caab90e3a46183bcc9e1ce33631229a3711a29cafc9c9bd6834045a4a2b9144534a7776163391998372858221810279bca79c1608517f92f80ec1179c2512f9472c50151e046986665c16554c203137cf7a7ca7d921615a90f2ae9ad0d8c0570a858c0f32451951907964182418959213a9fda0041b25864c8a2ce091f61d38090110cc3d732f1b6360d590985c32e4905137c176679c7c7573547835bcc0db038ef7c698c6774892920af2c2f3ff68139a61c478a344a19100312c8ede16b1ac283c6d2b8e6884e2eca04e380cbd6414ca66244437294af062b5beb3c2dc5582a2b362c683ef8a2add8893cc3618bab16964f1243203c7140d33adda8ab506b8c0b49715d324abd64a6ae754ce6f38e4618213e9b2f08b8857c54a786974fded25e1cc6057d4a3769f9b63b45a894d0a8f4fb97750c0b387ba5ada90656022602c941af75a85ad19ddca5b1ac0b1c871300e65b86fd23080787826906b158ea4a6f35355f0cca01881cb3c7bee93796b6779a0224bdd3aa138cb11226f46ffeb3bd26fac3bea045f567498e72b2d95324e2e448fe6c0013a02bc007703d3c0eb5e465a3ec9b2ae30a157695899833d44733ed6b6ae647162e195536880ac4e84017182b25a55cc6f3585d20114b81152c34461b5082d1097261502c4ff80159c3c0d39c95a91c301649345bb4b30921c276f417b955545a88615432c70f93293bf641d0500d63b85bd6db2eef0144e122a62a90158db911e1e42c951aa06668c9e5fa725597aabeeabf81d0b911aa4b58199513d63c7916998ac14ce969507945c24fcba7ceeb77c87c0d91412d845c011330c230a50c6eb25261232499298fddcb8945d262b0f095b20b99f5e298a336bb6e24223890122c8b8063c46064b4ab036c0c9c721933f02472f6786512a1a50354fe8653f1b06cd5a50fd4d380c2791f261a928a0c744c87ac964867efda576327422b53cb9260cf7aa4c4ce620335e23307aa4c596b2a694a50124c080bb088e3c010714a21d96681192217a81a1bdfb0b2aa49102d917b90948b38f9454f8a87e2f2c4a0da67bfb7a3407342070346050134feda7ae5916f85c185ebf21a908b26706ccf39a8ca570b9ace750a933956d2023217568023c098b6f9b5581a3e002aba137709372bbd790bc100a7be2d4b0276f8cd73832257e1752530cd02921602a4a37b9b3a13f0a388b9b3ad3f1b13b8d2f5de5442045cfa8fe322cda579fd00221c213239e0726d001d0020f023b432dd0bf0ac522ed5fd4fa26539cb8893f1aec988cfab13ce9e6ce99774001b0003020002002b0003020304000d00140012040308040401050308050501080606010201000a000a00086399001d00170018fe0d011a0000010001b6002045521d5b55517fe62a41cb1f91cf6171fe6467a7fb3b60558e873f281f65cc5700f093b3007b6027c8179807ef8b7f8c46eea93c2e5f2437345008965e652c6b67bbb122103ef9907f67fb658d2b9bffab43c1c70a03841326586bb5b0e7359dd0c465b8a71037412e4c0675c5287739a1823eb1b6fb1434c34fddb7a70e5c7767592aff40e5ec3d832b59e4db73a2173e5cbc91ba4833ce7e2647c19b12d822b5498842571694b7fbce8d0444c7572e40e229a543393809f34b05e93c646601dd5b3be84a5471326214628b74218831d3ab1ac2da2e79a36e8a87067ccdeee6dce1769ec377998ac4c8c8a27822fba35f393b750a30d55024ef807e79be3cab5a81bdf73aef5953d1f34e887455ff612880002d00020101003900592004800100008000475204000000010604806000000f0008024064040480f0000080ff73db0c00000001000000013aaa1a3a010480007530070480600000eb3341940b29b592048a657424050480600000030245c009024067001000050003026833",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [
+     128,
+     160,
+     192,
+     224
+    ],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0311h3_55b375c5d22e_5a1f323ef56d",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     }
+    ]
+   },
+   "source": {
+    "client_version": "124.0.6367.207",
+    "source": "chrome-for-testing",
+    "url": "https://storage.googleapis.com/chrome-for-testing-public/124.0.6367.207/win64/chrome-win64.zip",
+    "version": "124.0.6367.207"
+   }
+  },
+  "chrome_130": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 1,
+    "priority": "u=0, i",
+    "priority_header": true,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      51,
+      1
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "last_packet",
+    "client_hello": "010006df03030d7abaa5100226659ef014745663fb9366807e14e47eb0328ada0b4bcb917006000006130113021303010006b0002d0002010100390062040480f000000704806000000f00200480010000010480007530800047520400000001030245c00902406780ff73db0c00000001ba3aaa5a0000000108024064060480600000d73ae510803ba0190d13efc7c042eacaff654d4331e8050480600000fe0d00fa0000010001310020f58503375df6f81e6511cf78977a9feb7b9e830a8f9d61411d0924f63d4aee7d00d01f6209ed45ec97ab09c11e09794ae3cadb242bf9cbc81f40a9208c98b1408934021c6289d79a86fc87ab090a2d8914f5a9c02ebee7d48acfb04b12f3bb23af8b1b5e1dbe05356ec3ef9a63fc34af89e4a77dfa63e3a3db238a016728e4fb654cdaab1cef400f195979331060b21c55985a927b63e6574f3dbd3caf1c1b591cdbdf3496def53c5c7aebf781f1309a28abf1ee2c4520be8acc3ae2c9900eee5462a55a84516685940917e765af74cf037db6cf9fc4d9278789b60395fa83b86b3549822eb51bc8196dfa5790ae5767becc446900050003026833003304ea04e8639904c018a7639215ff801f2b499fa157c4cad0f8972cffb8420d03d78a65099463d258e76297ffc5c2af3b00efd35bccea53c74b1d97d37a470781f41cc26287085be1986c9115f2c406d1c88a6e9b5ff08696ad32cceaec2ead552387151bc22a11c554073fd61091656779b995e3547aff8c2485142a11d15cf49c72c4152168cc9263f809e6f3102c2a3ebc94c2b1f193294a98ee368aca9674162aba780903247310f37a5009e6b21cc720c9eac7a888522d654d60e503a2357a4c7b26a0f5c6effc513bbaaf4e608e71f08c0424be8c314bf4a27f040818ea8520957ccb0282b6f8870edd04b90aa68128a6a4fba17781d77d1f97c6624b49cf776edf3a03c78550e4f770263c85e8e20a1484bd49560da13c2bf5a0ac05f50c498299b33888fa390c67125e1aa6ce08c63893607ca9934d8da91e5c54216cebbf2a3a066d33b3489a446c359958babaa9d01726fc0ef83acb24997eff76cc363b8f7cac31b75374a8b11c1a628c87224d2f329635b5787b9a4232d41aed809ceeca268b47ce0111bcae6150c063b02791688f14748ba43eed924758e44b2754cf36b73d42c9cbc211cbaecb6245c7b4720241d5e0869ab359887348202a9ce4ea564d59a10934b22cf25713a124d07b6391c75e0e576f19472e610c1e1d36473b910d5c43974649ae487b846beb4c1775cb6bca602c1acd92a2ae22522cfe94802ca94b80273115d8b6c19a54c19162b1c5bfe2a731eb356f14b1467241cdafb45668fb4e85e085e4525b5dbbb8899455b279cb8ac15569b4a220772c49e14fddc4b49b9a1d59222e96d7a913357d1aeb84f062bbb2e2b4302b3cecd00169d5253866911af72b0f56517ce28cbc92a3565b3e620c981faab9fb5bbb2f329e9344852551acdf02513cd55ae2ab286e626c5a2488c3f1628b288e53616b8c43c4d7d481edb55a02748d5f693da82a1b6b7bbf94b96c1378524eb738d658451f2b54b43526e4f296de3424752b5aee854dad92a1883063cd18aff458bb2bd11608c711e9a82633c52842292f82da9b462196f27900f7456c2d022f8dfa810eccc317a44e8c6b783bd8920d745811f8c72685cb040442450c3243ab505ab5ad9745191d9b734603875499a2883c20bd15362251a45e43069709227db08dccf6bd1eb5ad22204c41a549ac262ff778ac3274a059c756f0206f5f2a4173bca18f638b0dfc89eef27dab6591ebda2ed1d50f54258a8e0a04fa4752f7744398c49829453a11e52a0e23866f58be92a76abe041e1493816c46ce4b88151596bfbb604b2c705403bb86c85c65023ac966bb04a607c9679ac6073cc029e376dc9bcccb91795fa02c2ec1769f6867f8912c74663eaa1a9d43ea9629004a69a18ed73c0b81e3b272876166b9050608980fe3c042a06c2ccc18835a8409bca6c7b977f6d025767437aa9c58762a724bd63e1c43b7271595ccd63bc9e82ced22bf37592a30bc4504d6045a839bbc0929c6d3869fe0163f00453bba02093038f1fb6c7b6c53804ac97bb8cd8e103b344b3c4fe53e30d63ff99a653f3b095e94b38877c3958124ffe5623c6c04e43921d5470eeca436afa67481a9b02dd9064dea4e851b8fdc980dfe3c32215b85f009144a4b8fdd7c265f429c299c480f87ad053cb227514356cb93115926ec27183dc586887ea982e61390c594134cfabb58115b5c4b068f88cd4ee73b673f42d7001d00206a9e27f5119448de23378df3a572475129bbceed9497c9d791b8f396a24acd71000d00140012040308040401050308050501080606010201001b00030200020000000e000c0000096c6f63616c686f7374001000050003026833000a000a00086399001d00170018002b0003020304",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [
+     128,
+     160,
+     192,
+     224
+    ],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0311h3_55b375c5d22e_5a1f323ef56d",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     }
+    ]
+   },
+   "source": {
+    "client_version": "130.0.6723.116",
+    "source": "chrome-for-testing",
+    "url": "https://storage.googleapis.com/chrome-for-testing-public/130.0.6723.116/win64/chrome-win64.zip",
+    "version": "130.0.6723.116"
+   }
+  },
+  "chrome_131": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 1,
+    "priority": "u=0, i",
+    "priority_header": true,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      51,
+      1
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "last_packet",
+    "client_hello": "010006fe0303bec7d28a23aee88474ce5d5db633655cef1c145de723bcd849b31ed6ccab9f6a000006130113021303010006cf00390061010480007530070480600000040480f00000060480600000090240672004800100000f00030245c0800047520400000001e572adfddcc946460c8d6ffa118d36555197fe0d8b80ff73db0c00000001dada6a7a0000000108024064050480600000001000050003026833000d00140012040308040401050308050501080606010201002b0003020304002d00020101446900050003026833fe0d011a0000010001d100202675c516e077bf49a40bbb7fe94646bbaf61b9d646529998577f5525bd48846000f03835d2253c46ab1ae7e0c521df49a38f27135474837f1ac1d50f47b22a7764fcdb00eb98c5bc12217a49e1f52b9ff2c40dc65627068458a413614cc57db1e05ee61a9aa6c7c6fdfb4b8424964f2a1da1b2a2e9d9f856f7bb2d51fb04db625fa3fef54528abac20e2cc590f2f9f73bd465266568b6a91641b30ff2b2e36019d2fbbb5a406364e4e7bc1508d3d4ea33da7314ee3e9aac02658bf6f7e9856429c6eeb7f514d42ae0af18f75ec43b693f6fe5d5ce4904a210959d93b4eaad5d912a69db9033949014926bdcbf0283c87660f98f6cfff7d1534ae871a60ecc58f145f742b91dbd3b1ad178f54ef7e0be2f246001b0003020002003304ea04e811ec04c05fa145c8c23088d821e865256ed62ea7616f3c9c880fa8724fe16692f86805f89c4b252e459451cea4b2d8eb1ca13488f338c18287814eb78f5f078251235edb88c60d377ac0f61b0d571d2cb50d5c93258182005eb59da53561e9e16b19959c7e91b869fb9a8ee42eb1275373d855eab7ba2c5bbac6fccc3ee5196f58b6fa7657ed1c42684b9b97d5941006744ac16e8df2c407b9910947cc7d2b4d92f908dc99c006211bfebbaa1fab8442d332fab938e0ccaa5ef632c6a90c31612f09ac885f9416f0677f0b3581c053637cfa793f4cbddcba5b0eb2c07ab91daaf822bd17ba837121c0f2b587440292c77fb609b426c12dcd5bb04ac82beab685e47683fd580cdef58c92d69e2e729efc8854d3944131055bb7d89a37984b22d8c45f469d55e053c7d67780f6482a65c34569514b7c0706d50d2d30baa4416abfbb8167d85b6b19bdd5da22cedc3da2539597632e85565f2ff817764ac6810ca0eaaa55bd2b1df506866dd67a2a0c5b960bc35eea7b78bb988bf96b70a14b8a7b4d33c9731e6097761c0d8ae1c97d3a5d376ca793733e86ec672a384f7cf5a88242a041d315933390fd10ae27986be3b7556264683616a3069160af7b915648702637bbd06cce75d451ac7a1355a1923bbc7a7dba6712aa4b5e982ec4bbb80d0987aa81373c208421689cd7f664f84116b8a33b21a1c58578859312253145bfdd261a5e839446e559d329400e1ac092443d4631b35ad693c34462018678aae8b0a4b362166857a9e78df9d2a802a19c25f7124138c6ac53b002595eeea38b0af2242cb86b921906cb2330cab017dcd08609768a517114948a51b7ac424dd71bec2151fa8cb8af47bae6a1c0ecd3151121c4aa56120f7696e12a3e0a3205cb4aceef5b806cfa342227603ce12a7145bcf3791144ca0a23c0567c4906d2bba1e5774c2c94ce87723b028b7c44c63d6a837fb7548c7f376691f34abb8b535ad9b2013c6cf09578a677b61dda1a8a59baa3c821a83baa8a669fbbd50d11036a6ef973284c949d2b496ae05b50e643c8d96d830cac38f89a68096fadd67049857768e70535c6b582e25aa7fb91aacc796f433ea6eb9a48f8a106087aa9d698a0a07d74a58f61730ece18215397144e691ba9ab9d3f1720b373b1864090560c6a70e336160813d1ec8688745047e0696a161ba58a76e3db7d2ea5afce17542c926b184c3076405a2fbc39faf42f0bc9624c8a0db09b12c69a3cdc7370eb803e95e08af72a3efe6c3382a64a10595aa996550d52b8bb592be73343bb872fe94832c5963a000396cd6ca319d85ea56c7e1905335823ba3ab159547bc75eb823ca62731ce142d72c50fdc96c29fa15d0937e30961b59d31c8a57893ef70115cbcb68f94e1b68a11b0187f9c7186a9b516dac46a278244df8beff11b58a19079c0275c6f2351f1a0061d14ece9301df3801bb998466a732b773b294435afbf341a275759b00818089b356592b8274a640bb52df1135e3282670264cdd63bf16b66d47da7824358728da00ec51a2be98ba211a7344264ff8e24e3fd912120232fd7424393c6f16f4161f524f1f86a1e5b13e5163885ce92e9fca31e0878a1e2625a087a7e7c12ebb0cc8282ca0ef4236ea1c74e895d0602a9ac80c60a9eb8d16d39256d5faaa07bbf3e1efd5cb93d6ac2b07188be1936871f6f66aea76062b2e2de3dd6ee85900076b18001d0020e86fa6af918c6155bbe38d2f8b09a2af69e040eb6394eecd5feb6d62dcadf930000a000a000811ec001d001700180000000e000c0000096c6f63616c686f7374",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [
+     128,
+     160,
+     192,
+     224
+    ],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0311h3_55b375c5d22e_5a1f323ef56d",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     }
+    ]
+   },
+   "source": {
+    "client_version": "131.0.6778.264",
+    "source": "chrome-for-testing",
+    "url": "https://storage.googleapis.com/chrome-for-testing-public/131.0.6778.264/win64/chrome-win64.zip",
+    "version": "131.0.6778.264"
+   }
+  },
+  "chrome_133": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 3,
+    "priority": "u=0, i",
+    "priority_header": true,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      51,
+      1
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "multi_packet",
+    "client_hello": "010006f6030335b0704ee990543b1e4191f3d9598110451ec74a76b051b9b43b8c7ee4840254000006130113021303010006c7001000050003026833446900050003026833000d00140012040308040401050308050501080606010201fe0d011a00000100013000205be5ede132b18f78c378a082b694923cdaac2917c69a6537a75b00ff5d6db27700f04f8f2622e75cdc5ce1b02093b23d6969897ef1e34766d6963136df481d05f3590bddf065c3ccdb074d9a761fb2405d88b8832ff0b6c97e306b1a8c0d6cfe08cf6d4ec23a15f149b974d147f09abeabd9c4a9bff6a83860b953ba4b19c2967c4335e7b42afbd3bc87a0e4d14caf73fd80534ce2a2c8bffa95558ae53c78887ab8bbc747bfcbc3dad54fcf2c9629b55719d24c7cb7e1ec75bbfce0a24f4a684d5270fe742a458197440a16a0f0f616f1337096d45bded21f6d8c727604a8a7453446ffbfef1dbc080dfc913480bfe723d6f5289114b0c2f6688e469338cb531bdfa4bc0097f63f4e521a0a4522d5423c58002d00020101002b0003020304003304ea04e811ec04c023b312686085b900ad01fc263817bab3073a681c008da0aa144b0e2c417c612534ef2b19edea9397f0654bd4192770b1b7e66eaa89927913632c223e191044f2d974ea576310c76e00470a15b50c79684e11291638198bff80380fa01b963c52f262b12cd30fe7318ca2363d237a6bfcd4490846547645bef2056ac2ba1c4fb958aad821815789b7d68c8138195a36c3a5280b74504ccd0aa55de67cb3c686fbd608901a17e4ec33f1f6214c4184019143df36ca9aa04caa382877b57f35fa650ec452c35826a7499df2873481c36d3b6893b55c43b9f9bbbdac4fc01527417758a5e3c1b28a83440a3ed24347fc112c9c85334daa75ff32578e6b95331b8b4eb90d2aacb2b4b173d1319b70a1bd87361fc8d86b0b51cfd90853b37073af7b728e280c930642bf22bf0e379b1fa07f4ce047a646062e18411c979f0f808293705de05116f7c32342678f63bc0fd00baec9676adb32038b157d0010aafc3caf37f818d38894f1720e8fe77be8d7bb158699ad693f84f7a3bc9605177ca929f04c018652984351944360859a320fd21785dc4c77e296e769b741540f99ca3910b86aa0dabf96173778406ad3e4767907ba8316427617cea9f0639c33800903b28609123ae11e04d405a3ab226fd65b53d86e03325f4c76cc5789ca8e734fb1ccce3c7c9461f471994a0b7d20b0ca046a86ab678df6cb99c455a07345a32584b1a717b8d8698be2ac3803345c6267219c25427214c9157a202732e085ad8e863cbdd20865401ed876ab1e8c373e015b5fc30178e3c049f91a9e260ee8eb229586cb0fd3ca9c27aef07c957c08b80f798337136edc612634fa323af62b9159376de185e45bc74f737017047e64fc921e170b389c3469861cfe54b5e16a8225caaa49e635f14b38ebd406d36c8d17502d4fb09e73f4a25a91513fa4a12a82ce7fb24ec7c27dc12a61d97b1fb06610e0a0a8db9c9823d5bbe831a6bed7bb34792179d208adba7ff6019782236a721022cdc693a19a807410c936841955fcb4611a248c9c2069e52075780fa1210e98e2811fd9b83813a1739354d72a63e7235a57a0aca1f0cd7ac00d507284e3a7232a8732f65c02a370b31d283dd0d951c8c5af1757100f499f0ab436e3dbbf2e1590ffb8c447290bd8b1148469ce74c251cd6bbad8dbcdb7629bb7b1af2f0bb2b4b4cb82974590065856a2a2509b012d511ecab7ae3c1774b7bac972a35e2d4164ba8a4c69454a59412732232337b800ac9b2e9b709a1c308e65c693bfc20e34374f87d33ed05a3fabcc0e5c5b9f3441497180acd7c0545fb7b84775293cd59c4d5234b79a3a395355050a12e9f4a644074db2a01a2786b76ac22185717a6501652d225e0ca155c6b626eb5b3c4cc8348a9c5fc8a16d1f60bb71c7c3fd805982bb96849630382568482b365964ac00d9439a3832947c959ffab39cd9ba7abacf64d306235b5ad78106b4d1cfbef024dc07aa5360556791b984d32e2fb3817c911bc7ca2795fb4cdcf7afc1b8b2ca861cc6861dd549ad430cc7df1020ee84973e10ca1893cebd62951eb90f16c6c7969a7867f442b87b465454078544ab99f56605b282a1443111bc94fcd54d4e4319c68668e5e905e4f875f677470095711ff809a6646f730bb473eeadf0f86ad186d95ce032d3d977736b18dc28a4925abc32593b5a55dc38b106b59b059333c8e4c041887a7d60001d002067a953d19c2b2e9771d5a4b6e9aa69aaabd0b48f486002e2f6e04b14cc728a210000000e000c0000096c6f63616c686f737400390059080240648000475204000000010604806000000704806000000f0001048000753080ff73db0c000000012aaaba9a00000001ff2fb359ddefadc304f685a40409024067200480010000040480f00000030245c0050480600000000a000a000811ec001d00170018001b0003020002",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [
+     128,
+     160,
+     192,
+     224
+    ],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0311h3_55b375c5d22e_5a1f323ef56d",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 12583,
+      "kind": "initial_rtt"
+     }
+    ]
+   },
+   "source": {
+    "client_version": "133.0.6943.141",
+    "source": "chrome-for-testing",
+    "url": "https://storage.googleapis.com/chrome-for-testing-public/133.0.6943.141/win64/chrome-win64.zip",
+    "version": "133.0.6943.141"
+   }
+  },
+  "chrome_144": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 3,
+    "priority": "u=0, i",
+    "priority_header": true,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      51,
+      1
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "multi_packet",
+    "client_hello": "010006f203032d332d30936cf18f9ad1a189a51ec0e260dcfe0743dd9a61c59e2341ea28e7d3000006130113021303010006c3001b0003020002000a000a000811ec001d00170018000d00140012040308040401050308050501080606010201001000050003026833003304ea04e811ec04c07f6355b05c0545a4351a08bebfc30254d30eefe76deafb49e00360c1419d8bca6fc13b8fd3882c36f55d1f48ac5443bd91f8bd44fa2b9d5507066b671c8b41277174e642a1920ca94f9b001cac1d6d84ad13fc4324e179302bb1f74bb5f7a10c33292b5a26c282b634a54bcfbc05444b40436a8031cfe214f6cc967c5b8a31aa3b0f51710497cec75aab21200bbae645e97a93c0175ee73cb36d75a6f5a3760161b3890bbc0ccab44c452d7193868b09acc9808a04ba2a68610382c72e27e2caed3a189be93c06d08742944a72879ac2ca6b2f1100190b8890820924d12a7d410b89db7fcada6ddc02c2615c45ae4359eebb6e92683cebb7aec5a918bb037480a9748a488dcf85380e8b243f042a401b03a297c27b155ea7710b90f813efd859f140929794c48e7c9c477b5b7cb7a40dd49fcdc22308970410c966449341a83269a6ab5d9a69a6f4c226f252bf63bc778611a571a96be0363dcb8a4bf9e1000901499b3842f269a79aa584ee078afe903fc1ec6eb1528fe231504aaabd67da3abe771a42d91e3b8c8456ca8a9dbcc431f1039a86905593149f40aa61535c9c86310a770baeeaca1ba387b9ca146b454f04e70a0dfb13ebd057bca728efd666de959abbe6521e26c01da63246e69b4199ab31f854cf68a835340708d840d93b7f416394f09bca0f156ce81905b107068f25a49c7965d3811e05c92be526100bf8a9d935a917d281310b56712a64a7f646d9141f93520b53f037e2f6cf02513fb2b07d8ffc96d3b8967d137ea9775e7ef60a35d351621264b1e44ab6b8019b93bab47b70173212425b0804bcc410812fa04b2aed603d35c39f49f26838839f1d880af1f17a8e7546f66a7832359c204b432e95c8ffcb2506da75ddba21c6c75d39702b70e415be6a7ec2c169a599c259654d960652158120b64c5f5ea69b7c4bc367224516d146f2595c0d46011adc9e2fe14f530b903507194af90fc7b18b12d82173c815b85a0d7248289b157b74d2a8b2985cc456c6929ba7fada690af98ad741c233b2aa36280fa40c43e468cabb404acd61b325544d31f07d30536f87a5a31a3c6c5ce065c9d0a8ae54a6644a2f7a8460e0601784fc382fc64f2868258ba86917e606e1e5a74470804f8aa97cb38d20d62a921cccb14334b949258ec06d638b7344f01d01f6c7210209cd975d77dbb927ca4c48d45b0a2452715995a7d84ab47773f595ad040688eca41c4e12b15909cbd90c3161a47fe407cd0f75a008842defcb84b0569e45d64715519efae62d7c6722fb0c197a515fa8c545ff38ae00350730e59dc433acde1a2b43441e99423de2a181e6c6c042732c0cb72fc9359a74f0cf7b1065cde6a8400bc99a059e6d807996389ff1887ee73c1408070571e46a479abb53f8bc8f96173397c48fe8c5efd2246c330e7de4c059d4a9e17317302b56bd97cef5f28ecb147463443210a7073b91ba83454a6831b170b08730449b57c95d7dd9cc68e44d5624bb590a929818af417b01d19642f1510bc14211cd22c1b07b1347d5383bc15265189d11f3c165d629e06c2a1f7148532a54a3a0b957d905664ca4397bcf0ad1cb9963a8fe1c62d16cbfad3580e9cc23e4f02ca84a4ac8bfc4e19cf00385966ad99a5a4db7e747019f591d8e3221937c70ce4a446a96dcca05089cf6ec156dd79246263670adc48191a5a858600302ebf68001a5ea5e001d0020191927a38529a9c5a120e8450332ba67c0fdb58d8c01497e624c93b61df7a337002b000302030444cd00050003026833fe0d011a00000100013100202bd23e3c74dd0b141fddb748c31665143717891a9c2adb715f712ec2876cec6500f0cff687f8b7ebe21c87196bbeae1d55e51bff6197c133b688a6b8a14869b69dbd0b6cc2db3631ee7013e30d901cfba3007f02984106d4960d92fefcd5735df1ce419fcc020fcc4cdeecbe66450b6cd4d9e5d05a0a6f6893cfac13a69ef31529cdf831786197ce62e796711c31e69e823115fee77b1d2838b045824748276a8527c2f341a1fd9c46b89fa19fd655b494dc6afbd71323a4d9b647135ab38c83539d438cb0ff4c262c6953c9dbb9f5a88c24deccaccf651068a6cd0b2dbec2d4a725d493268f8d6dc310e56b54661a0d706e0870d46c6fce573efa28d04136fbea18696324805ab4cbd03fc1b0560d4485bf0000000e000c0000096c6f63616c686f73740039005509024067040480f00000ef296a0c083beddf03699314800047520400000001110c00000001daba3a8a000000010704806000000f00030245c020048001000008024064010480007530060480600000050480600000002d00020101",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [
+     128,
+     160,
+     192,
+     224
+    ],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0311h3_55b375c5d22e_653d80c3fe9d",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 17,
+      "kind": "version_information"
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 12583,
+      "kind": "initial_rtt"
+     }
+    ]
+   },
+   "source": {
+    "client_version": "144.0.7559.133",
+    "source": "chrome-for-testing",
+    "url": "https://storage.googleapis.com/chrome-for-testing-public/144.0.7559.133/win64/chrome-win64.zip",
+    "version": "144.0.7559.133"
+   }
+  },
+  "chrome_146": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 3,
+    "priority": "u=0, i",
+    "priority_header": true,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      51,
+      1
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "multi_packet",
+    "client_hello": "010006ac03033b7c1f2e9a16e178b71ecf8f1be5389d3b21b60a5b6df073a7648c0c078a0fc00000061301130213030100067dfe0d00da0000010001e30020fc546b3ea5658c25a499312a9f8b6f82ac0af3c445bc0683631d8e476fa3e67d00b0a97684407eed6de4b13d1f3671c42644dcdfcfbebde1a176aee0af35656b6668f4ea5fa1acbc8fe0ac861cafdc40817c19774e83f0b447857194bb16dd013bb08ae6957c7306db6b81db06e0b4d73ff5e8f10ae750f4a60be4b435da63a2621c31ff6e8cba5a9a1edeb85afcd5a27129d1f7d1a8cd72d13a6952858c5bb3e50e1b7ea902e5a68c1e72c24e4d1ec238ded71f759f59fe0f6f87878f57fe60f187a747612d94af6c58ce28ac102f86b2ad0039004f0704806000000f000902406706048060000008024064030245c0010480007530110c000000013aaafafa00000001200480010000040480f00000c0fb3dff22a849f8063fe2c96e55da050480600000000d00140012040308040401050308050501080606010201000a000a000811ec001d0017001844cd00050003026833002b0003020304003304ea04e811ec04c023087257128bd2388e54b2a9266013c5d0cdac1ca57f494c2fb97680450251b15ee71a8f68c3adca05a238d96a70003a39e7288dab8e4f90084c3b86def027695b6f6dd76028a3b4ae466b73000aab41400b198a2bdc845451b4d0288afb9812990b70cfba90d4953625b6c32d265921356935f362ded23ba8b3bc8b8ccc73d66ce06b40cea79a34cc5a8ab935d6ea55a9f558a0c52344d24f91536f0f4162349169fbeb641acb41d3240b783203e2e092589c1adc944c073275a72c376f32a6134a69629baf40ca91d37110e9a6a387a00ccc24354d52991ee2c5643980e9d080a8220e69948aa0f9cc80930754e951e5913583d96eb0f30f4b7b5ce245210c5ab5bb5a9cfcd7ccc8d05d2ce84330cc0c0f586e0e888b90db3c25f64c72d39f8ed3ce730415bd86032253a1ccda29bb26343ef07921a91ddcf8c609b582d4b405f483b592ec556de26d080b6315cab2e3c294ebd4230b882898aba59e3517fcd8bd9b38cd98b06d1fe66e5a350e23430028a1a70f1742ae59b90fd7609dd795d1f5551cd964706828d362b998f83eb6751527280021c2a02eb467ae7b97c6f63f3af7881208b0d54c1ebb1a28889a0609a840c3bcc0c0ac3dcab0151ff1183751411edc51f8f9c953b9920257b9c23b78967c2eedc78fadf00b5a41513c114334a44b212800d0c9a05665cce2e788fd413e3e2c8348771f739b73a7f887cfa4a047c9cbdad52c66e650a04801b4b42968d2669716cecf4310402c6790a2ae13267fc26c39ff3b2410c15c42f40ab4ab93bb296b13e13de18202356938691540f9ba0930255c7cc560be73b29e94019574317c55443eb03d36b3043454090488835f44b8af9554596bc554c45db1a04326e445fd16161eccab813735b05a3c7bd0a35756b8d5b9c2e0b293ad1a8c9fab1b2dd666d2eac04a68cab9125343d41cd5fa9281a5603d7a8ce951877a01ab07eba9471bbc612138410a745048246fb81c5e59a23ff4730bda98ce925f692cb3e3424149276e20e2a78e49c9f2232c01d319adb49781f156442a1a7d2a69458073694186247890c1077857290b55e5b315b716edb65ed33474f31c657e1a70734c25a677c63afb9699f853bcf3679bcb9470e04f50867f8b5c4f9b2b92314b842d30866eda528716ca4a608dcdbabdef4267f033533157c535c876bb3038d8107e80d118c6c103dcb76b0b4cadede272f6294a435457d55764b914957f960390b5c07e3214523b963738c898f2669f82484b0057d6c591bf9c9c79249ea1b7b64646a6f04b30ceeaa2759b121379c98315996312c6985659dc6820704a8e1d2795c5eb57a1c67ab9da1732571cc9fb045d55aaf43b25f09011eeb6bba8469747161d19098c2f85a2f89c44de463116d7bb5d36ced6986baf480e543976c9d0857e06684485c7fc5691945c033e4842d096cd6ae66d5eba380e5c96ed065d3e035b35d1784fb84fe966ca2b95a4acf24bb9844a7cfa035a37a7cb756698f287e7bba4ca706cb3d26e896bb10bc290105643293866764c0b9849917de483872284aa73718fb7002bc4b0ed187d1cb535d92c937840cb7cfb30557a3d77060c1548c37dab7c98f81771f05987d46df08c95c6316bb8c72d05e695323092dc4e55694b0c6ff7282c85e8392e982b95bb0929186fb742f504d171b76ba99932b9dceec9cb6d74c0896bd87e324e88a4c06e6f001d0020deb50fe815ef5237c82700ce112c6fe5d8f156d1403eca06f436a174a8bc446e0000000e000c0000096c6f63616c686f7374002d00020101001000050003026833001b0003020002",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [
+     128,
+     160,
+     192,
+     224
+    ],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0311h3_55b375c5d22e_653d80c3fe9d",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 17,
+      "kind": "version_information"
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 12583,
+      "kind": "initial_rtt"
+     }
+    ]
+   },
+   "source": {
+    "client_version": "146.0.7680.165",
+    "source": "chrome-for-testing",
+    "url": "https://storage.googleapis.com/chrome-for-testing-public/146.0.7680.165/win64/chrome-win64.zip",
+    "version": "146.0.7680.165"
+   }
+  },
+  "chrome_150": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 2,
+    "priority": "u=0, i",
+    "priority_header": true,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      51,
+      1
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "multi_packet",
+    "client_hello": "010006db0303924d491dcbe799dac47f557b00e4fe6bde2fc01539ec15591b92c5a754aa4ab7000006130113021303010006ac001b00030200020039005e040480f000000f0001048000753020048001000008024064050480600000d2eed0aaf923b0a90ec33ca362ab51cfad6cd3364e7734070480600000110c00000001000000016afaeaea030245c07128044f52494706048060000009024067000d001400120403080404010503080505010806060102010000000e000c0000096c6f63616c686f7374000a000a000811ec001d00170018fe0d00fa0000010001bf002068bc40772ec5658e7839d295ad563e9894accc98e9f30c6b5326f636905b077000d00f5c909dd5d04bb967e1ebf25c7785aa61bb15c69568cb9f11d01fe0df621a8deb0e60fab0ec2214cd41594784d0df8045e6c4e46a2d84f56af86086bdc77587ba2af28e23e5561f1807fe01484aeb21213ff6d07ad1213cf3bfcc7d161e862e5c433286e0fab9b822cc80b5551f3cb61ab159efe503e7944524080734a6f33903271c65d575e919900f70b3ff71a25d9149beb88a2aa17ef41607edc9d5ab2d1103c2501b82b9a97cf35b5a2910d424e47079aaf3e6172cc1d0c08035037ec6b202e51b820b08d6067eab4c5e6c4e1d003304ea04e811ec04c098db6e199794715aae2a101e0b00bdf58936d3a01dbd486bbe70bd4c2ac34320b4c61884ae172d134a8274900963392cf3849c91502c5765565dc69806799f2e0a6d5767afb1523a00955f4edab687287da86b3efeec4355f1a98ebc191652beecbca965722cce756b7cd35b888927f4c98bf88a69312019ac67840d90770f0ca959c03991aa7b97e5784348ac43813050814783ba805fd26d60235c7203a9736c44f016cad2ec719df70035923bde3a705ed43d202081fc29762961202c8b132b98082cf47c604862b8b803556822399621686bb88539cc73281a56500e628ccfbb53a8231c7bce1948c69a0062631a2bfb986112013b448d94b906b1394581967ff8e924f1cca51e7aa386020ac1b19f52c2cc3a455a74159ff4985aaf022ae6665683b4791d78badb82cc8da83d741b3e2bc57a2f4c07faca75046441e44b0a6c547e3e120ff18808ca9a3c0f754828e931aaf617120383f6e36922db860632a3c31180aaa0aed2544488e64b4d3b12df685279255fd1e637735003b8784a52a00db2b696af58a23b6a881e3675114321de0c5ac3dc3972c59a37f4130fc38da471392fb477843955e603a8d1178c9974c86008601b4324b639b5de035b61f4b220f86199b59cd1c86153cb5d6770841f43b026562619296642a56dc3a82370207dc917b7454b6840995f097b0a25a3b29cdbb84f177224226992b61ca36937b7fc46f10c79ce98376bc32a340611d11604f695183c61764c887df4014531024dbce2ab3ef346d8894a04e790762b116b92a8f3c155482c1421884d0555985854093123088ca32798491359291cff6b918b99cfda0bb4cd683e4254b5704b8cf9a04affa62c7b80af747b40030cca75b541a8b79c6df66318308dff01699d0c97312b89daa8ade12119a7c311be85985cc888a762bfccca5dd7e406bd06005c34aaefdb31877c86d1d54f17049d68506d1e2590895569414ab2d9a6212b6882d402122bc01950e34e6c76cb01c46d0a1b36cde40fc9fc827f49cb6d043c4ad74e0dda1bbbb43d721b9c13d782e649be715a11901a50fb36435c1418619bbc5112a44de2182a057c8d5135a9209f6ccb1f46589d5180125ba3bc17080fa204be43850805e26c33f4509302164cd55935ebb9d217a9c5a92258e9cd48c86ff9d83930023c23f07f64ea43f2fa4d1c13b23908b335273fe768331450af343c1acab89587829e39b04d359ab651e06df6672d79a93928564a797017db6b0e28db6fc159ae8e6c634f63c2678087fdc7067ba0590585b1fd38ab47cb3eb34a983a136290216f93420dbd5899b4a7039528782d898c4b4a85879c5a3a80a097003dc9a838cdf06fa37751e9c86fac919f530a7c9d0624a1d8772efbb920ec3e6c889ee052b58883a0b360cd30e83e197c22de66b87e4647d321206820617e7202c1b9a7e0f29285a722d8eb6745a9703ae4cc0aaa8766290d1bc72d8880739c1b6196d00425c4a693877b62d967dc945bb762556b1140d20969ef92b32c419fd24361190107b4f26796dbb801c9aa9308473d70b05710358166b99112931506774c83863f4a585977b687a2696338bd4ca31a1ed3be35886f2e554070ba1bcf2116a5df0bc7f85e3d5a2af398ecdf220870da9611b6aaf6cd9d082e0cbd3138da50ab62e46b202829960738d206405d4ba8b332c8d98244f38ff4c576ae42f9b173001d002029232b498f3f765a89a255beadf5282b070401202b578c3cb48079016fb3e26c44cd00050003026833001000050003026833002d00020101002b0003020304",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [
+     128,
+     160,
+     192,
+     224
+    ],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0311h3_55b375c5d22e_653d80c3fe9d",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 17,
+      "kind": "version_information"
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "hex": "4f524947",
+      "id": 12584,
+      "kind": "bytes"
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "id": 12583,
+      "kind": "initial_rtt"
+     }
+    ]
+   },
+   "source": {
+    "client_version": "150.0.7871.124",
+    "source": "chrome-for-testing",
+    "url": "https://storage.googleapis.com/chrome-for-testing-public/150.0.7871.124/win64/chrome-win64.zip",
+    "version": "150.0.7871.124"
+   }
+  },
+  "chrome_152": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 3,
+    "priority": "u=0, i",
+    "priority_header": true,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      51,
+      1
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "multi_packet",
+    "client_hello": "0100078e0303b6430626d5e73a708a3b025ad4ca4ad80c58f457c0b7ed65a6996a8aa8af877d0000061301130213030100075f001b000302000244cd00050003026833002d000201010000000e000c0000096c6f63616c686f7374000a000a000811ec001d00170018003304ea04e811ec04c061d166e8188d1aa43334f24b2d7aa61c1a93e5d209058bb7946bc8741a3fa87a56681c96572a18bc75cef44235fa991e35e13e36dacb22568e44f50f8366cfecd7c6a571c8f2c2c8c9928bbe49605069381bdbb169527e14c54ff18caf1cd38dfac2b07c42b57f7c3de03c1666bca6b5651c02810986dac2ce28797caa0b8238789df8011ea17271a26813ea5de084026628b2fc3419c93ac7a2284a5200a343a04229cb760a7499327757e57022656343b50254483c781e47781490c467730d920952b3477d68456c30a622ea038248a411fd8c8d3524756122ac52d70fdba9b6939cafdb63b6b772ace0d131d22158e31a5698e7b05a74a5a84c23aaf12bc4fc07dde7c1639b4330277427622669d69f1c41c5e0f97232ca478817a7d85644a4fbbd8beb0c3dcc10dc15435705995b23845c4c1c37c118d12b7680d4b14cd41f2a992ef0b4ae912aa63aa89aff6aab3b673a12f291c639ad2c99a6a8a035a68085f8676ebd0999d015050494c37a5949610c5577432c1e722d1c1747e01b8a1d87a07da4810a88cf559992a1e62a319730121aa87608727fc446d1d013dd9c2a88e553b5f2306a4060d960a88be396ffb7462726a540a3528cc9111dfcc028740b0807062991274dd1ca58e2b544f5b50f911bb365a9b9c5c29789b5ede669fc594175b2acbed1c086c0359775b971a180d7c494da63c37e801116e5c1e9cb532c5cb2483a2a4fa352668aa7faec5cd857491368c64b7845dad33ad201434c188f02c9c7acb1a43b0c83f926ca89a08d11299e3b7a3d6a98774c513b4efabd06fb6462f563683c0e178798539b8e65569a650a8d049b3a98db3e874bbda05a24a3c480c1a81214eb7e14968b6150581fc840a695cecce88c74e95547489cd868cdf3b45ba7fb91faf114849b95b535037140c8fbe50ebfdb191f566df907626a591430214aa64caff3b601536972a3740d77357b994ba6226463e1509496f3ac1049363e019158992433b19593eb59fd77072dd77034a5c860790f6e5381c1b42dadea196d7b5bb35a524af48f8c98c323d2789172a1b429adc9812db274937d90578eb81f6cd10a70a801533958eca179a333ce49f8141154904544088dacbb12f50ff032b9f1b516cd28908c590fff04256e011c940c0ac880aa373abc2d3517aa42936d183ce1b3c2b2f06666993cf6fba53913bc4664408e7c10bb1b7a1ad2405413666f5330c22cba27f05aaea67974da595bf7aaafd12eb274b2a5e016cac7018d14227b788ea2f969b321c1cbb72b98298177db0f68f76275ecb7c987af8f767fe1d892c01ac255f39c36815accc34dfbbc6b77b26f97da38a04c8af8641870d381de3840eefa3ab023a10f651382f53af204ceb1f17be1fc5c12395bb12882bd2b74a85b142b48b61608bc6cb76fb7a4b398a3aca2773c7171622c6b1787b1b0cd2345f7f9358ca763672bcebc3633ac697ce96590cbb5b6152cc6ed144e01d60e70f2396e9c02dfe61983db57f3da6d4030bf43453abe39c5de0bcb1eb66e1724baaf4caa95168e0b879fd5731f51c4872759cba22045dab347bd140e29106d339a0e50b266db8b17bbf239ec8451e952a628a2167b9b7d0745c649a6445c51c9f92b972f7241523efc9ef328ef51b1f7b9331fb785815b003a549224dac2eec6b1bd0a61e9ff8a40f11052736fe6c23a27798f8742831a4ac971001d00208d6e60c40e74111b11972b49421d5bc1cd22e0169cede4570b67a6763062926f002b00030203040010000500030268330039005fd0bca0b3762af5830f21b732cc91811fdbd44bfadea6e08e20048001000008024064010480007530110c00000001000000019a2afaea050480600000090240677128044f524947030245c00f00040480f00000070480600000060480600000fe0d00da0000010001fc002010958bdceb3a4866402558dbcf6d51de1987cedb3591d05f1cfa50ed2faa3c7400b079240572e2724c4d6c3d68ea5107051c8de509419c7775935979d5e632215ac255e9ff72006516eae130049fdb708c5df975a894c86a6cd59aa6c70e57e2a7c996452aeff9ddde6eea5792b1e3587282791fa7c3b4d7a437fe8bd4036641470ed555a1f47631eb34984f5bff2e8d5a285b76a1f893b68a4362092e21941a710a0a30f8d8b5cf9f6dbcb8da4c74054e59b373fc7356202505c936647b3467e20e0867237bd9e62e0f46bc6a71f7729ae1ca3400ce00cc04d679090304d679090808839a648c9b2d010904d679090f04d679090408839a648c9b2d010704d679090d04d679090b04d679090508839a648c9b2d01080582df13020d0582df13020f04d679090604d679090908839a648c9b2d010b0582df13020e04d67909010582df13020608839a648c9b2d010a0582df1302130582df13021204d679090708839a648c9b2d010c04d679090a04d679090e08839a648c9b2d011208839a648c9b2d011304d679090204d679090c0582df1302140582df13020108839a648c9b2d010d000d00140012040308040401050308050501080606010201",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [
+     128,
+     160,
+     192,
+     224
+    ],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0312h3_55b375c5d22e_178839b6cec1",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 17,
+      "kind": "version_information"
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "hex": "4f524947",
+      "id": 12584,
+      "kind": "bytes"
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 12583,
+      "kind": "initial_rtt"
+     }
+    ]
+   },
+   "source": {
+    "client_version": "152.0.7977.82",
+    "source": "chrome-for-testing",
+    "url": "https://storage.googleapis.com/chrome-for-testing-public/152.0.7977.82/win64/chrome-win64.zip",
+    "version": "152.0.7977.82"
+   }
+  },
+  "chrome_99": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 3,
+    "priority": "u=0",
+    "priority_header": false,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "single_packet",
+    "client_hello": "0100011803030a41b5fbcd9910a74f92eda28ef8d6b345bd12caeee05e81b8f066d50e5c4983000006130113021303010000e90039005f06048060000080ff73db0c000000015aeafafa000000010f000802406407048060000009024067030245c0e72e69281cafd2f80a3b101acbfca307a5ea01040480f00000200480010000800047520400000001010480007530050480600000002b0003020304000d00140012040308040401050308050501080606010201000a00080006001d00170018001000050003026833446900050003026833003300260024001d0020c0eec7748c28d876f38e60fe17a62d5213c98eccc6bc49f1ec06b8c1ee8e804c001b00030200020000000e000c0000096c6f63616c686f7374002d00020101",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0310h3_55b375c5d22e_cd85d2d88918",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     }
+    ]
+   },
+   "source": {
+    "branch_position": 961656,
+    "client_version": "99.0.4844.0",
+    "milestone_version": "99.0.4844.84",
+    "snapshot_position": 961656,
+    "source": "chromium-snapshot",
+    "url": "https://storage.googleapis.com/chromium-browser-snapshots/Win_x64/961656/chrome-win.zip"
+   }
+  },
+  "firefox_102.0": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 5,
+    "priority": "u=1",
+    "priority_header": true,
+    "priority_updates": false,
+    "pseudo_header_order": [
+     ":method",
+     ":scheme",
+     ":authority",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": false,
+     "eager": true,
+     "open": true,
+     "zero_capacity": false
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      7,
+      20
+     ],
+     [
+      727725890,
+      0
+     ]
+    ]
+   },
+   "note": "one capture: order randomisation of firefox_102.0 not verified",
+   "quic": {
+    "chaos": "off",
+    "client_hello": "010001fc03039e00ed1ed1e4d3a53cd091687092135b40ca9e1152350a95a4fae2cd63668345000006130113031302010001cd0000000e000c0000096c6f63616c686f737400170000ff01000100000a00140012001d001700180019010001010102010301040010000500030268330005000501000000000022000a00080403050306030203003300260024001d0020337c20013a6d02f387d44f34b3652998c864e057fcb86d7ea3f389c6fe04c919002b0003020304000d0018001604030503060302030804080508060401050106010201002d00020101001c00024001003900426ab2000b01140704801000000801100901100104800075300404818000002001000f036df58e0604801000000e0108c0000000ff02de1a0243e80c00050480c00000001500d70000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "dcid_len": 0,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 0,
+    "initial_packet_size": 1357,
+    "ja4": "q13d0314h3_55b375c5d22e_2d2a40a25571",
+    "pad_with_zeros": true,
+    "scid_len": 3,
+    "shuffle_extensions": false,
+    "shuffle_transport_parameters": false,
+    "transport_parameters": [
+     {
+      "hex": "",
+      "id": 10930,
+      "kind": "bytes"
+     },
+     {
+      "id": 11,
+      "kind": "varint",
+      "value": 20
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 25165824
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 0
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 14,
+      "kind": "varint",
+      "value": 8
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "hex": "",
+      "id": 12,
+      "kind": "bytes"
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 12582912
+     }
+    ]
+   },
+   "source": {
+    "client_version": "102.0",
+    "source": "mozilla-archive",
+    "url": "https://archive.mozilla.org/pub/firefox/releases/102.0/win64/en-US/Firefox%20Setup%20102.0.exe",
+    "version": "102.0"
+   }
+  },
+  "firefox_104.0": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 5,
+    "priority": "u=1",
+    "priority_header": true,
+    "priority_updates": false,
+    "pseudo_header_order": [
+     ":method",
+     ":scheme",
+     ":authority",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": false,
+     "eager": true,
+     "open": true,
+     "zero_capacity": false
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      7,
+      20
+     ],
+     [
+      727725890,
+      0
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "off",
+    "client_hello": "010001fc0303746f4c206518fd1e4c3044db644112c18f7ee0f9ee26639b4b24b70e3da33a9e000006130113031302010001cd0000000e000c0000096c6f63616c686f737400170000ff01000100000a00140012001d001700180019010001010102010301040010000500030268330005000501000000000022000a00080403050306030203003300260024001d00206801fdcf4775b21d3f412ceafa6a932db9cdc3571d0b6c96b6fc6bc67c15ea3d002b0003020304000d0018001604030503060302030804080508060401050106010201002d00020101001c00024001003900420c000404818000000704801000000104800075306ab200c0000000ff02de1a0243e8050480c000000801102001000b01140f03ac42e80e0108060480100000090110001500d70000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "dcid_len": 0,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 0,
+    "initial_packet_size": 1357,
+    "ja4": "q13d0314h3_55b375c5d22e_2d2a40a25571",
+    "pad_with_zeros": true,
+    "scid_len": 3,
+    "shuffle_extensions": false,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "hex": "",
+      "id": 12,
+      "kind": "bytes"
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 25165824
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "hex": "",
+      "id": 10930,
+      "kind": "bytes"
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 12582912
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 0
+     },
+     {
+      "id": 11,
+      "kind": "varint",
+      "value": 20
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 14,
+      "kind": "varint",
+      "value": 8
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 16
+     }
+    ]
+   },
+   "source": {
+    "client_version": "104.0",
+    "source": "mozilla-archive",
+    "url": "https://archive.mozilla.org/pub/firefox/releases/104.0/win64/en-US/Firefox%20Setup%20104.0.exe",
+    "version": "104.0"
+   }
+  },
+  "firefox_105.0": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 2,
+    "priority": "u=1",
+    "priority_header": true,
+    "priority_updates": false,
+    "pseudo_header_order": [
+     ":method",
+     ":scheme",
+     ":authority",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": false,
+     "eager": true,
+     "open": true,
+     "zero_capacity": false
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      7,
+      20
+     ],
+     [
+      727725890,
+      0
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "off",
+    "client_hello": "010001fc0303c9a37d3ccf5b41ae5427002ee9078a772fc86dee523b3f7fba3665d884b92a25000006130113031302010001cd0000000e000c0000096c6f63616c686f737400170000ff01000100000a00140012001d001700180019010001010102010301040010000500030268330005000501000000000022000a00080403050306030203003300260024001d002095328b4a075fcbf7f47a8c493987e44a272d6f7ed31f2bcea7cbf6df5dc0dc20002b0003020304000d0018001604030503060302030804080508060401050106010201002d00020101001c0002400100390042050480c000000104800075302001006ab2000604801000000f034ed876040481800000c0000000ff02de1a0243e80704801000000e01080801100b01140c00090110001500d70000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "dcid_len": 0,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 0,
+    "initial_packet_size": 1357,
+    "ja4": "q13d0314h3_55b375c5d22e_2d2a40a25571",
+    "pad_with_zeros": true,
+    "scid_len": 3,
+    "shuffle_extensions": false,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 12582912
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 0
+     },
+     {
+      "hex": "",
+      "id": 10930,
+      "kind": "bytes"
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 25165824
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 14,
+      "kind": "varint",
+      "value": 8
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "id": 11,
+      "kind": "varint",
+      "value": 20
+     },
+     {
+      "hex": "",
+      "id": 12,
+      "kind": "bytes"
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 16
+     }
+    ]
+   },
+   "source": {
+    "client_version": "105.0",
+    "source": "mozilla-archive",
+    "url": "https://archive.mozilla.org/pub/firefox/releases/105.0/win64/en-US/Firefox%20Setup%20105.0.exe",
+    "version": "105.0"
+   }
+  },
+  "firefox_106.0": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 4,
+    "priority": "u=1",
+    "priority_header": true,
+    "priority_updates": false,
+    "pseudo_header_order": [
+     ":method",
+     ":scheme",
+     ":authority",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": false,
+     "eager": true,
+     "open": true,
+     "zero_capacity": false
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      7,
+      20
+     ],
+     [
+      727725890,
+      0
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "off",
+    "client_hello": "010001fc030323fec19e84325dbe1a9cc2f81727683167a930116b24ef898a9ac237e32e0c04000006130113031302010001cd0000000e000c0000096c6f63616c686f737400170000ff01000100000a00140012001d001700180019010001010102010301040010000500030268330005000501000000000022000a00080403050306030203003300260024001d0020035037697d90ab2c84e66bac17d2d70697b6557a678dfc3316d8506eaaf51640002b0003020304000d0018001604030503060302030804080508060401050106010201002d00020101001c00024001003900530704801000000b01140c000604801000000104800075302001000404818000000e0108050480c00000080110c0000000ff02de1a0243e86ab2000901100f0344ff8c80ff73db0c000000013a3a3aaa00000001001500c6000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "dcid_len": 0,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 0,
+    "initial_packet_size": 1357,
+    "ja4": "q13d0314h3_55b375c5d22e_2d2a40a25571",
+    "pad_with_zeros": true,
+    "scid_len": 3,
+    "shuffle_extensions": false,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 11,
+      "kind": "varint",
+      "value": 20
+     },
+     {
+      "hex": "",
+      "id": 12,
+      "kind": "bytes"
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 0
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 25165824
+     },
+     {
+      "id": 14,
+      "kind": "varint",
+      "value": 8
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 12582912
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "hex": "",
+      "id": 10930,
+      "kind": "bytes"
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     }
+    ]
+   },
+   "source": {
+    "client_version": "106.0",
+    "source": "mozilla-archive",
+    "url": "https://archive.mozilla.org/pub/firefox/releases/106.0/win64/en-US/Firefox%20Setup%20106.0.exe",
+    "version": "106.0"
+   }
+  },
+  "firefox_108.0": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 3,
+    "priority": "u=1",
+    "priority_header": true,
+    "priority_updates": false,
+    "pseudo_header_order": [
+     ":method",
+     ":scheme",
+     ":authority",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": false,
+     "eager": true,
+     "open": true,
+     "zero_capacity": false
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      7,
+      20
+     ],
+     [
+      727725890,
+      0
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "off",
+    "client_hello": "010001fc03035f5269984fa1739ae8d7718ea0221d310d465a1323045b6a80b065f88282c26c000006130113031302010001cd0000000e000c0000096c6f63616c686f737400170000ff01000100000a00140012001d001700180019010001010102010301040010000500030268330005000501000000000022000a00080403050306030203003300260024001d0020f016d9360e4ac7b2d363ef0064aa5a78f606bc2a6fe7b61c69344af6e2c69f64002b0003020304000d0018001604030503060302030804080508060401050106010201002d00020101001c00024001003900530e0108c0000000ff02de1a0243e80704801000000104800075302001006ab2000f03c795b780ff73db0c00000001da1aaada000000010b01140404818000000604801000000801100c00090110050480c00000001500c6000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "dcid_len": 0,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 0,
+    "initial_packet_size": 1357,
+    "ja4": "q13d0314h3_55b375c5d22e_2d2a40a25571",
+    "pad_with_zeros": true,
+    "scid_len": 3,
+    "shuffle_extensions": false,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 14,
+      "kind": "varint",
+      "value": 8
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 0
+     },
+     {
+      "hex": "",
+      "id": 10930,
+      "kind": "bytes"
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 11,
+      "kind": "varint",
+      "value": 20
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 25165824
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "hex": "",
+      "id": 12,
+      "kind": "bytes"
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 12582912
+     }
+    ]
+   },
+   "source": {
+    "client_version": "108.0",
+    "source": "mozilla-archive",
+    "url": "https://archive.mozilla.org/pub/firefox/releases/108.0/win64/en-US/Firefox%20Setup%20108.0.exe",
+    "version": "108.0"
+   }
+  },
+  "firefox_110.0": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 1,
+    "priority": "u=1",
+    "priority_header": true,
+    "priority_updates": false,
+    "pseudo_header_order": [
+     ":method",
+     ":scheme",
+     ":authority",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": false,
+     "eager": true,
+     "open": true,
+     "zero_capacity": false
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      7,
+      20
+     ],
+     [
+      727725890,
+      0
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "off",
+    "client_hello": "010001fc0303aabceb4ad86e919f48039265c75e0f0a48210dcddb45a5f285cdbe887fe119bd000006130113031302010001cd0000000e000c0000096c6f63616c686f737400170000ff01000100000a00140012001d001700180019010001010102010301040010000500030268330005000501000000000022000a00080403050306030203003300260024001d00201e8cebc215af97f53c6035c9d2dc6ac373a8e21001fd6e020b65e489adc1e864002b0003020304000d0018001604030503060302030804080508060401050106010201002d00020101001c00024001003900530e010807048010000001048000753009011004048180000020010080ff73db0c000000010a9a3a3a000000010c00050480c000000f03b7b4fcc0000000ff02de1a0243e86ab2000604801000000b0114080110001500c6000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "dcid_len": 0,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 0,
+    "initial_packet_size": 1357,
+    "ja4": "q13d0314h3_55b375c5d22e_2d2a40a25571",
+    "pad_with_zeros": true,
+    "scid_len": 3,
+    "shuffle_extensions": false,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 14,
+      "kind": "varint",
+      "value": 8
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 25165824
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 0
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "hex": "",
+      "id": 12,
+      "kind": "bytes"
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 12582912
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "hex": "",
+      "id": 10930,
+      "kind": "bytes"
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 11,
+      "kind": "varint",
+      "value": 20
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 16
+     }
+    ]
+   },
+   "source": {
+    "client_version": "110.0",
+    "source": "mozilla-archive",
+    "url": "https://archive.mozilla.org/pub/firefox/releases/110.0/win64/en-US/Firefox%20Setup%20110.0.exe",
+    "version": "110.0"
+   }
+  },
+  "firefox_117.0": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 6,
+    "priority": "u=1",
+    "priority_header": true,
+    "priority_updates": false,
+    "pseudo_header_order": [
+     ":method",
+     ":scheme",
+     ":authority",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": false,
+     "eager": true,
+     "open": true,
+     "zero_capacity": false
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      7,
+      20
+     ],
+     [
+      727725890,
+      0
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "off",
+    "client_hello": "010001fc03038ee5b5cc8531556b9d8412b0af7568ea99eaf9e1e109d122d0aee375a6ae907b000006130113031302010001cd0000000e000c0000096c6f63616c686f737400170000ff01000100000a00140012001d001700180019010001010102010301040010000500030268330005000501000000000022000a00080403050306030203003300260024001d0020a635d278c7eff3868da53340aa7c50e7e3c8ef8efc593130a589f1ddc5714f0c002b0003020304000d0018001604030503060302030804080508060401050106010201002d00020101001c00024001003900540801100b0114c0000000ff02de1a0243e880ff73db0c000000013a2a1ada000000010e01080901100704801000000c006ab200010480007530050480c000000f03903460200244b0060480100000040481800000001500c50000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "dcid_len": 0,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 0,
+    "initial_packet_size": 1357,
+    "ja4": "q13d0314h3_55b375c5d22e_2d2a40a25571",
+    "pad_with_zeros": true,
+    "scid_len": 3,
+    "shuffle_extensions": false,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "id": 11,
+      "kind": "varint",
+      "value": 20
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 14,
+      "kind": "varint",
+      "value": 8
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "hex": "",
+      "id": 12,
+      "kind": "bytes"
+     },
+     {
+      "hex": "",
+      "id": 10930,
+      "kind": "bytes"
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 12582912
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 1200
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 25165824
+     }
+    ]
+   },
+   "source": {
+    "client_version": "117.0",
+    "source": "mozilla-archive",
+    "url": "https://archive.mozilla.org/pub/firefox/releases/117.0/win64/en-US/Firefox%20Setup%20117.0.exe",
+    "version": "117.0"
+   }
+  },
+  "firefox_120.0": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 6,
+    "priority": "u=1",
+    "priority_header": true,
+    "priority_updates": false,
+    "pseudo_header_order": [
+     ":method",
+     ":scheme",
+     ":authority",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": false,
+     "eager": true,
+     "open": true,
+     "zero_capacity": false
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      7,
+      20
+     ],
+     [
+      727725890,
+      0
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "off",
+    "client_hello": "0100023003038c60cd4079608548c73c630902e30237aa6901853b01d11c91ffcd2183801963000006130113031302010002010000000e000c0000096c6f63616c686f737400170000ff01000100000a00140012001d001700180019010001010102010301040010000500030268330005000501000000000022000a00080403050306030203003300260024001d0020e6e9ee110675ec25cbd9d0e25415ff65c4beac9f35beb70d466d2a813cb2ba73002b0003020304000d0018001604030503060302030804080508060401050106010201002d00020101001c0002400100390054050480c0000080ff73db0c00000001ba7aea9a00000001040481800000080110090110060480100000c0000000ff02de1a0243e80b01140c000f03ced7f7200244b00104800075300e01086ab200070480100000fe0d00f90000010001210020ce66bc32da9a93828b85cb62b4ae6cb4f413c6a21e7fedb30c294ba95602743c00cfc35cc4318955057fe48c163311dc344fb52a201ee89c25637b52934ca2f7304edb9ddc6cbcd08b8523e52aa2a80a6a8ebe150f3c47dbd55293dddc17ae472a84a9e190a4df58e2c01c44699bd5c318c8afae3f4d9ba9e004c0cb9d0132dd913d1d57c6cd4851e22fe3a8b870323986394c5b82e7ad0935252b114656f9dcefe0daf0fe90d9e169d267651721992054c73f2e5bff5ba135921316815802901843ec39ae910826818f6c0f3699917e22e46e59da44f28a412c0a5d4eb7ee86d8c07e1fef2a3facfbc01ce95d61394c62",
+    "dcid_len": 0,
+    "ech_grease_payload_lens": [
+     191
+    ],
+    "first_packet_number": 0,
+    "initial_packet_size": 1357,
+    "ja4": "q13d0314h3_55b375c5d22e_61e396c58b1f",
+    "pad_with_zeros": true,
+    "scid_len": 3,
+    "shuffle_extensions": false,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 12582912
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 25165824
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 11,
+      "kind": "varint",
+      "value": 20
+     },
+     {
+      "hex": "",
+      "id": 12,
+      "kind": "bytes"
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 1200
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 14,
+      "kind": "varint",
+      "value": 8
+     },
+     {
+      "hex": "",
+      "id": 10930,
+      "kind": "bytes"
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 1048576
+     }
+    ]
+   },
+   "source": {
+    "client_version": "120.0",
+    "source": "mozilla-archive",
+    "url": "https://archive.mozilla.org/pub/firefox/releases/120.0/win64/en-US/Firefox%20Setup%20120.0.exe",
+    "version": "120.0"
+   }
+  },
+  "firefox_123.0": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 7,
+    "priority": "u=1",
+    "priority_header": true,
+    "priority_updates": false,
+    "pseudo_header_order": [
+     ":method",
+     ":scheme",
+     ":authority",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": false,
+     "eager": true,
+     "open": true,
+     "zero_capacity": false
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      7,
+      20
+     ],
+     [
+      727725890,
+      0
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "off",
+    "client_hello": "01000230030371f1e37cddbb929af84e7803fd8b5cf226006d2dc4ea5d95500d2687045256f0000006130113031302010002010000000e000c0000096c6f63616c686f737400170000ff01000100000a00140012001d001700180019010001010102010301040010000500030268330005000501000000000022000a00080403050306030203003300260024001d00203f10f9d472edcecde49e3a2d47ecbe3aecd158d6be11789091b940d2f0984f3c002b0003020304000d0018001604030503060302030804080508060401050106010201002d00020101001c00024001003900540b0114050480c0000008011080ff73db0c00000001ca1a4a2a000000010704801000000c000f036f98b70404818000006ab2000e0108060480100000090110c0000000ff02de1a0243e8200244b0010480007530fe0d00f900000100014100201765ff38399271a6470b41a2407ce2b2bc9bf8f2b7640d5a1115f40a3e44932200cfede34e2007ef3e23eb857931af1def776c37095f619b004f3a419c95410ea64d55d4f509904680eab9be58d811de6563dc7fdd871f6e8eda6914fe97f08db4f853a044a93a13d143ed52d37f1a510fbd298bd7cf0df7e4f8892a7ef34aed2ffc5e49d96b1fb162aa986a8b80e7f9532367fd0e025b6ae4c5ce35679d622f4c80a1f24bc33f7e560b78a156c5c563ceb007de1a0684345a060a73932e42911d53883871d9f8353feccbead8a27b974cda059cc6cc2e82b15f0f65a643ec8ad5c68bca0149ef87632183530d133f9df1",
+    "dcid_len": 0,
+    "ech_grease_payload_lens": [
+     191
+    ],
+    "first_packet_number": 0,
+    "initial_packet_size": 1357,
+    "ja4": "q13d0314h3_55b375c5d22e_61e396c58b1f",
+    "pad_with_zeros": true,
+    "scid_len": 3,
+    "shuffle_extensions": false,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 11,
+      "kind": "varint",
+      "value": 20
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 12582912
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "hex": "",
+      "id": 12,
+      "kind": "bytes"
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 25165824
+     },
+     {
+      "hex": "",
+      "id": 10930,
+      "kind": "bytes"
+     },
+     {
+      "id": 14,
+      "kind": "varint",
+      "value": 8
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 1200
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     }
+    ]
+   },
+   "source": {
+    "client_version": "123.0",
+    "source": "mozilla-archive",
+    "url": "https://archive.mozilla.org/pub/firefox/releases/123.0/win64/en-US/Firefox%20Setup%20123.0.exe",
+    "version": "123.0"
+   }
+  },
+  "firefox_132.0": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 7,
+    "priority": "u=0, i",
+    "priority_header": true,
+    "priority_updates": false,
+    "pseudo_header_order": [
+     ":method",
+     ":scheme",
+     ":authority",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": false,
+     "eager": true,
+     "open": true,
+     "zero_capacity": false
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      7,
+      20
+     ],
+     [
+      727725890,
+      0
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "off",
+    "client_hello": "010002630303e673c1bf61d09c879936dd283b0f847aa3d91ec0baf8728b4151f973fa1f4c19000006130113031302010002340000000e000c0000096c6f63616c686f737400170000ff01000100000a000a0008001d0017001800190010000500030268330005000501000000000022000a000804030503060302030033006b0069001d002078fd8a3cf4cb68aafc1b557d614b04ebe27d70326d61d2ce4b8886c9756779460017004104ce614ce7dd53e4907cdd2db6a32973195c49366a2a446b2b0ed293794d15767f98939abe17d4923a41a6b4177b28398e9fe29c58e4b0f23a84c6ea98c06dc4e1002b0003020304000d0018001604030503060302030804080508060401050106010201002d00020101001c000240010039004c090110060480100000070480100000010480007530200244b00b0114040481800000050480c00000c0000000ff02de1a0243e80f037c25c90e0108080110110c000000016a0a9a5a00000001fe0d00f9000001000322002028d1fbfe50378ed0fded1c11a53db6c9d3d4807fe8edcd1232b135d03bcdccb000cf359b56f31fc7382cd1ae0b67a68097647fc62fa02794ed2ad2b3dd5f549a1a4fc43fd83329c5fa81c834ba3a70769275ae98c6392213cb6ec1658c7b83081002584f052faf5d8875bffe7ac0ef137d8bc73dd546c1ca5ec9757044d97b9a031545b8d71ba03dbc2384378775f504cd735d95d5818a85e3d3ee0ba694589fa25e38369e0fd6b32cfb7827e869772a96619864dd6f1af8a3f38ddcb1d0aec8a75f32a0e3ff72f2e05fe652c08735cdf330b112e441b35fada3d4859270000d50aa4fdbcbcee9ecde41ac8309770d63fd",
+    "dcid_len": 0,
+    "ech_grease_payload_lens": [
+     191
+    ],
+    "first_packet_number": 0,
+    "initial_packet_size": 1252,
+    "ja4": "q13d0314h3_55b375c5d22e_61e396c58b1f",
+    "pad_with_zeros": true,
+    "scid_len": 3,
+    "shuffle_extensions": false,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 1200
+     },
+     {
+      "id": 11,
+      "kind": "varint",
+      "value": 20
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 25165824
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 12582912
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 14,
+      "kind": "varint",
+      "value": 8
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 17,
+      "kind": "version_information"
+     }
+    ]
+   },
+   "source": {
+    "client_version": "132.0",
+    "source": "mozilla-archive",
+    "url": "https://archive.mozilla.org/pub/firefox/releases/132.0/win64/en-US/Firefox%20Setup%20132.0.exe",
+    "version": "132.0"
+   }
+  },
+  "firefox_133.0": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 1,
+    "priority": "u=0, i",
+    "priority_header": true,
+    "priority_updates": false,
+    "pseudo_header_order": [
+     ":method",
+     ":scheme",
+     ":authority",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": false,
+     "eager": true,
+     "open": true,
+     "zero_capacity": false
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      7,
+      20
+     ],
+     [
+      727725890,
+      0
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "off",
+    "client_hello": "0100026303035e17697f67e511f606e459bf9ec5180f9ed4ff7168aa8d1d93a2559ee295167c000006130113031302010002340000000e000c0000096c6f63616c686f737400170000ff01000100000a000a0008001d0017001800190010000500030268330005000501000000000022000a000804030503060302030033006b0069001d0020c2613d892a6519adc5315994205a46ee9060bfc06a69c566fefcff623b93213b0017004104c1b42d5c0a1543ddfe27385434e82e11d8467554c7b99f02cd479ec7d487fa3c71596a4fbe39bd6d8df9b40517028215787bb08bf89d2018b67cdcf166b89e85002b0003020304000d0018001604030503060302030804080508060401050106010201002d00020101001c000240010039004c0e0108110c000000011a8adaaa00000001200244b0070480100000080110050480c00000c0000000ff02de1a0243e80604801000000104800075300f03d1ae040404818000000b0114090110fe0d00f90000010001ba0020c78eebfd4d99c3214c3ed61879112eaecdc80a4c74b22de7a3298ed47f784a2800cf7633d535c8b86bc731f5188e1f3a8a0d7b15a5f16b9f729d11c430e22678edb090e9a0b0eed6fee3f121dc518e37f5dc16598dc928938f3f3063be67f9b18a5361343ee58067f33a0af8b0c03bba698ed1c5315c5f60c476596a2fff2f3148e77cdb37e8288723ac9e830b6fb36516f1e2699a04940191f0cc78a5942095de030cf1c516b46435a16f78329190d889d16e80f47b56ac3f0384b9cd9996522b4b4d2b4643806eed94115132bcb4a4efd769617a565a6272e8c6e526794aa764e276354bc24ea4034d9eddbdaf08e00f",
+    "dcid_len": 0,
+    "ech_grease_payload_lens": [
+     191
+    ],
+    "first_packet_number": 0,
+    "initial_packet_size": 1252,
+    "ja4": "q13d0314h3_55b375c5d22e_61e396c58b1f",
+    "pad_with_zeros": true,
+    "scid_len": 3,
+    "shuffle_extensions": false,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 14,
+      "kind": "varint",
+      "value": 8
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 17,
+      "kind": "version_information"
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 1200
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 12582912
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 25165824
+     },
+     {
+      "id": 11,
+      "kind": "varint",
+      "value": 20
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 16
+     }
+    ]
+   },
+   "source": {
+    "client_version": "133.0",
+    "source": "mozilla-archive",
+    "url": "https://archive.mozilla.org/pub/firefox/releases/133.0/win64/en-US/Firefox%20Setup%20133.0.exe",
+    "version": "133.0"
+   }
+  },
+  "firefox_135.0": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 2,
+    "priority": "u=0, i",
+    "priority_header": true,
+    "priority_updates": false,
+    "pseudo_header_order": [
+     ":method",
+     ":scheme",
+     ":authority",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": false,
+     "eager": true,
+     "open": true,
+     "zero_capacity": false
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      7,
+      20
+     ],
+     [
+      727725890,
+      0
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "off",
+    "client_hello": "0100072903039b57fe539c5a2b46aa7bbe9c1d7e35a41f6df8e14d9ac159ce1f207ddb07b5d3000006130113031302010006fa0010000500030268330033052f052d11ec04c085d418b4cb905f2bab3c186eed96085fdca40f5419b2509329d908a05a2e923b64c005c45e615b84f094915471c858a7e2a52aa4277803d9101245321a9624d5f50c5d6a055ca034f754c2bdb401e21534f01a4d93795b7531505540868db62f5460417ff33b83fc4afd3b777f55509e7095dcc4c673808e5da74fe9911bdf7a99ab511252f1322b3419667b3ee2fbbbd6800e05da9e19d5947a67b0a32a8034d39408b5cd6e518b4e5cba0074816fbb4cdcc725311885bd95c5be0b2dffa89dfeb355e3e141cfeb2d5cd28c7a4b2f337787e114b7ad125fecd3ca699338e24acff5e4bd90931fe59c5151e66dd8a802f402497b6892361705c0a04ae8a94cc9e4310c126a9ba3b440c87ed748c952e18a8c21977f844a26766ebe90048f84c9d94cc0ef63455f9b1288daaf10c9aa2d45438c58c5cef19bf6e3148e4887a1c542574013a203c532d5037392bccb097bd6bc145f279ab6a026a4e561d0e2653f5a7b1df41077a42d7639607b708cbcf14c3a684962ab4a056ab934d91b3e4ac01b2ab8c6922fd676b80ea9902eb41538423e3ab6163f8026c3a165481a178bb58f9d8a47b090c94c25c692bb639d082d02f957dea671a04375ddecade594a1384b4feab542b18423da07ca6b3c30a7b1737dca1425cc5768b6c5d2b69ae8f90c7978616541633f7087ae311375ba8bdd4a31191a734d1096ed788bc0393de4b058339b2d3e08232d2a70476c7c215acdb38412b1434271323c42fa7cbb02bd87a1c4327248ad685697519ccd0cc04807079632099da47c2b565ec8229481945c27479619daa3d7797033b006f192aa8ffaa307c26752f2249d71686d215097b16f69f69a5e196a8d5a440e6754b7a531abcc38fa3227c0910a0e3b338a99cd39ea43343673e2ea06f6a2705aa0c99578b8076ca03ba3c208d5b228810346496db05c8b82b8181b59a4435bc386a09af72190cf161ea4657efdc0c5d576bdb646b390e32f4df959d3dc46c019123340604b97b17ef43614212b7fd9931d1b8945db728544033df33583717de2527e9e5439ee822d3338653a084ede135d4182aea18b69f1bcb0052963e9461a06f8bd6a705f93c7aff85c00d1513d753c901fb35ead05101ef733bb2965dd230359f350755a6790b666e7f39389563aa61104c2a4214a638fd0eb3e85050cdb63b104099439421c86d984f0f66c5650bf84c650a171994115bc100175a2e06d3b0896f8e1b5cfd3660e071902f87219b02121f3890f1a7ff4d4662c249c32f2cee9906b27f65cd5a18d1953bb6d324ae17b1d0a90b9076693134372780937be79399694772cf414e2d72aeec5be3d74ccce65724032ab8bb1b211325b3861cf85a23959301efa12170cc9a411d7b8c1d23f6695b56d409e27d751b7ec5f89299b67773a80c6046555a4881a49c86056ad91cc5d6ba3e9553b555835f811b12fa99d93a18d7a7c0f26a91e88a8ac4e7a59274a78d21b781d0a10a7d75d7bb32e48869c0600cde8375db1a9062e763a6ea42747e98eddb488eeb16f634bc746ac108c634664ba93006b028ed9bdf7218ca1509675db7672730a1766b8ac46872f2c14eca524e2a99bfe1cb389a95986aa9ee0b989e3b7eb1258c41966936924ddb04da221c97b5463f0110dd084ca0741db00eceb760070e5e1c4cecc31f874795e87c9d6a2bc0959f967bc0657f086ff5e015e35001d0020760070e5e1c4cecc31f874795e87c9d6a2bc0959f967bc0657f086ff5e015e350017004104f68e28d713adbe5ac14146f3263769de23917d46781756e6c1c740e3f6b0c6f0da6198de08c1002f3897eae79f1692423c32b3d94df1ea4d57aabef4cc6b7ea70000000e000c0000096c6f63616c686f7374000d0018001604030503060302030804080508060401050106010201ff01000100000a000c000a11ec001d001700180019002d000201010005000501000000000022000a00080403050306030203001c00024001002b0003020304001700000039004c090110070480100000060480100000010480007530050480c00000040481800000110c000000012acaaa0a000000010b01140801100e0108200244b0c0000000ff02de1a0243e80f036964b7fe0d00f90000010003640020f341501d424f6e519d6e1016607b7a5edc2241020b097f443231eb2037e3ad3a00cf1d98facbc21c74fa83f2ac260c4d9160115b487e57fb9a11dba416860882404a948c20e68e11a2b9a626d889446d842d29afdc72939fdd6c50c874274161b59d33fa590d7a72dab61cc94fb9b5a4156e6493b24f4fb30e91027db3573d325ff22625ae676c0d9bb9077e8189c1f757efbca6bbea1719f06836635ccb9bf6af610d024e36bf8a17fee167dca206f30a7ba596bb8f78da3e1e5b2ad01beaf09301001a0e19493d241779a028aa203c19ff9e8e1e317aebd62b4087ca0866f6771c0639f54fcf7c276a2781c96f0daad3",
+    "dcid_len": 0,
+    "ech_grease_payload_lens": [
+     191
+    ],
+    "first_packet_number": 0,
+    "initial_packet_size": 1252,
+    "ja4": "q13d0314h3_55b375c5d22e_61e396c58b1f",
+    "pad_with_zeros": false,
+    "scid_len": 3,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 12582912
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 25165824
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 17,
+      "kind": "version_information"
+     },
+     {
+      "id": 11,
+      "kind": "varint",
+      "value": 20
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "id": 14,
+      "kind": "varint",
+      "value": 8
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 1200
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     }
+    ]
+   },
+   "source": {
+    "client_version": "135.0",
+    "source": "mozilla-archive",
+    "url": "https://archive.mozilla.org/pub/firefox/releases/135.0/win64/en-US/Firefox%20Setup%20135.0.exe",
+    "version": "135.0"
+   }
+  },
+  "firefox_146.0": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 6,
+    "priority": "u=0, i",
+    "priority_header": true,
+    "priority_updates": false,
+    "pseudo_header_order": [
+     ":method",
+     ":scheme",
+     ":authority",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": false,
+     "eager": true,
+     "open": true,
+     "zero_capacity": false
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      7,
+      20
+     ],
+     [
+      727725890,
+      0
+     ],
+     [
+      16765559,
+      1
+     ],
+     [
+      51,
+      1
+     ],
+     [
+      8,
+      1
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "sni_slice",
+    "client_hello": "010007540303798cb523758c1644e8d73623b7f085657490e6a46d792b1c9b95b51f6ab3715100000613011303130201000725000500050100000000001000050003026833000a000c000a11ec001d001700180019ff01000100002b00030203040022000a00080403050306030203001b0007060001000300020000000e000c0000096c6f63616c686f73740033052f052d11ec04c060d37694c4b07c2879eb5c38e343c73bc405a11314178acead79844d41959099b34d1793a9153ad0eac8ddc0994e454c029a32995cb1bd1c49d18cc7500a0e78668939f29db3ec8be7bc0fc862c0099b48796503458b0871b31015996ea9ea3d679b3bf9081ee4886d98074ecb008ad8083e6beba93279948e81c295ea32fc6306d37517b6811172f089f00c85da111d65d14c17db35393ca0edb6190cb60747003a8f830c9ec068cde47eae6a01cf174d1b59a016ba5b3d30c9c88340df0aaa215c86066c6aabcb46e0aa3b69b7b9a0b2aa94924827064c2dcbaec0e60ed528385939a95f2271f85b5e25f66520657119446cfd262cfc349562f5b807c8260a7c40a47806bdfa9e87b960c04b114f058fb0259038235c9b710245588af6d4a687e93f022b7e7f7b04ebeb223c4b5cf97c16adb6c04f617ee3577d93e4741e93796c75a6ec9b07a18ac00ae72fee76c6db59ba4c0254d10a5278d001a37c94b3d636f4b1b48c138c80883b4879bb0b8634596323d15125964581cb671f1ef96aeb9c9c9337be6225cdd2c0c4a7da2d9e373c0946a4ab0078bc289828083f17c06cc82b4d38422c70572971aa8180137dc87cb8cfea6f6e791d4b45924c915818cb5f24038e4b979179d8caa04807f36c24faa008bf10b1f119bee15288fb704701dbc2c5fc1bccc943bbdbcb42ebafedb33bd6f350fdfb759da8242b749b3446908f544a6f602634585001122b68a113c630aa26b62962a95d01549cd94881787a7cb2c23ac6f91b66337165c65720f6a62d2291440b17ea47287867c6ec1c8344e21c6f6793e09297d2e61a0a9aa2498936452b82391184264875bd5415ec5b664b9c672bc877f64247a06a9f2ee5686c8bb87523aad26cc51ca4c95fa1adbd2c679097c181e85fad980b6590b21f289a2842896c0583387994919bb025544aa2e098e2647d9b4081aa03a01ea5b4e694cb088c212a88b9eff763bdd34838864bb23236eda6bd70437339c49e270024000a4c45a25d472973aae0ca8672490b1b4b3930c90033bf6e404ee66c00dd84657e2867989c2e65b5704899b39734165ff9c723a6a845d0a7b170771baba0b221af6511af8b296afda7a282f5354631b1ef0b3aa822c50460477fe95be0ab844001b1e1134d50613e1de0c4f4f880aab9351f82ba641767b75166d5a566a652c6582b8b98aa2560fcc2f1432a22d31e2a52ae92919bfacc3738f903f8751184e0b9a4217397baa3f0b6254c6142dab02fa1d6b7dedb61ab967ccdc81e853562818628826b2ec39628e7c9b5ded3918f033a3761058141b55ab624340341e3a9968862b147fcb8071443c9823bd9e01cf18bcb15c307839521aef7155fa782aed1a19b9963497700baf30549d394201c0d6308179625a055172b3c77a2a34429f78a92f3e6132ae49975ba5e9faa2f2b0bbee563aadfc08f3feb7ab91cbcc4c6a3c4f24468183930815e66d74a934a34a2b74d73ab9ba23cc422d600ee63ceee496d343a784db71477cb0d9e491ef8a1b4caccb454756c63604431b50577d5c615c98f93a972975b0fd6259b988418511a8e83f60206705d52169dd4b5269837681f21072cc3ba83a6cccb90778c394c274449710e7357f46fd67042e6e146b4317940fccd9090cdb7fa0bf395e90fc6f8e848fafd3c96e3c49fe7ef116c57a6e87cd087fc8e18a511738a16d0bd592d001d0020f8e848fafd3c96e3c49fe7ef116c57a6e87cd087fc8e18a511738a16d0bd592d00170041048fe755cdea47c6895322ceabecffdef6d69c17de6b41d07ee2c074730bd529324f87aea771933e04c74f0cb2b1d95ee0306eb7f8006af602e423b61ccc2b2ab100170000002d00020101000d0018001604030503060302030804080508060401050106010201001c000240010039004c010480007530040481800000050480c000000604801000000704801000000801100901100b01140e01080f03d06048110c000000010a3aba7a00000001c0000000ff02de1a0243e8200245dcfe0d011900000100030a00201e3869cd4ca22bd575ee0b857da013fefd1d98435fea3fedaae450364a5727b700ef0b2757c7852152a2bccf930391c3fb958c81cf02d8f40be21c369abbcdd39de51f08cd02e7f4f8e34601dbfe88c812047bc6a094462578af29c0d519dad14c357ca9218cb619f22f967241e0e563743fcf7ed6db0549ea6f2c8fbf2fe12723059b0a99f85a8c51d0ee988f180f89d8275b2c31aac17fd553b80e2ec6790f691a92adff78c2ad982676d51993e2bdda38d7522e36f393f30a730f63d5b695f919951316007a5ece41c5fefb978496aa407117cf897110b0774db7dfefe69d08eb7e6f0df59502186bd734284df8a2fd969c2beef190b36dfeb6581ccddb72b48569c90d2442c3f9479e5f4160e6b833",
+    "dcid_len": 0,
+    "ech_grease_payload_lens": [
+     223
+    ],
+    "first_packet_number": -1,
+    "initial_packet_size": 1252,
+    "ja4": "q13d0315h3_55b375c5d22e_dc5437974b47",
+    "pad_with_zeros": true,
+    "scid_len": 3,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": false,
+    "transport_parameters": [
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 25165824
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 12582912
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 16
+     },
+     {
+      "id": 11,
+      "kind": "varint",
+      "value": 20
+     },
+     {
+      "id": 14,
+      "kind": "varint",
+      "value": 8
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 17,
+      "kind": "version_information"
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 1500
+     }
+    ]
+   },
+   "source": {
+    "client_version": "146.0",
+    "source": "mozilla-archive",
+    "url": "https://archive.mozilla.org/pub/firefox/releases/146.0/win64/en-US/Firefox%20Setup%20146.0.exe",
+    "version": "146.0"
+   }
+  },
+  "firefox_147.0": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 5,
+    "priority": "u=0, i",
+    "priority_header": true,
+    "priority_updates": false,
+    "pseudo_header_order": [
+     ":method",
+     ":scheme",
+     ":authority",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": false,
+     "eager": true,
+     "open": true,
+     "zero_capacity": false
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      7,
+      20
+     ],
+     [
+      727725890,
+      0
+     ],
+     [
+      16765559,
+      1
+     ],
+     [
+      51,
+      1
+     ],
+     [
+      8,
+      1
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "sni_slice",
+    "client_hello": "010007580303f6901f5d5339c149a9d13399f4486fa7b0075328b6bfbfcf880634e924be9e0e000006130113031302010007290005000501000000000033052f052d11ec04c08aa8c7f171a78f984d90693a7e825e200018c19c2d9da7b2b5088420ba5f40b31eb5f9ae10f3166f23268de6244a43ab52e8bc1e262a6d730e19a0669237452a1a92d3c23143aca50b6959571b670ab41a57946442197c70d8a48d406a658b11a186420abbc38a09195f6961e5fb1b9560b45782b3e374ce6652637da85544694394c0c53f86847ad1aa0e31ba65b31362c64ed88a8ec3a93c1c8a2614116e838983cdea4aeae639b56064f0ea2f931cb19b66c0a72287e9d7695f66154a3066434383bdfca024bc8f69b9bafa0b8261150d14a026de3b671be4273905c0d88c4a3062a0bad194ffa31ff893a7f134919b7c2b01062c754860e740ac636b0c23167f5091a49a21b397e65a849b51b3c421fe5979896440df33334a3c9a04cc8b33ca828beb1461781d5b453ae06b599757786e582edaccbaebd267242014af9994838b9eb3323acc3b832122a4e2b00f17c919f35066147150e099342369611ab6a661421472f7ce70b0c8382974e5b9123106b308389dcee10c896292af97514ca82dea584f240332b963a748d379c657cc8e989aaea028d437cdb830053ef02c1ea30212884df7a06ff8386123eba843b91140648a1cea5557b384ff435f640517fe399441636147e146d7ea90c8366dde744f34a340ec17416b08712829a0650b408d37c222ea89399c0bbf528bed62137c702d6208093ea79d1d07342935992b86a7d7773bf2361e43a155df88c42d97065ef68a670948eae58939ea69348430fd940f08c1c3f8157e939a079deb3b33f4bc83538fb63537bef5325fc37467fa7ed837ccff55269adcaa51ca35167a2d007c0f55551e2a7222818a17dceb189c449eca47c81fa633a1765da0101fe8a9737ebc7db942b3d1f41d91f56cec340bb4a544cc4704b345b1a7d2465a3c5cd1d01cc492a29c414e51403d056228ea818b849c27f34ab8a804596a83b9ee554e9568807735c2a3aa68862a90fe59cc8b09a68c1446138127f8c5c120c33ea9a522865c5420037d700c3d4ce391e13b3e6d3c840ec9784365b930d394ac3c80485587fc7a905723bdc3391c6f9c6aff0306e49bc789269c359b4ac71430e4b1a68f75769ff028ad4618831589cc007c5b528e3bab2026e88090a89e3e1ba5e089a8f6d2087f39cfe08c16029918a0919f51016dbe23c8b748a0c255a2dca77329cb31d271afa9331f550c01ab0b945ac4c68d2b990d4c7a9ad55747717a2c84797d6b439ab7926d94863178830194c52f00a3b01260933638110ca3983b842b6c66924a672dd50590ab4b73562a49f98f6d0c186bf1193bfcaea18870a0e55c5d7a6f639b30cec70f52f56fb626211a9cc2be0c6b0c9ab59593304438c67d81c9d09581b5e3578ea2ab95083a6a53421763946b2475af7897858903ccc69cc858c649278b26273070ab9d6b32b9d42041ec8c315c4651458212e1d0ca19e39bc471b3fa49ae548c01a29031d0966a0c25cc5bf27e511a93c91138852b41f808188699cb3d49aebbb8591d566001539387725256d56a12e7cb72ec2417a2194000457d377e7ccb88e7605831b3766bc64a484127edba55b42acd60f421f5ec0f016abcd0e3ba76bb9f76364a2ca42a5fedf6ed2c7df6c60d3747dbcc17461571f183c48659d28a71683dbf508979b675f60017d0a5c0a065dbff98aeb25997c98da29ac20a4365033a82ee80d2b457001d002075f60017d0a5c0a065dbff98aeb25997c98da29ac20a4365033a82ee80d2b45700170041041567f237047f5c2f1439d9104957ed3e1e28ea76222c702ef70603414291d9f33a0271d66ad45d414f13bc5accce56b6690d83b667139b85d493deb8339aa5fb001b0007060001000300020000000e000c0000096c6f63616c686f7374ff01000100002b0003020304000a000c000a11ec001d00170018001900170000001000050003026833000d0018001604030503060302030804080508060401050106010201002d000201010022000a00080403050306030203001c0002400100390050010480007530040481800000050480c0000006048010000007048010000008024064090240640b01140e01080f03060c2e110c00000001aa2a6a6a00000001c0000000ff02de1a0243e820048000fffffe0d01190000010003780020fe9a67e56a250e57a0eab4256cf41d0824cb273336e80dfdce360f46d6cb5bd800eff67aada05df95ea974bf62c81a0932cc43a2c9aa1bf630d2721b7c94fd66cc87bb812d53a4e82d25ae54d7f9bf1a0e9a5cf76deec821da4802d784d0f4bc97a09272474af44180618dc1ea0cbfdf6ee530a30eaae1ef68c900e92dbec61fd27aa7652d89f610e203f3009d97ef7f68d1489ae295d346833750cae365f789667d9fa205209d1fa53d2416ef6196850c9d284b1c77ebeffad982f89058d0b3963ba2893e5dc48636ba0df4a76ffb46c4aa9ff60424039338923c94c3bf6acd46fdfc2b1cc46613ece634e209b0cbbf6bcc81bb392f434b342878de939db8fde1760b47f867a879b8c2a20662e42f8fad",
+    "dcid_len": 0,
+    "ech_grease_payload_lens": [
+     223
+    ],
+    "first_packet_number": -1,
+    "initial_packet_size": 1252,
+    "ja4": "q13d0315h3_55b375c5d22e_dc5437974b47",
+    "pad_with_zeros": true,
+    "scid_len": 3,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": false,
+    "transport_parameters": [
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 25165824
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 12582912
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 11,
+      "kind": "varint",
+      "value": 20
+     },
+     {
+      "id": 14,
+      "kind": "varint",
+      "value": 8
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 17,
+      "kind": "version_information"
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65535
+     }
+    ]
+   },
+   "source": {
+    "client_version": "147.0",
+    "source": "mozilla-archive",
+    "url": "https://archive.mozilla.org/pub/firefox/releases/147.0/win64/en-US/Firefox%20Setup%20147.0.exe",
+    "version": "147.0"
+   }
+  },
+  "firefox_148.0": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 7,
+    "priority": "u=0, i",
+    "priority_header": true,
+    "priority_updates": false,
+    "pseudo_header_order": [
+     ":method",
+     ":scheme",
+     ":authority",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": false,
+     "eager": true,
+     "open": true,
+     "zero_capacity": false
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      7,
+      20
+     ],
+     [
+      727725890,
+      0
+     ],
+     [
+      16765559,
+      1
+     ],
+     [
+      51,
+      1
+     ],
+     [
+      8,
+      1
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "sni_slice",
+    "client_hello": "01000758030318d39e1319f2d95b780fb50329148889e84ec498716685c61c93bace5e44c84a000006130113031302010007290005000501000000000033052f052d11ec04c075e43f915652b7aa32fc9910b3ac4e0499ce314a354a91c23ed44548a35dd6817ecef517ddac9369a88a54dcce7285aa6836b84cbb0110409b1ec7cc7547878222b0191c8aaaacb4c5896fa02284fd931f84a21d2a586a336711486a208cba5f66f42ae023b956a1b964128895d760c6e69c4a1c71cfa41ee2e86613737b25c70b5600779e0558e4a460f9171320216e9e324f309b678a4ab6f4251cdac2705d6cbe00a9ac9a666ce79068a688676713c544b998543c966bc55d045c8b0d5c2830b5225ad70e532995480a261334ac6b6a5b228118346b10c3629ec39282c6a7b96feb5f2322b0f8164a2d9c892f1ab306417d00d7cbfb5c39b0da188d699feaf58f57f14eee129f1c394371551cb690697b352a27ea279f3b9a0b85b900126ff8a7b63054caac160d05f21f5d6904e3ccbab084736b84c074046dc48a645d977d03a76a384c343c819ceae977acc43ca31a5c35ca9585c109505387ba35784e54256b5b63b3f13a153574fa0a1aa0a6ca161ba9509b662c9157b9400ea94195ae8b1682f1c339db6bbf44c12b39104b645086c441331675261628d99198fe27b5ea4a9ca8576714210bfa9c6aa7a21a7e7aa33aeaa7c7d76af0e9ce22553bf1aa2074fbb72dc15fa45560910774686cb3ab8b7aede815abe268aa88af012a47b6f42c1bdb3939cb2c174b275c004a7b444dfb687f4887189d5c581aa532d6e318b26223fe852852f498b3c07700131b4868ccd1f46419c92d0a262d43c6ce00d98277999f34073ef742a192058fe33aa748a4c7834a8035727ee5f06f4f55ab01a70afe9a46c8059a15256534139f96b2ad2a0473aa283b83c13ddec05fcd6419d8698682ea94d6ea8a5127bbf779789a534745cac8fc6b3f64bc7817000b7f2710c8f63f68a3bf5503a672a002aa3840b011b3b733ccfb218e139b808b73273abca73b472cb3fc4aef0cca099b63e6e04aca7733aea12e1dc8b14b13c31c61c5694cc1cd5536b9b71566396cb1eb616ac16280866212390f8984978437b631f6a73d122a4b62af5352772d20272fc38e83b2520f73470b29c211e6ce613b7eb0e794821acd5d483ca2417904b29a7abc19ef99670f451daf37787f603d9880937a6274de8877ca6294442a7d3c5a2032989899ea589af7575f1983b999cf23803bcebc3d0bd7299337ad57478562e950ded78ef92288f316918e26746910a2216aa1c0e4a3c22036f2958322e3316c247ec2ba30175485a8dc58a18455e8952ad48b47d978bdd5fa56fb9762650a85b25c9aff4030068a78ae2c35054c10e0c17b81a33b5dea31a3013952728e18254ddfb769e9670c3f9804a5aa62ecd459c09194c5359e2ceaca32178ca79c8a311bb1aa479ab7db03bcd50bb580170c946c5a4175dc2966eaaa0cc7e780b6950b87dac026760b69944c3e2a9b9089cf10c9278732803ba2756eb5a4eb406e0738809e823dfed0b59bec40cd272cc6983813b36e37c8c4d3ebc9c7930edcb40b1c70b7e5f0b49cf70e7042907d9156ca9095599c4f64f18dd537215654c5f4031794e6a6d5463c2f2029af2c2766e4c399ca295c795ae29bbbcd48c08fa22ae140a9203005af255f41ac647b8678963b886e9ee663984dae29b8ab9ce541d9bfd4f063eb5cc4ecf65fea81a9b8c7adff2e25e54516aa77b4db5c77a81bb94ef05333b7a4f71646f332f9caf64b1d20b437001d002025e54516aa77b4db5c77a81bb94ef05333b7a4f71646f332f9caf64b1d20b43700170041049cc0591daeadc47fa71dae38505d52b638dab9db9c11e3dc57316c0c64e25d57dc8d1aa51036eec486786b150c6af3cca4fcf74e9b00d9507a4950fc5cbee421002b0003020304002d00020101001c000240010022000a00080403050306030203001b000706000100030002001000050003026833ff01000100000d0018001604030503060302030804080508060401050106010201000a000c000a11ec001d001700180019001700000000000e000c0000096c6f63616c686f737400390050010480007530040481800000050480c0000006048010000007048010000008024064090240640b01140e01080f03096d8e110c00000001ca2acaea00000001c0000000ff02de1a0243e820048000fffffe0d01190000010003360020706f81ecdce11eade325f5b31069eeee315420919714393a990f0e869ea6b68300eff198e109395c41e89e2b79f8879edda21be0d0c05b68a29c4bc9c622aadd58b23a582ecf0fe196af05cff31051291a029962846cbd0f96b39c7b6eddc1a45f27688390b6f3cd38a486948d3c6d541cdd44e3117890e7fa49dcb938ae6ab61aea224818046f00e23e29453e12e8020c219e2c0cd26016bc8d1dc84a5570b8a5dc9da21302f1caf603cf7bff366072182118994227c64112d1861318f73c3f545a636a9b78730ffa1436a2ba7a764f6c7cf5caf4facc83cac197aab9867e22b611bf9c6ccdef9b788f37c72953ff0ff0da3d19b5593ac71ad488b4a7eb6a630a604507bfafde2daba9c40d19454877fa",
+    "dcid_len": 0,
+    "ech_grease_payload_lens": [
+     223
+    ],
+    "first_packet_number": -1,
+    "initial_packet_size": 1252,
+    "ja4": "q13d0315h3_55b375c5d22e_dc5437974b47",
+    "pad_with_zeros": true,
+    "scid_len": 3,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": false,
+    "transport_parameters": [
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 25165824
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 12582912
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 1048576
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 11,
+      "kind": "varint",
+      "value": 20
+     },
+     {
+      "id": 14,
+      "kind": "varint",
+      "value": 8
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 17,
+      "kind": "version_information"
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65535
+     }
+    ]
+   },
+   "source": {
+    "client_version": "148.0",
+    "source": "mozilla-archive",
+    "url": "https://archive.mozilla.org/pub/firefox/releases/148.0/win64/en-US/Firefox%20Setup%20148.0.exe",
+    "version": "148.0"
+   }
+  },
+  "opera_89.0.4447.83": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 3,
+    "priority": "u=0",
+    "priority_header": false,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "single_packet",
+    "client_hello": "0100011c03038b096a2a63d7cef361e50842d613d7069607efecee32024ceedab270ec0c608a000006130113021303010000ed0000000e000c0000096c6f63616c686f7374003300260024001d00205fd8372aa82100f8d5cb49d1a6292d82e1e6d0a48efd53a714be7b7f2b9f8c7500390063050480600000010480007530040480f0000080004752040000000108024064e4a4159c2c6f6a630e3c3ac839284a01b716a651a57a3e0704806000002004800100000f00030245c00902406780ff73db0c00000001000000012a9afa6a060480600000002b0003020304446900050003026833001b0003020002002d00020101001000050003026833000d00140012040308040401050308050501080606010201000a00080006001d00170018",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0310h3_55b375c5d22e_cd85d2d88918",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     }
+    ]
+   },
+   "source": {
+    "client_version": "89.0.4447.83",
+    "source": "opera-archive",
+    "url": "https://get.geo.opera.com/pub/opera/desktop/89.0.4447.83/win/Opera_89.0.4447.83_Setup_x64.exe",
+    "version": "89.0.4447.83"
+   }
+  },
+  "opera_90.0.4480.84": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 0,
+    "priority": "u=0",
+    "priority_header": false,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "single_packet",
+    "client_hello": "0100011b0303c37f23d27f0bdaedf85186fce0d55d8a0179e9b930de87625103498947e6ef28000006130113021303010000ec0000000e000c0000096c6f63616c686f7374000a00080006001d00170018003300260024001d0020584b869e2ef35571a473d04b02cac420ed8ecd4a5c8f2c2bb197010b09bc7202002b0003020304001b0003020002000d001400120403080404010503080505010806060102010039006208024064060480600000010480007530800047520400000001040480f0000007048060000009024067ed2b1f99dc40feb70d79c4b0f0e0d834f28be774ad0180ff73db0c0000000100000001fa7a4a1a0f00050480600000030245c0200480010000002d00020101446900050003026833001000050003026833",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0310h3_55b375c5d22e_cd85d2d88918",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     }
+    ]
+   },
+   "source": {
+    "client_version": "90.0.4480.84",
+    "source": "opera-archive",
+    "url": "https://get.geo.opera.com/pub/opera/desktop/90.0.4480.84/win/Opera_90.0.4480.84_Setup_x64.exe",
+    "version": "90.0.4480.84"
+   }
+  },
+  "opera_91.0.4516.77": {
+   "h3": {
+    "grease_frame": true,
+    "grease_frame_max_len": 3,
+    "priority": "u=0",
+    "priority_header": false,
+    "priority_updates": true,
+    "pseudo_header_order": [
+     ":method",
+     ":authority",
+     ":scheme",
+     ":path"
+    ],
+    "qpack": {
+     "decoder_first": true,
+     "eager": false,
+     "open": true,
+     "zero_capacity": true
+    },
+    "settings": [
+     [
+      1,
+      65536
+     ],
+     [
+      6,
+      262144
+     ],
+     [
+      7,
+      100
+     ],
+     [
+      "GREASE"
+     ]
+    ]
+   },
+   "quic": {
+    "chaos": "single_packet",
+    "client_hello": "010001240303064cc582bad8f3cf905dd23a0e3b3809cc414c6f9702b809f32ab8e68ada4dbf000006130113021303010000f5002d00020101000a00080006001d00170018003300260024001d00203e889393f3f1921c98c974bb592c43df466eb9cf3af29626eb32ce5906917112000d001400120403080404010503080505010806060102010039006b030245c07128045256434d060480600000040480f000000f0005048060000020048001000008024064800047520400000001010480007530cbbbbba7201b35c60fc54f185b77cb81a5a1ca3e2d243d170704806000000902406780ff73db0c0000000100000001aa9a5afa0010000500030268330000000e000c0000096c6f63616c686f7374002b0003020304446900050003026833001b0003020002",
+    "dcid_len": 8,
+    "ech_grease_payload_lens": [],
+    "first_packet_number": 1,
+    "initial_packet_size": 1250,
+    "ja4": "q13d0310h3_55b375c5d22e_cd85d2d88918",
+    "pad_with_zeros": false,
+    "scid_len": 0,
+    "shuffle_extensions": true,
+    "shuffle_transport_parameters": true,
+    "transport_parameters": [
+     {
+      "id": 3,
+      "kind": "varint",
+      "value": 1472
+     },
+     {
+      "hex": "5256434d",
+      "id": 12584,
+      "kind": "bytes"
+     },
+     {
+      "id": 6,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 4,
+      "kind": "varint",
+      "value": 15728640
+     },
+     {
+      "id": 15,
+      "kind": "scid"
+     },
+     {
+      "id": 5,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 32,
+      "kind": "varint",
+      "value": 65536
+     },
+     {
+      "id": 8,
+      "kind": "varint",
+      "value": 100
+     },
+     {
+      "hex": "00000001",
+      "id": 18258,
+      "kind": "bytes"
+     },
+     {
+      "id": 1,
+      "kind": "varint",
+      "value": 30000
+     },
+     {
+      "kind": "grease",
+      "max_len": 15
+     },
+     {
+      "id": 7,
+      "kind": "varint",
+      "value": 6291456
+     },
+     {
+      "id": 9,
+      "kind": "varint",
+      "value": 103
+     },
+     {
+      "hex": "00000001000000010a0a0a0a",
+      "id": 16741339,
+      "kind": "version_information"
+     }
+    ]
+   },
+   "source": {
+    "client_version": "91.0.4516.77",
+    "source": "opera-archive",
+    "url": "https://get.geo.opera.com/pub/opera/desktop/91.0.4516.77/win/Opera_91.0.4516.77_Setup_x64.exe",
+    "version": "91.0.4516.77"
+   }
+  }
+ },
+ "format": "yumeclient.h3profiles",
+ "profiles": {
+  "brave_146": {
+   "capture": "chrome_146",
+   "relation": "Chromium of the same major version (same network stack)"
+  },
+  "brave_146_PSK": {
+   "capture": "chrome_146",
+   "relation": "Chromium of the same major version (same network stack)"
+  },
+  "chrome_103": {
+   "capture": "chrome_103",
+   "relation": "captured"
+  },
+  "chrome_104": {
+   "capture": "chrome_104",
+   "relation": "captured"
+  },
+  "chrome_105": {
+   "capture": "chrome_105",
+   "relation": "captured"
+  },
+  "chrome_106": {
+   "capture": "chrome_106",
+   "relation": "captured"
+  },
+  "chrome_107": {
+   "capture": "chrome_107",
+   "relation": "captured"
+  },
+  "chrome_108": {
+   "capture": "chrome_108",
+   "relation": "captured"
+  },
+  "chrome_109": {
+   "capture": "chrome_109",
+   "relation": "captured"
+  },
+  "chrome_110": {
+   "capture": "chrome_110",
+   "relation": "captured"
+  },
+  "chrome_111": {
+   "capture": "chrome_111",
+   "relation": "captured"
+  },
+  "chrome_112": {
+   "capture": "chrome_112",
+   "relation": "captured"
+  },
+  "chrome_116_PSK": {
+   "capture": "chrome_116",
+   "relation": "captured (the PSK variant differs in TCP resumption only)"
+  },
+  "chrome_116_PSK_PQ": {
+   "capture": "chrome_116_pq",
+   "relation": "captured with --enable-features=PostQuantumKyber"
+  },
+  "chrome_117": {
+   "capture": "chrome_117",
+   "relation": "captured"
+  },
+  "chrome_120": {
+   "capture": "chrome_120",
+   "relation": "captured"
+  },
+  "chrome_124": {
+   "capture": "chrome_124",
+   "relation": "captured"
+  },
+  "chrome_130_PSK": {
+   "capture": "chrome_130",
+   "relation": "captured (the PSK variant differs in TCP resumption only)"
+  },
+  "chrome_131": {
+   "capture": "chrome_131",
+   "relation": "captured"
+  },
+  "chrome_131_PSK": {
+   "capture": "chrome_131",
+   "relation": "captured (the PSK variant differs in TCP resumption only)"
+  },
+  "chrome_133": {
+   "capture": "chrome_133",
+   "relation": "captured"
+  },
+  "chrome_133_PSK": {
+   "capture": "chrome_133",
+   "relation": "captured (the PSK variant differs in TCP resumption only)"
+  },
+  "chrome_144": {
+   "capture": "chrome_144",
+   "relation": "captured"
+  },
+  "chrome_144_PSK": {
+   "capture": "chrome_144",
+   "relation": "captured (the PSK variant differs in TCP resumption only)"
+  },
+  "chrome_146": {
+   "capture": "chrome_146",
+   "relation": "captured"
+  },
+  "chrome_146_PSK": {
+   "capture": "chrome_146",
+   "relation": "captured (the PSK variant differs in TCP resumption only)"
+  },
+  "chrome_150": {
+   "capture": "chrome_150",
+   "relation": "captured"
+  },
+  "chrome_150_PSK": {
+   "capture": "chrome_150",
+   "relation": "captured (the PSK variant differs in TCP resumption only)"
+  },
+  "chrome_152": {
+   "capture": "chrome_152",
+   "relation": "captured"
+  },
+  "chrome_152_PSK": {
+   "capture": "chrome_152",
+   "relation": "captured (the PSK variant differs in TCP resumption only)"
+  },
+  "edge_101": {
+   "capture": "chrome_101",
+   "relation": "Chromium of the same major version (same network stack)"
+  },
+  "edge_131": {
+   "capture": "chrome_131",
+   "relation": "Chromium of the same major version (same network stack)"
+  },
+  "edge_99": {
+   "capture": "chrome_99",
+   "relation": "Chromium of the same major version (same network stack)"
+  },
+  "edge_latest": {
+   "capture": "chrome_131",
+   "relation": "Chromium of the same major version (same network stack)"
+  },
+  "firefox_102": {
+   "capture": "firefox_102.0",
+   "relation": "captured"
+  },
+  "firefox_104": {
+   "capture": "firefox_104.0",
+   "relation": "captured"
+  },
+  "firefox_105": {
+   "capture": "firefox_105.0",
+   "relation": "captured"
+  },
+  "firefox_106": {
+   "capture": "firefox_106.0",
+   "relation": "captured"
+  },
+  "firefox_108": {
+   "capture": "firefox_108.0",
+   "relation": "captured"
+  },
+  "firefox_110": {
+   "capture": "firefox_110.0",
+   "relation": "captured"
+  },
+  "firefox_117": {
+   "capture": "firefox_117.0",
+   "relation": "captured"
+  },
+  "firefox_120": {
+   "capture": "firefox_120.0",
+   "relation": "captured"
+  },
+  "firefox_123": {
+   "capture": "firefox_123.0",
+   "relation": "captured"
+  },
+  "firefox_132": {
+   "capture": "firefox_132.0",
+   "relation": "captured"
+  },
+  "firefox_133": {
+   "capture": "firefox_133.0",
+   "relation": "captured"
+  },
+  "firefox_135": {
+   "capture": "firefox_135.0",
+   "relation": "captured"
+  },
+  "firefox_146_PSK": {
+   "capture": "firefox_146.0",
+   "relation": "captured (the PSK variant differs in TCP resumption only)"
+  },
+  "firefox_147": {
+   "capture": "firefox_147.0",
+   "relation": "captured"
+  },
+  "firefox_147_PSK": {
+   "capture": "firefox_147.0",
+   "relation": "captured (the PSK variant differs in TCP resumption only)"
+  },
+  "firefox_148": {
+   "capture": "firefox_148.0",
+   "relation": "captured"
+  },
+  "opera_89": {
+   "capture": "opera_89.0.4447.83",
+   "relation": "captured"
+  },
+  "opera_90": {
+   "capture": "opera_90.0.4480.84",
+   "relation": "captured"
+  },
+  "opera_91": {
+   "capture": "opera_91.0.4516.77",
+   "relation": "captured"
+  }
+ },
+ "version": 1
+}

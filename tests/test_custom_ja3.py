@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 import yumeclient
-from yumeclient import Profiles, Session
+from yumeclient import Profiles, Session, SessionConfigurationError
 
 from test_protocol import H2Server
 from test_wire import Sniffer, parse_hello
@@ -147,21 +147,33 @@ def test_http3_warning_depends_on_the_fill():
         assert [w for w in seen if "HTTP/3" in str(w.message)]
 
 
-@pytest.mark.parametrize("identifier", ["chrome_152", "chrome_146_PSK", "brave_146", "firefox_148"])
+@pytest.mark.parametrize("identifier", ["chrome_152", "chrome_146_PSK", "brave_146", "firefox_148", "chrome_133",
+                                        "chrome_103", "edge_131", "opera_91", "firefox_102", "chrome_116_PSK_PQ"])
 def test_profiles_with_http3_parameters_do_not_warn(identifier):
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         Session(client_identifier=identifier, http_version="3")._core._flags(None)
 
 
-def test_profiles_without_http3_parameters_warn():
+@pytest.mark.parametrize("identifier", ["safari_ios_18_0", "zalando_ios_mobile", "mesh_android"])
+def test_profiles_without_http3_parameters_warn(identifier):
     with pytest.warns(UserWarning, match="HTTP/3"):
-        Session(client_identifier="chrome_133", http_version="3")._core._flags(None)
+        Session(client_identifier=identifier, http_version="3")._core._flags(None)
+
+
+@pytest.mark.parametrize("identifier", ["okhttp4_android_13", "okhttp4_conscrypt", "conscrypt_android_latest",
+                                        "cloudscraper", "tor_145"])
+def test_clients_without_http3_reject_it(identifier):
+    with pytest.raises(SessionConfigurationError, match="never sends HTTP/3"):
+        Session(client_identifier=identifier, http_version="3")
+    with pytest.raises(SessionConfigurationError, match="never sends HTTP/3"):  # per-request check
+        yumeclient._validateTransport(http_version="3", force_http1=False, disable_http3=False, proxy=None,
+                                      client_identifier=identifier)
 
 
 def test_chrome_157_capture_fixture_is_consistent():
-    # the capture behind h3FromChrome144 (native/main.go): Chrome 157 sends Chrome 144's
-    # HTTP/3 SETTINGS and the same TLS / HTTP/2 shape as chrome_152
+    # Chrome 157 sends Chrome 144's HTTP/3 SETTINGS and the same TLS / HTTP/2 shape as
+    # chrome_152
     data = json.loads((FIXTURES / "chrome_157_wire.json").read_text(encoding="utf-8"))
     assert data["http3"]["settings"][:4] == [[1, 65536], [6, 262144], [7, 100], [51, 1]]
     assert data["http2"]["frames"][:2] == ["SETTINGS 1:65536;2:0;4:6291456;6:262144", "WINDOW_UPDATE stream=0 inc=15663105"]

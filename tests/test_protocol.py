@@ -9,6 +9,7 @@ import struct
 import tempfile
 import threading
 import time
+import warnings
 
 import pytest
 
@@ -34,7 +35,8 @@ class H2Server:
     """Minimal HTTP/2 server: answers every request stream with 200 "ok".
     ``frames`` records what clients sent: (type, flags, stream, payload)."""
 
-    def __init__(self, port: int = 0):
+    def __init__(self, port: int = 0, tls: bool = True):
+        self.tls = tls  # False: HTTP/2 over cleartext with prior knowledge (h2c)
         fd, self._pem = tempfile.mkstemp(suffix=".pem")
         with os.fdopen(fd, "w") as fh:
             fh.write(_PEM)
@@ -75,9 +77,9 @@ class H2Server:
 
     def _serve(self, c):
         try:
-            with self.ctx.wrap_socket(c, server_side=True) as s:
+            with (self.ctx.wrap_socket(c, server_side=True) if self.tls else c) as s:
                 self.connections += 1
-                self._read(s, 24)  # client preface
+                self.preface = self._read(s, 24)  # client preface
                 s.sendall(self._frame(4, 0, 0))
                 while True:
                     head = self._read(s, 9)
@@ -229,8 +231,8 @@ def test_closed_session_closes_its_http2_connections(h2):
     assert yumeclient._debugStats()["goroutines"] <= before + 1
 
 
-def test_http2_plain_http_stays_http1(native):
-    # no ALPN on plain TCP and no h2c: http:// is HTTP/1.1 under every http_version
+def test_plain_http_is_http1_unless_http2_is_required(native):
+    # no ALPN on plain TCP: http:// is HTTP/1.1 under "auto", "1.1" and "3"
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
     class Handler(BaseHTTPRequestHandler):
@@ -243,9 +245,71 @@ def test_http2_plain_http_stays_http1(native):
     srv = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
+        for version in ("auto", "1.1", "3"):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                with Session(timeout=5, http_version=version) as s:
+                    r = s.get(f"http://127.0.0.1:{srv.server_address[1]}/")
+            assert r.status_code == 200 and r.used_protocol == "HTTP/1.1", version
+        # http_version="2" speaks h2c, which an HTTP/1.1 server refuses: an error, not HTTP/1.1
         with Session(timeout=5, http_version="2") as s:
+            with pytest.raises(yumeclient.ProtocolError, match="cleartext"):
+                s.get(f"http://127.0.0.1:{srv.server_address[1]}/")
+    finally:
+        srv.shutdown(); srv.server_close()
+
+
+@pytest.mark.parametrize("identifier", ["chrome_133", "firefox_147", "okhttp4_android_13"])
+def test_http2_prior_knowledge_on_plain_http(native, identifier):
+    # http_version="2" on http:// was HTTP/1.1; now HTTP/2 with prior knowledge (h2c),
+    # the profile's SETTINGS in the connection preface
+    srv = H2Server(tls=False)
+    try:
+        with Session(client_identifier=identifier, timeout=5, http_version="2") as s:
+            r = s.get(f"http://127.0.0.1:{srv.port}/a")
+            r2 = s.get(f"http://127.0.0.1:{srv.port}/b")
+        assert r.status_code == r2.status_code == 200
+        assert r.used_protocol == "HTTP/2.0" and srv.connections == 1
+        assert srv.preface == b"PRI * HTTP/2.0" + bytes([13, 10, 13, 10]) + b"SM" + bytes([13, 10, 13, 10])
+        settings = next(p for kind, flags, _, p in srv.frames if kind == 4 and not flags & 1)
+        sent = [(int.from_bytes(settings[i:i + 2], "big"), int.from_bytes(settings[i + 2:i + 6], "big"))
+                for i in range(0, len(settings), 6)]
+        with Session(client_identifier=identifier, verify=False, timeout=5, http_version="2") as s:
+            tls_srv = H2Server()
+            try:
+                s.get(f"https://127.0.0.1:{tls_srv.port}/a")
+            finally:
+                tls_srv.close()
+        tls_settings = next(p for kind, flags, _, p in tls_srv.frames if kind == 4 and not flags & 1)
+        assert settings == tls_settings, sent  # same fingerprint as over TLS
+    finally:
+        srv.close()
+
+
+def test_redirect_from_http_to_https_keeps_the_profile(native):
+    # http:// requests ran on a separate client whose redirects to https:// went
+    # through Go's default TLS stack: Go's ClientHello, verify=False ignored
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from test_wire import Sniffer, parse_hello
+    sniffer = Sniffer()
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+        def do_GET(self):
+            self.send_response(302); self.send_header("Location", f"https://127.0.0.1:{sniffer.port}/x")
+            self.send_header("Content-Length", "0"); self.end_headers()
+        def log_message(self, *args):
+            pass
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        with Session(client_identifier="chrome_133", verify=False, timeout=5) as s:
             r = s.get(f"http://127.0.0.1:{srv.server_address[1]}/")
-        assert r.status_code == 200 and r.used_protocol == "HTTP/1.1"
+            s.get(f"https://127.0.0.1:{sniffer.port}/direct")
+        assert r.status_code == 200 and [h.status_code for h in r.history] == [302]
+        hellos = [parse_hello(h) for h in sniffer.hellos]
+        assert len({h["ja4"] for h in hellos}) == 1, [h["ja4"] for h in hellos]
     finally:
         srv.shutdown(); srv.server_close()
 
@@ -266,3 +330,30 @@ def test_header_http2_refuses_is_an_invalid_request(native):
         assert srv.connections == 1 and srv.streams == 2
     finally:
         srv.close()
+
+
+@pytest.mark.parametrize("scheme,first", [("socks5h", 5), ("socks4", 4), ("socks5", 5)])
+def test_plain_http_goes_through_socks_proxies(native, scheme, first):
+    # http:// requests through socks5h:// or socks4:// went to the proxy as plaintext
+    # HTTP-proxy requests ("GET http://..."): only socks5:// was known to that transport
+    seen = []
+    ls = socket.socket()
+    ls.bind(("127.0.0.1", 0))
+    ls.listen(4)
+
+    def serve():
+        try:
+            c, _ = ls.accept()
+            seen.append(c.recv(64))
+            c.close()
+        except OSError:
+            pass
+
+    threading.Thread(target=serve, daemon=True).start()
+    try:
+        with Session(timeout=5, proxy=f"{scheme}://127.0.0.1:{ls.getsockname()[1]}") as s:
+            with pytest.raises(yumeclient.RequestError):
+                s.get("http://127.0.0.1:9/plain")
+    finally:
+        ls.close()
+    assert seen and seen[0][0] == first, seen

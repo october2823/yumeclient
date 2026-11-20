@@ -75,7 +75,13 @@ async def main():
 
 Сессия стартует **не с пустых** заголовков: для каждого профиля собирается
 браузерный baseline (user-agent, sec-ch-ua, accept, sec-fetch-*, accept-encoding,
-accept-language), зависящий от `client_identifier` и `client_os`.
+accept-language), зависящий от `client_identifier` и `client_os`. У Chrome, Edge, Brave,
+Opera, Firefox и Tor он сверен с записями самих браузеров (`tests/fixtures/
+browser_headers.json`, тест `tests/test_browser_headers.py`): набор, порядок и значения по
+HTTP/1.1 и HTTP/2, `Sec-CH-UA` по алгоритму Chromium (GREASE-бренд, его версия и порядок
+брендов зависят от версии), по HTTP/1.1 — `Host` первым, `Connection: keep-alive` и
+написание имён браузера (`User-Agent`, но `sec-ch-ua` у Chromium); HTTP/2 и HTTP/3 имена
+приводят к нижнему регистру и `Connection` не передают.
 
 ```python
 from yumeclient import Session, default_headers
@@ -106,12 +112,17 @@ r = s.get(url, headers={"Accept": "text/css"})  # разовый override пов
   (табуляция и не-ASCII допустимы); иначе `InvalidRequestError` до отправки. По HTTP/2
   нельзя передать `Connection` (кроме `close`/`keep-alive`), `Upgrade` и
   `Transfer-Encoding` (кроме `chunked`) — тоже `InvalidRequestError`, соединение остаётся.
-- Chromium-профили (`chrome_144`+, `brave_146`, custom JA3 с Chrome-заполнением) по
-  HTTP/2 и HTTP/3 отправляют последним `priority: u=0, i`, как Chrome; по HTTP/1.1 —
-  нет. Свой `Priority` в сессии или запросе заменяет его, `{"priority": None}` убирает.
+- Chromium-профили с версии 124 (`chrome_124`+, `edge_131`, `brave_146`, custom JA3 с
+  Chrome-заполнением) по HTTP/2 и HTTP/3 отправляют последним `priority: u=0, i`, как
+  Chrome; по HTTP/1.1 — нет. Firefox с 128 (`firefox_132`+, `tor_145`) шлёт его по всем
+  протоколам — он в baseline. Firefox по HTTP/2 добавляет последним `te: trailers` (по
+  HTTP/1.1 и HTTP/3 — нет). Свой `Priority`/`TE` в сессии или запросе заменяет их,
+  `{"priority": None}` убирает.
 - `header_order` не задан → порядок на проводе равен порядку вставки в `session.headers`.
 - `header_order=[...]` или `header_order=` в запросе задаёт порядок явно.
-- `default_headers(identifier, os)` возвращает baseline без сессии.
+- `default_headers(identifier, os)` возвращает baseline без сессии — `Headers` с именами,
+  как их пишет браузер по HTTP/1.1 (все операции без учёта регистра); `profiles.sec_ch_ua(major,
+  brand)` — `Sec-CH-UA` Chromium нужной версии.
 - Исключение — okhttp-профили (`okhttp4_*`, `conscrypt_android_latest`): у okhttp нет
   дефолтных заголовков уровня приложения, сессия стартует с пустого `session.headers`,
   а `Accept-Encoding: gzip` / `User-Agent: okhttp/4.12.0` дописывает сетевой слой на
@@ -170,13 +181,14 @@ User-Agent: okhttp/4.12.0          ← только если вы не зада�
 | Настройка | ALPN в hello (JA4) | Протокол |
 |---|---|---|
 | `http_version="auto"` (по умолчанию) | профиль: `h2,http/1.1` (`…h2_…`) | что выбрал сервер — ровно как okhttp |
-| `http_version="2"` | профиль | только HTTP/2: если сервер выбрал `http/1.1` (или не прислал ALPN), соединение закрывается сразу после хендшейка, запрос не отправлен, `ProtocolError` |
+| `http_version="2"` | профиль | только HTTP/2: если сервер выбрал `http/1.1` (или не прислал ALPN), соединение закрывается сразу после хендшейка, запрос не отправлен, `ProtocolError`. По `http://` — HTTP/2 без TLS с prior knowledge (h2c, как OkHttp `H2_PRIOR_KNOWLEDGE`); сервер без h2c — `ProtocolError` |
 | `http_version="1.1"` / `force_http1=True` | переписан на `http/1.1` (`…h1_…`) | HTTP/1.1, но hello уже не как у приложения |
 | `http_version="1.1", keep_alpn=True` | профиль: `h2,http/1.1` (`…h2_…`) | HTTP/1.1, если сервер выбрал `http/1.1` (или не выбрал ничего); если выбрал `h2` — соединение закрывается сразу после хендшейка, ни одного байта HTTP не отправлено, `ProtocolError` |
-| `http_version="3"` | профиль + QUIC | гонка соединений HTTP/3 и TCP (TCP — через 300 мс или сразу после неудачи QUIC); запрос уходит один раз — по протоколу, первым установившему соединение (или по уже открытому), выигравший запоминается для хоста. После ошибки запомненного протокола (у HTTP/3 — и после таймаута/отмены: молчащий UDP) следующие запросы снова устраивают гонку на новых соединениях; таймаут или отмена HTTP/1.1/HTTP/2 протокол и пул сохраняют. Сам запрос повторяется гонкой, если он идемпотентный (GET/HEAD/OPTIONS/TRACE или с `Idempotency-Key`) и время ещё есть, или если не был отправлен |
+| `http_version="3"` | профиль + QUIC | гонка соединений HTTP/3 и TCP (TCP — через 300 мс или сразу после неудачи QUIC); запрос уходит один раз — по протоколу, первым установившему соединение (или по уже открытому), выигравший запоминается для хоста. После ошибки запомненного протокола (у HTTP/3 — и после таймаута/отмены: молчащий UDP) следующие запросы снова устраивают гонку на новых соединениях; таймаут или отмена HTTP/1.1/HTTP/2 протокол и пул сохраняют. Сам запрос повторяется гонкой, если он идемпотентный (GET/HEAD/OPTIONS/TRACE или с `Idempotency-Key`) и время ещё есть, или если не был отправлен. Если HTTP/3-соединение закрылось с кодом ошибки HTTP/3, QPACK или QUIC (сервером или из-за нарушения протокола), HTTP/3 для адреса считается сломанным (как в Chrome: 5 минут, при повторах вдвое дольше, до 2 суток) — запрос повторяется по TCP, следующие идут по TCP сразу. Закрытие без ошибки (NO_ERROR, H3_NO_ERROR, неизвестные коды), сброс сервером одного запроса, слишком большой ответ, таймауты и забытое сервером соединение (idle timeout, stateless reset) — нет: следующий запрос идёт по новому QUIC-соединению |
 
-`http://` — всегда HTTP/1.1 при любом `http_version` (ALPN есть только у TLS, h2c
-не поддерживается).
+`http://` — HTTP/1.1 при `"auto"`, `"1.1"` и `"3"` (ALPN есть только у TLS, браузеры
+h2c не используют), h2c при `"2"`. Редиректы между `http://` и `https://` идут в одной
+сессии: каждый `https://`-хоп — с TLS профиля.
 
 Противоречивые настройки отклоняются в конструкторе `SessionConfigurationError`,
 до любого обращения к сети:
@@ -186,7 +198,9 @@ User-Agent: okhttp/4.12.0          ← только если вы не зада�
 - `alpn_protocols` (custom JA3) вместе с принудительным HTTP/1.1, если список не
   `["http/1.1"]`: hello предложил бы `http/1.1` вместо вашего списка (сохранить список —
   `keep_alpn=True`); `http_version="2"` с `alpn_protocols` без `h2`;
-- `http_version="3"` с прокси не `socks5://`.
+- `http_version="3"` с прокси не `socks5://`;
+- `http_version="3"` с клиентом без HTTP/3 (`profiles.NO_HTTP3`: `okhttp4_*`,
+  `okhttp4_conscrypt`, `conscrypt_android_latest`, `cloudscraper`, `tor_145`).
 
 `r.used_protocol` и `r.connection_info["http_protocol"]` всегда совпадают;
 `connection_info["alpn_negotiated"]` — что выбрал сервер.
@@ -209,7 +223,7 @@ with Session(client_identifier=Profiles.CHROME_152, client_os="android") as s:
 
 - `ALL_IDENTIFIERS` — 83 профиля upstream v1.16.0 + 10 extra-профилей адаптера (итого 93); `Profiles.*` — константы; `find("safari_ios")` — поиск по подстроке.
 - Extra-профили (нет в upstream, TLS-стек собран адаптером и проверен по JA4):
-  `edge_99` / `edge_101` / `edge_131` / `edge_latest` — Chromium TLS-стек (JA4 идентичен chrome_131) с Edge UA и sec-ch-ua брендом;
+  `edge_99` / `edge_101` / `edge_131` / `edge_latest` — Chromium TLS-стек (hello Chrome 100 / 110 / 131 / 131) с Edge UA и sec-ch-ua брендом; HTTP/2 SETTINGS, `priority` и QUIC/HTTP/3 — Chromium той же версии (`edge_latest` — 131);
   `safari_macos_17_0` / `safari_macos_18_0` / `safari_macos_26_0` — Apple держит ClientHello стабильным с 16 версии (JA4 идентичен safari_16_0), macOS-baseline, client_os по умолчанию macos;
   `tor_145` — TLS-стек Firefox ESR 128 как в Tor Browser 14+ (15 extensions), Tor-стиль UA без te:trailers.
   `conscrypt_android_latest` / `okhttp4_conscrypt` — hello Android-приложения (okhttp поверх платформенного Conscrypt, TLS 1.3): 15 шифров без GREASE в порядке Conscrypt, 13 расширений с padding до 512 байт, groups 29-23-24, key share только X25519, JA3 `f79b6bad2ad0641e1921aef10262856b`, JA4 `t13d1513h2_8daaf6152771_eca864cca44a`; при повторном соединении с TLS 1.3 тикетом — resumption hello с `pre_shared_key` (41) вместо padding (выключается `disable_session_tickets=True`); h2 как okhttp: Akamai `4:16777216|16711681|0|m,p,a,s`, первый stream 3; HTTP-слой okhttp (`header_style`, см. выше). App-заголовки (UA приложения и т.п.) передавайте сами.
@@ -219,13 +233,35 @@ with Session(client_identifier=Profiles.CHROME_152, client_os="android") as s:
 - По умолчанию OS выводится из профиля: `*_ios_* → ios`, `*_android_* → android`, desktop-safari → `macos`, остальное → `windows`.
 - Chrome-на-iOS — это CriOS без client hints (как в реальном браузере); okhttp/zalando/nike/mesh/confirmed/mobile-профили получают app-подобные наборы.
 - Неизвестный профиль или OS → `SessionConfigurationError` с подсказкой похожих вариантов.
-- HTTP/3-параметры (SETTINGS, порядок псевдозаголовков, приоритет): `chrome_144`–`chrome_152`
-  (+`_PSK`), `brave_146`, `firefox_147`/`148`. У `chrome_146`–`152` и `brave_146` upstream их
-  не задаёт — берутся параметры `chrome_144`: на проводе они совпадают с Chrome 157
-  (`tests/fixtures/chrome_157_wire.json`). Для остальных профилей `http_version="3"`
-  предупреждает и использует значения quic-go.
+- HTTP/3 и QUIC — см. ниже «HTTP/3 и QUIC».
 - `cloudscraper` (только CBC-шифры TLS 1.2 + encrypt_then_mac) работает и с серверами
   на OpenSSL: encrypt_then_mac (RFC 7366) реализован, а не только объявлен.
+
+### HTTP/3 и QUIC
+
+У 53 профилей (`profiles.HTTP3_FINGERPRINTS`: Chrome 103–152, Edge, Brave 146, Opera 89–91,
+Firefox 102–148, с `_PSK`) QUIC-рукопожатие и HTTP/3 — из записей самих браузеров
+(`native/h3profiles.json`; Edge и Brave — Chromium той же версии, `chrome_116_PSK_PQ` —
+Chrome 116 с PostQuantumKyber):
+
+- ClientHello внутри QUIC (у QUIC он свой: только TLS 1.3, у Chromium без GREASE),
+  перемешивание расширений, ECH GREASE;
+- transport parameters: набор, значения, порядок, GREASE-параметр, `version_information`,
+  `google_connection_options`, `google_initial_rtt` на повторных соединениях;
+- Initial-пакеты: длины Connection ID, номер первого пакета, размер датаграммы, способ
+  заполнения, раскладка ClientHello по пакетам (chaos protection Chromium, SNI slicing
+  Firefox 146+);
+- HTTP/3: SETTINGS и порядок, GREASE-фрейм, порядок QPACK-потоков, PRIORITY_UPDATE,
+  заголовок `priority`, порядок псевдозаголовков.
+
+Профили без записи (Safari, iOS- и Android-приложения) с `http_version="3"` предупреждают:
+у них QUIC и HTTP/3 — значения библиотеки. У клиентов без HTTP/3 (`profiles.NO_HTTP3`)
+`http_version="3"` — ошибка. Custom JA3 с Chrome-заполнением берёт QUIC/HTTP/3 того Chrome.
+
+Обновить или добавить запись: `scripts/h3_browsers.py chrome 152 --repeat 2 --out caps`
+(скачивает браузер, записывает его подключения к локальному серверу), затем
+`scripts/h3_profiles.py caps` пересобирает `native/h3profiles.json` и список
+`HTTP3_FINGERPRINTS`.
 
 ### Custom JA3 (`ja3_string`)
 
@@ -272,8 +308,8 @@ Session(timeout=None)                                 # без лимитов
 - `total` — весь обмен. При `stream=True` — до получения заголовков; тело дальше
   ограничено `read` (если `read` не задан — значением `total` как паузой).
 
-Для HTTP/3 (racing, `http_version="3"`) стадии connect/write/read-заголовков не
-отслеживаются (quic-go их не сообщает) — работают `total` и пауза чтения тела.
+Стадии одинаковы для HTTP/1.1, HTTP/2 и HTTP/3 (у HTTP/3 `connect` — QUIC-рукопожатие;
+в гонке TCP стартует через 300 мс, так что `connect` меньше этого кончается до TCP).
 
 ## Ошибки
 
@@ -528,10 +564,10 @@ Mapping или последовательность пар принимаютс�
 
 ## Ограничения
 
-- `http://` — всегда HTTP/1.1 (h2c не поддерживается).
-- HTTP/3 (гонка): стадийные таймауты connect/write/read-заголовков не отслеживаются
-  (quic-go их не сообщает) — работают `total` и пауза чтения тела.
-- HTTP/3-параметры есть не у всех профилей (см. «Профили и client_os»).
+- QUIC/HTTP/3 браузера — только у профилей с записью (см. «HTTP/3 и QUIC»); Safari,
+  iOS- и Android-приложения нужно записывать с устройств.
+- Повторные QUIC-соединения не возобновляют сессию TLS и не шлют 0-RTT (браузер с
+  тикетом сервера шлёт `pre_shared_key` и early data): каждое — полное рукопожатие.
 - HTTP/1.1/HTTP/2-соединение, молча пропавшее (NAT, смена сети — без RST), замечает
   только ядро: до этого запросы по нему кончаются таймаутом, а таймаут соединение не
   сбрасывает (периодический PING по простою, как Go `ReadIdleTimeout`, не включён: он
@@ -542,7 +578,7 @@ Mapping или последовательность пар принимаютс�
   HelloRetryRequest, рукопожатие падает (utls, как и Go, не поддерживает ML-KEM в HRR).
   Chrome всегда объявляет X25519 и отправляет key share для ML-KEM — так и задавайте.
 
-Сетевой стек — upstream-модули `fhttp`, `tls-client`, `utls` с правками
+Сетевой стек — upstream-модули `fhttp`, `tls-client`, `utls`, `quic-go-utls`, `qpack` с правками
 (`native/third_party`, изменения — `native/third_party/patches/*.patch`; CI сверяет копии с
 upstream и проверяет, что в них нет других файлов: `python scripts/third_party.py check`).
 

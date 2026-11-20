@@ -3039,8 +3039,12 @@ type deflateReader struct {
 	_    incomparable
 	body io.ReadCloser
 	r    io.Reader // zlib or flate reader, set on the first Read
+	src  *bufio.Reader
 	err  error
 }
+
+// maxDeflateTail bounds what is read after the end of a deflate stream.
+const maxDeflateTail = 64 << 10
 
 func (dr *deflateReader) Read(p []byte) (n int, err error) {
 	if dr.err != nil {
@@ -3048,6 +3052,7 @@ func (dr *deflateReader) Read(p []byte) (n int, err error) {
 	}
 	if dr.r == nil {
 		br := bufio.NewReader(dr.body)
+		dr.src = br
 		head, _ := br.Peek(2)
 		switch {
 		case len(head) < 2:
@@ -3063,7 +3068,16 @@ func (dr *deflateReader) Read(p []byte) (n int, err error) {
 			dr.r = flate.NewReader(br)
 		}
 	}
-	return dr.r.Read(p)
+	n, err = dr.r.Read(p)
+	if err == io.EOF && dr.src != nil {
+		// the deflate stream ended: read the body to its end as gzip's multistream
+		// reader does, so a fully read response is not cut short on Close (an
+		// HTTP/3 STOP_SENDING, a dropped HTTP/1.1 connection) when the end of the
+		// stream arrives after the data (yumeclient)
+		_, _ = io.Copy(io.Discard, io.LimitReader(dr.src, maxDeflateTail))
+		dr.src = nil
+	}
+	return n, err
 }
 
 func (dr *deflateReader) Close() error {

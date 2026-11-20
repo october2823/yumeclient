@@ -12,6 +12,7 @@ import (
 
 	http "github.com/bogdanfinn/fhttp"
 	"github.com/bogdanfinn/fhttp/http2"
+	quic "github.com/bogdanfinn/quic-go-utls"
 	"github.com/bogdanfinn/quic-go-utls/http3"
 	"github.com/bogdanfinn/tls-client/bandwidth"
 	"github.com/bogdanfinn/tls-client/profiles"
@@ -67,6 +68,8 @@ type roundTripper struct {
 	sync.Mutex
 
 	cachedTransportsLck sync.Mutex
+	// h2c: HTTP/2 over cleartext with prior knowledge (h2c.go)
+	h2c h2cState
 	// closed: Close was called, nothing is cached or sent any more (guarded by
 	// cachedTransportsLck)
 	closed         bool
@@ -85,6 +88,7 @@ type roundTripper struct {
 	http3PriorityParam     uint32
 	http3PseudoHeaderOrder []string
 	http3SendGreaseFrames  bool
+	http3Fingerprint       *profiles.HTTP3Fingerprint
 
 	insecureSkipVerify          bool
 	withRandomTlsExtensionOrder bool
@@ -103,6 +107,7 @@ type http3Config struct {
 	http3PriorityParam     uint32
 	http3PseudoHeaderOrder []string
 	http3SendGreaseFrames  bool
+	http3Fingerprint       *profiles.HTTP3Fingerprint
 	proxyURL               string
 }
 
@@ -183,6 +188,7 @@ func (rt *roundTripper) CloseIdleConnections() {
 			tr.CloseIdleConnections()
 		}
 	}
+	rt.closeH2C()
 }
 
 // Close closes every cached transport — HTTP/3 ones with their UDP sockets, which
@@ -207,6 +213,7 @@ func (rt *roundTripper) Close() {
 	for _, transport := range transports {
 		closeTransport(transport)
 	}
+	rt.closeH2C()
 
 	rt.Lock()
 	for addr, conn := range rt.cachedConnections {
@@ -265,6 +272,23 @@ func buildHTTP3Transport(cfg *http3Config) (http.RoundTripper, error) {
 		TLSClientConfig: utlsConfig,
 		EnableDatagrams: true, // Chrome enables H3_DATAGRAM (setting 0x33)
 	}
+	if fp := cfg.http3Fingerprint; fp != nil {
+		t3.EnableDatagrams = fp.H3Datagram
+		t3.QUICConfig = &quic.Config{
+			InitialPacketSize:              fp.InitialPacketSize,
+			InitialStreamReceiveWindow:     fp.StreamReceiveWindow,
+			MaxStreamReceiveWindow:         max(fp.StreamReceiveWindow, 6<<20),
+			InitialConnectionReceiveWindow: fp.ConnectionReceiveWindow,
+			MaxConnectionReceiveWindow:     max(fp.ConnectionReceiveWindow, 15<<20),
+			MaxIncomingStreams:             fp.MaxIncomingStreams,
+			MaxIncomingUniStreams:          fp.MaxIncomingUniStreams,
+			MaxIdleTimeout:                 fp.MaxIdleTimeout,
+			EnableDatagrams:                fp.Datagrams || fp.H3Datagram,
+			Fingerprint:                    fp.QUIC,
+		}
+		t3.QPACKStreams = fp.QPACK
+		t3.Fingerprint = fp.Control
+	}
 
 	if cfg.proxyURL != "" {
 		parsedURL, parseErr := url.Parse(cfg.proxyURL)
@@ -295,7 +319,7 @@ func buildHTTP3Transport(cfg *http3Config) (http.RoundTripper, error) {
 	// Add random GREASE setting only for browsers that send it (Chrome)
 	// Firefox sends GREASE frames but not random GREASE settings
 	// Use priority parameter as identification: Chrome has it, Firefox doesn't
-	if cfg.http3PriorityParam > 0 {
+	if (cfg.http3Fingerprint == nil && cfg.http3PriorityParam > 0) || (cfg.http3Fingerprint != nil && cfg.http3Fingerprint.GreaseSetting) {
 		greaseID := generateGREASESettingID()
 		greaseValue := generateGREASESettingValue()
 
@@ -347,6 +371,10 @@ func buildHTTP3Transport(cfg *http3Config) (http.RoundTripper, error) {
 		}
 	} else {
 		t3.MaxResponseHeaderBytes = profileDefaultMaxResponseHeaderBytes(cfg)
+	}
+	if cfg.http3Fingerprint != nil {
+		// SETTINGS_MAX_FIELD_SECTION_SIZE, if the browser sends it, is among the settings
+		t3.MaxResponseHeaderBytes = -1
 	}
 
 	return t3, nil
@@ -600,6 +628,7 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 			http3PriorityParam:     rt.http3PriorityParam,
 			http3PseudoHeaderOrder: rt.http3PseudoHeaderOrder,
 			http3SendGreaseFrames:  rt.http3SendGreaseFrames,
+			http3Fingerprint:       rt.http3Fingerprint,
 			proxyURL:               rt.proxyURL,
 		})
 		if err != nil {
@@ -780,6 +809,7 @@ func newRoundTripper(clientProfile profiles.ClientProfile, transportOptions *Tra
 		http3PriorityParam:          clientProfile.GetHttp3PriorityParam(),
 		http3PseudoHeaderOrder:      clientProfile.GetHttp3PseudoHeaderOrder(),
 		http3SendGreaseFrames:       clientProfile.GetHttp3SendGreaseFrames(),
+		http3Fingerprint:            clientProfile.GetHTTP3Fingerprint(),
 		proxyURL:                    proxyURL,
 	}
 
@@ -805,6 +835,7 @@ func newRoundTripper(clientProfile profiles.ClientProfile, transportOptions *Tra
 			proxyURL,
 		)
 		rt.racer.discardConn = rt.discardCachedConnection
+		rt.racer.http3Fingerprint = clientProfile.GetHTTP3Fingerprint()
 	}
 
 	if len(dialer) > 0 {

@@ -29,8 +29,11 @@ MODULES = {  # local name -> module path
     "fhttp": "github.com/bogdanfinn/fhttp",
     "tls-client": "github.com/bogdanfinn/tls-client",
     "utls": "github.com/bogdanfinn/utls",
+    "quic-go-utls": "github.com/bogdanfinn/quic-go-utls",
+    "qpack": "github.com/quic-go/qpack",
 }
-SKIP_DIRS = {"testdata", "tests", "example", "examples", "_examples", ".github", "docs"}
+SKIP_DIRS = {"testdata", "tests", "example", "examples", "_examples", ".github", "docs",
+             "integrationtests", "interop", "fuzzing"}
 KEEP_FILES = re.compile(r"(?i)^(go\.mod|go\.sum|license.*|copying.*|patents|notice.*)$")
 
 

@@ -81,11 +81,6 @@ func okhttpTransportOptions() *tls_client.TransportOptions {
 // plain-http path in schemeGuard needs to know)
 var sessionStyles sync.Map
 
-func isOkhttpSession(client tls_client.HttpClient) bool {
-	v, ok := sessionStyles.Load(client)
-	return ok && v.(bool)
-}
-
 // ---------------------------------------------------------------------------
 // BridgeInterceptor
 // ---------------------------------------------------------------------------
@@ -510,7 +505,7 @@ func swapTransport(client tls_client.HttpClient, wrap func(http.RoundTripper) ht
 
 // applySessionLayer installs the strict HTTP/1.1 transport (keep_alpn) and the
 // okhttp bridge on a freshly built client.
-func applySessionLayer(client tls_client.HttpClient, okhttp bool, strict *strictH1Config) error {
+func applySessionLayer(client tls_client.HttpClient, okhttp bool, strict *strictH1Config, plain plainConfig) error {
 	if strict != nil {
 		var opts *tls_client.TransportOptions
 		if okhttp {
@@ -527,7 +522,7 @@ func applySessionLayer(client tls_client.HttpClient, okhttp bool, strict *strict
 			return err
 		}
 	}
-	if err := installRequestControl(client); err != nil {
+	if err := installRequestControl(client, &plain, okhttp); err != nil {
 		return err
 	}
 	sessionStyles.Store(client, okhttp)

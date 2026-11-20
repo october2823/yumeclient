@@ -126,14 +126,14 @@ def test_headers_or_operators_ignore_case():
 def test_request_warnings_point_at_the_caller(echo):
     import asyncio
     url, _ = echo
-    with Session(client_identifier="chrome_133", http_version="2", timeout=5) as s:
-        with pytest.warns(UserWarning, match="HTTP/2-only") as caught:
+    with Session(client_identifier="safari_ios_18_0", http_version="3", timeout=5) as s:
+        with pytest.warns(UserWarning, match="HTTP/3 fingerprint") as caught:
             s.get(url)
     assert caught[0].filename == __file__
 
     async def run():
-        async with yumeclient.AsyncSession(client_identifier="chrome_133", http_version="2", timeout=5) as s:
-            with pytest.warns(UserWarning, match="HTTP/2-only") as caught:
+        async with yumeclient.AsyncSession(client_identifier="safari_ios_18_0", http_version="3", timeout=5) as s:
+            with pytest.warns(UserWarning, match="HTTP/3 fingerprint") as caught:
                 await s.get(url)
         return caught
     assert asyncio.run(run())[0].filename == __file__
@@ -172,10 +172,47 @@ def test_chromium_priority_header_only_over_http2(native, echo):
         assert h2.used_protocol == "HTTP/2.0" and _wire(h2)[-1] == ("priority", "u=0, i")
         assert [v for k, v in _wire(own) if k == "priority"] == ["u=3"]
         assert "priority" not in _names(echo[1][-1]) and h1.status_code == 200
-        with Session(client_identifier="firefox_147", verify=False, timeout=5) as s:
+        with Session(client_identifier="firefox_120", verify=False, timeout=5) as s:
             assert "priority" not in dict(_wire(s.get(f"https://127.0.0.1:{srv.port}/a")))
+        # Firefox 128+ sends it over every protocol, before te (captures)
+        with Session(client_identifier="firefox_147", verify=False, timeout=5) as s:
+            assert _wire(s.get(f"https://127.0.0.1:{srv.port}/a"))[-2:] == [("priority", "u=0, i"), ("te", "trailers")]
     finally:
         srv.close()
+
+
+@pytest.mark.parametrize("identifier,sent", [("chrome_120", False), ("chrome_124", True), ("chrome_133", True),
+                                             ("edge_131", True), ("edge_101", False), ("opera_91", False)])
+def test_priority_header_follows_the_chromium_version(native, identifier, sent):
+    # HTTP/2 captures of Chrome 99-152: the header appeared in Chrome 124 (only 144+ had it)
+    from test_protocol import H2Server
+    srv = H2Server()
+    try:
+        with Session(client_identifier=identifier, verify=False, timeout=5) as s:
+            r = s.get(f"https://127.0.0.1:{srv.port}/a")
+        assert (dict(_wire(r)).get("priority") == "u=0, i") == sent
+    finally:
+        srv.close()
+
+
+@pytest.mark.parametrize("identifier,settings", [
+    ("edge_99", [(1, 65536), (3, 1000), (4, 6291456), (6, 262144)]),
+    ("edge_101", [(1, 65536), (3, 1000), (4, 6291456), (6, 262144)]),
+    ("edge_131", [(1, 65536), (2, 0), (4, 6291456), (6, 262144)]),
+    ("edge_latest", [(1, 65536), (2, 0), (4, 6291456), (6, 262144)])])
+def test_edge_sends_the_settings_of_its_chromium(native, identifier, settings):
+    # Edge sent Chrome 107-116's SETTINGS whatever its version (ENABLE_PUSH appeared in
+    # Chromium 107, MAX_CONCURRENT_STREAMS went away in 117)
+    from test_protocol import H2Server
+    srv = H2Server()
+    try:
+        with Session(client_identifier=identifier, verify=False, timeout=5) as s:
+            s.get(f"https://127.0.0.1:{srv.port}/a")
+    finally:
+        srv.close()
+    payload = next(p for kind, flags, _, p in srv.frames if kind == 4 and not flags & 1)
+    assert [(int.from_bytes(payload[i:i + 2], "big"), int.from_bytes(payload[i + 2:i + 6], "big"))
+            for i in range(0, len(payload), 6)] == settings
 
 
 def test_none_keeps_what_requests_keeps(native, echo):
@@ -218,3 +255,40 @@ def test_none_removes_a_header(native, echo):
         assert not {"user-agent", "accept-encoding", "connection"} & set(_names(seen[2])) and "host" in _names(seen[2])
     finally:
         srv.close()
+
+
+def test_default_headers_ignore_case_for_every_operation():
+    # 0.8.0 RC: the browser baselines (HTTP/1.1 spelling) ignored case only for reads:
+    # h["user-agent"] = ... added a second key, del/pop raised KeyError
+    from yumeclient.profiles import default_headers
+    h = default_headers("chrome_133")
+    assert isinstance(h, Headers) and "User-Agent" in h
+    h["user-agent"] = "x"
+    assert [k for k in h if k.lower() == "user-agent"] == ["User-Agent"] and h["User-Agent"] == "x"
+    del h["accept"]
+    assert h.pop("accept-language")
+    assert h.setdefault("ACCEPT", "y") == "y" and h.setdefault("accept", "z") == "y"
+    assert isinstance(h.copy(), Headers) and "user-agent" in h.copy()
+
+
+@pytest.mark.parametrize("identifier", ["chrome_133", "firefox_147"])
+def test_explicit_host_header_goes_first(echo, identifier):
+    url, seen = echo
+    with Session(client_identifier=identifier, timeout=5) as s:
+        s.get(url, headers={"Host": "example.test"})
+        s.headers["host"] = "example.test"
+        s.get(url)
+    for head in seen:  # (the user's spelling of the name is kept)
+        assert head[0][0].lower() == "host" and head[0][1] == "example.test", head
+    with Session(client_identifier=identifier, timeout=5) as s:  # an order naming Host wins
+        s.get(url, headers={"Host": "example.test", "X-A": "1"}, header_order=["X-A", "Host"])
+    names = [k for k, _ in seen[-1]]
+    assert names.index("X-A") < names.index("Host")
+
+
+def test_edge_latest_announces_its_chromium():
+    # edge_latest is Chromium 131 on the wire; its headers said Edge 120
+    from yumeclient.profiles import default_headers
+    h = default_headers("edge_latest")
+    assert "Edg/131.0.0.0" in h["User-Agent"] and "Chrome/131.0.0.0" in h["User-Agent"]
+    assert '"Microsoft Edge";v="131"' in h["sec-ch-ua"] and "zstd" in h["Accept-Encoding"]

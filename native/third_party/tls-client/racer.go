@@ -9,14 +9,20 @@ import (
 
 	http "github.com/bogdanfinn/fhttp"
 	"github.com/bogdanfinn/fhttp/http2"
+	quic "github.com/bogdanfinn/quic-go-utls"
 	"github.com/bogdanfinn/quic-go-utls/http3"
 	"github.com/bogdanfinn/tls-client/bandwidth"
+	"github.com/bogdanfinn/tls-client/profiles"
 	tls "github.com/bogdanfinn/utls"
+	"github.com/quic-go/qpack"
 )
 
 type protocolRacer struct {
 	protocolCache   map[string]string
 	protocolCacheMu sync.RWMutex
+	// broken: addresses where HTTP/3 failed after connecting (guarded by
+	// protocolCacheMu); races leave HTTP/3 out until the entry expires
+	broken map[string]brokenHTTP3
 
 	clientSessionCache  tls.ClientSessionCache
 	insecureSkipVerify  bool
@@ -52,6 +58,7 @@ type protocolRacer struct {
 	http3PriorityParam     uint32
 	http3PseudoHeaderOrder []string
 	http3SendGreaseFrames  bool
+	http3Fingerprint       *profiles.HTTP3Fingerprint
 
 	proxyURL string
 }
@@ -110,7 +117,116 @@ func (pr *protocolRacer) race(req *http.Request, addr string, getTransportFunc f
 	}
 
 	// No cached protocol or it failed - start racing
-	return pr.startRace(retry, addr, getTransportFunc)
+	resp, err = pr.startRace(retry, addr, getTransportFunc)
+	var failed *HTTP3BrokenError
+	if err == nil || !errors.As(err, &failed) {
+		return resp, err
+	}
+	// HTTP/3 connected, then failed the request: like Chrome, HTTP/3 counts as
+	// broken for this server and the request goes again over TCP when that is safe
+	if again := retryRequest(retry, failed.Err); again != nil {
+		return pr.startRace(again, addr, getTransportFunc)
+	}
+	return nil, err
+}
+
+// retryRequest: the request to send again after err, or nil when it must not be
+// (cancelled or timed out, or not idempotent and maybe processed).
+func retryRequest(req *http.Request, err error) *http.Request {
+	notSent := errors.Is(err, http3.ErrTransportClosed)
+	if req.Context().Err() != nil || !(notSent || replayable(req)) {
+		return nil
+	}
+	again, rewindErr := rewound(req)
+	if rewindErr != nil {
+		return nil
+	}
+	return again
+}
+
+// errHTTP3Broken: the race left HTTP/3 out (see brokenHTTP3).
+var errHTTP3Broken = errors.New("http3: broken for this server, not tried")
+
+// HTTP3BrokenError wraps the error of an HTTP/3 request that marked HTTP/3 broken
+// for the server: the session itself is fine (the next requests use TCP).
+type HTTP3BrokenError struct{ Err error }
+
+func (e *HTTP3BrokenError) Error() string { return e.Err.Error() }
+func (e *HTTP3BrokenError) Unwrap() error { return e.Err }
+
+// brokenHTTP3: Chrome's broken alternative service, per address. HTTP/3 stays out
+// of races for 5 minutes, doubled on every failure after the entry expired (up
+// to 2 days); a later HTTP/3 win forgets the entry.
+type brokenHTTP3 struct {
+	until    time.Time
+	failures int
+}
+
+const brokenHTTP3Delay = 5 * time.Minute
+const brokenHTTP3MaxDelay = 48 * time.Hour
+
+// http3Broke tells a failure of HTTP/3 itself with this server - the connection
+// closed with an error by either side, a QUIC protocol violation, a QPACK state the
+// decoder cannot follow - from everything else: a request the server reset, our own
+// cancellations and timeouts, a response refused for its size or fields, and a
+// connection that went quiet or that the server forgot (idle timeout, stateless
+// reset). Like Chrome, those get a new connection, not TCP.
+func http3Broke(req *http.Request, err error) bool {
+	if err == nil || req.Context().Err() != nil || errors.Is(err, errLostRace) || errors.Is(err, errClosed) ||
+		errors.Is(err, http3.ErrTransportClosed) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	var h3err *http3.Error
+	if errors.As(err, &h3err) {
+		// closed by the server with an error, or by us over the server's misbehaviour;
+		// a graceful close (H3_NO_ERROR, QUIC's 0, and unknown or reserved codes, which
+		// RFC 9114 8.1 equates with H3_NO_ERROR) is not a failure
+		return h3err.Connection && http3FailureCode(uint64(h3err.ErrorCode))
+	}
+	var app *quic.ApplicationError
+	if errors.As(err, &app) {
+		return http3FailureCode(uint64(app.ErrorCode))
+	}
+	var transport *quic.TransportError
+	if errors.As(err, &transport) {
+		return transport.ErrorCode != quic.NoError && transport.ErrorCode != quic.ApplicationErrorErrorCode
+	}
+	var version *quic.VersionNegotiationError
+	var decompression *qpack.DecompressionError
+	return errors.As(err, &version) || errors.As(err, &decompression)
+}
+
+// http3FailureCode: the HTTP/3 (RFC 9114 8.1) and QPACK (RFC 9204 6) error codes
+// other than H3_NO_ERROR.
+func http3FailureCode(code uint64) bool {
+	return (code >= 0x101 && code <= 0x110) || (code >= 0x200 && code <= 0x202)
+}
+
+func (pr *protocolRacer) markHTTP3Broken(addr string) {
+	pr.protocolCacheMu.Lock()
+	defer pr.protocolCacheMu.Unlock()
+	if pr.broken == nil {
+		pr.broken = make(map[string]brokenHTTP3)
+	}
+	b := pr.broken[addr]
+	if time.Now().Before(b.until) {
+		return // already broken: concurrent failures count once
+	}
+	delay := brokenHTTP3Delay << min(b.failures, 9)
+	if delay > brokenHTTP3MaxDelay {
+		delay = brokenHTTP3MaxDelay
+	}
+	pr.broken[addr] = brokenHTTP3{until: time.Now().Add(delay), failures: b.failures + 1}
+	if pr.protocolCache[addr] == "h3" {
+		delete(pr.protocolCache, addr)
+	}
+}
+
+func (pr *protocolRacer) http3Broken(addr string) bool {
+	pr.protocolCacheMu.RLock()
+	defer pr.protocolCacheMu.RUnlock()
+	b, ok := pr.broken[addr]
+	return ok && time.Now().Before(b.until)
 }
 
 // tryUseCachedProtocol returns the request to race with when there is no cached
@@ -142,6 +258,10 @@ func (pr *protocolRacer) tryUseCachedProtocol(req *http.Request, addr string, ge
 		return nil, err, nil // refused before sending: nothing wrong with the connection
 	}
 
+	if cachedProtocol == "h3" && http3Broke(req, err) {
+		pr.markHTTP3Broken(addr)
+		err = &HTTP3BrokenError{Err: err}
+	}
 	// Later requests race again, on new connections (in-flight requests keep
 	// theirs): after an error, and for HTTP/3 after a timeout or cancellation too —
 	// UDP gets black-holed far more often than TCP, and only a race tells a silent
@@ -153,12 +273,8 @@ func (pr *protocolRacer) tryUseCachedProtocol(req *http.Request, addr string, ge
 	// Racing sends this request again: only when that is safe (and still wanted).
 	// A transport closed under the request (retired by a sibling's failure) refused
 	// it before sending anything.
-	notSent := errors.Is(err, http3.ErrTransportClosed)
-	if req.Context().Err() != nil || !(notSent || replayable(req)) {
-		return nil, err, nil
-	}
-	retry, rewindErr := rewound(req)
-	if rewindErr != nil {
+	retry := retryRequest(req, err)
+	if retry == nil {
 		return nil, err, nil
 	}
 	return nil, nil, retry
@@ -207,7 +323,13 @@ func (pr *protocolRacer) startRace(req *http.Request, addr string, getTransportF
 	h3Failed := make(chan struct{})
 	resultCh := make(chan racingResult, 2)
 
-	go pr.attemptHTTP3(req, gate, h3Failed, resultCh)
+	if pr.http3Broken(addr) {
+		// HTTP/3 is broken for this server: TCP right away, nothing over UDP
+		close(h3Failed)
+		resultCh <- racingResult{protocol: "h3", err: errHTTP3Broken}
+	} else {
+		go pr.attemptHTTP3(req, gate, h3Failed, resultCh)
+	}
 	go pr.attemptHTTP2(req, addr, getTransportFunc, gate, h3Failed, resultCh)
 
 	// only the winner sends the request, so both results come back promptly unless
@@ -222,6 +344,10 @@ func (pr *protocolRacer) startRace(req *http.Request, addr string, getTransportF
 		switch {
 		case gate.won(result.protocol):
 			winnerErr = result.err
+			if result.protocol == "h3" && http3Broke(req, result.err) {
+				pr.markHTTP3Broken(addr)
+				winnerErr = &HTTP3BrokenError{Err: result.err}
+			}
 		case errors.Is(result.err, errLostRace):
 		case result.protocol == "h2":
 			h2Err = result.err
@@ -383,6 +509,9 @@ func (pr *protocolRacer) clearProtocolCache(addr string) {
 func (pr *protocolRacer) cacheWinningProtocol(addr, protocol string, transport http.RoundTripper) {
 	pr.protocolCacheMu.Lock()
 	pr.protocolCache[addr] = protocol
+	if protocol == "h3" {
+		delete(pr.broken, addr) // HTTP/3 works again
+	}
 	pr.protocolCacheMu.Unlock()
 
 	if protocol == "h3" && transport != nil {
@@ -459,6 +588,7 @@ func (pr *protocolRacer) getHTTP3Config() *http3Config {
 		http3PriorityParam:     pr.http3PriorityParam,
 		http3PseudoHeaderOrder: pr.http3PseudoHeaderOrder,
 		http3SendGreaseFrames:  pr.http3SendGreaseFrames,
+		http3Fingerprint:       pr.http3Fingerprint,
 		proxyURL:               pr.proxyURL,
 	}
 }

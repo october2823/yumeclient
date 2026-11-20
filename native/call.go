@@ -51,7 +51,7 @@ func runCall(rawInput []byte) map[string]any {
 		return failure("invalid_request", "invalid input: "+err.Error(), nil)
 	}
 	opts := decodeRequestOptions(rawInput)
-	ctl := newReqControl(opts.RequestId, opts, in.WithProtocolRacing, in.FollowRedirects)
+	ctl := newReqControl(opts.RequestId, opts, in.FollowRedirects)
 	if !registerRequest(ctl) { // cancelled before the call started
 		ctl.cancel(errCancelled)
 		out := errorPayload(errCancelled, ctl)
@@ -111,9 +111,11 @@ func runCall(rawInput []byte) map[string]any {
 		out := errorPayload(err, ctl)
 		// a broken session is rebuilt on the next call; a cancelled or timed-out
 		// request leaves the pool usable (the transport already dropped the conn),
-		// and so does one HTTP/2 refused to send
+		// and so does one HTTP/2 refused to send, or one that marked HTTP/3 broken
+		// for the server (the session remembers that and uses TCP)
 		var headerErr *http2.RequestHeaderError
-		if withSession && !isControlCause(ctl) && !errors.As(err, &headerErr) {
+		var h3Broken *tls_client.HTTP3BrokenError
+		if withSession && !isControlCause(ctl) && !errors.As(err, &headerErr) && !errors.As(err, &h3Broken) {
 			if !removePatchedSession(session, client) {
 				src.RemoveSession(session) // an upstream-built session
 			}

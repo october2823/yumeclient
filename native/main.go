@@ -14,7 +14,6 @@ import (
  "fmt"
  "net"
  "net/url"
- "os"
  "sort"
  "strconv"
  "crypto/sha256"
@@ -46,21 +45,25 @@ import (
 // ClientHelloIDs; headers baselines live in the Python layer (profiles.py).
 // ---------------------------------------------------------------------------
 
-func h2Chrome() (map[http2.SettingID]uint32, []http2.SettingID, []string, uint32) {
+// h2Chromium: the HTTP/2 SETTINGS of a Chromium major version (captures of Chrome
+// 99-152 and Opera 89-91 with --disable-field-trial-config, 2026-11-20):
+// ENABLE_PUSH=0 from 107, MAX_CONCURRENT_STREAMS=1000 until 116.
+func h2Chromium(major int) (map[http2.SettingID]uint32, []http2.SettingID, []string, uint32) {
  settings := map[http2.SettingID]uint32{
-  http2.SettingHeaderTableSize:      65536,
-  http2.SettingEnablePush:           0,
-  http2.SettingMaxConcurrentStreams: 1000,
-  http2.SettingInitialWindowSize:    6291456,
-  http2.SettingMaxHeaderListSize:    262144,
+  http2.SettingHeaderTableSize:    65536,
+  http2.SettingInitialWindowSize:  6291456,
+  http2.SettingMaxHeaderListSize:  262144,
  }
- order := []http2.SettingID{
-  http2.SettingHeaderTableSize,
-  http2.SettingEnablePush,
-  http2.SettingMaxConcurrentStreams,
-  http2.SettingInitialWindowSize,
-  http2.SettingMaxHeaderListSize,
+ order := []http2.SettingID{http2.SettingHeaderTableSize}
+ if major >= 107 {
+  settings[http2.SettingEnablePush] = 0
+  order = append(order, http2.SettingEnablePush)
  }
+ if major < 117 {
+  settings[http2.SettingMaxConcurrentStreams] = 1000
+  order = append(order, http2.SettingMaxConcurrentStreams)
+ }
+ order = append(order, http2.SettingInitialWindowSize, http2.SettingMaxHeaderListSize)
  pseudo := []string{":method", ":authority", ":scheme", ":path"}
  return settings, order, pseudo, 15663105
 }
@@ -103,12 +106,39 @@ func profileFromH2(id tls.ClientHelloID, family string) profiles.ClientProfile {
  switch family {
  case "safari":
   settings, order, pseudo, flow = h2Safari()
- case "firefox":
+ default:
   settings, order, pseudo, flow = h2Firefox()
- default: // chrome/edge family
-  settings, order, pseudo, flow = h2Chrome()
  }
  return profiles.NewClientProfile(id, settings, order, pseudo, flow, nil, nil, 0, false, nil, nil, 0, nil, false)
+}
+
+// firefoxESR128Profile: Tor Browser 14 = Firefox ESR 128, whose HTTP/2 preface
+// (capture of Firefox 128.0, 2026-11-20) has NO_RFC7540_PRIORITIES and no
+// ENABLE_PUSH, and HEADERS with a non-exclusive weight-42 dependency on stream 0.
+func firefoxESR128Profile(id tls.ClientHelloID) profiles.ClientProfile {
+ settings := map[http2.SettingID]uint32{
+  http2.SettingHeaderTableSize:      65536,
+  http2.SettingInitialWindowSize:    131072,
+  http2.SettingMaxFrameSize:         16384,
+  http2.SettingNoRFC7540Priorities:  1,
+ }
+ order := []http2.SettingID{http2.SettingHeaderTableSize, http2.SettingInitialWindowSize,
+  http2.SettingMaxFrameSize, http2.SettingNoRFC7540Priorities}
+ return profiles.NewClientProfile(id, settings, order, []string{":method", ":path", ":authority", ":scheme"},
+  12517377, nil, &http2.PriorityParam{StreamDep: 0, Exclusive: false, Weight: 41}, 0, false, nil, nil, 0, nil, false)
+}
+
+// firefoxHeaderPriority: Firefox 128+ sends HEADERS with a non-exclusive weight-42
+// dependency on stream 0 (captures of Firefox 128-148); upstream's firefox_132,
+// _133 and _135 send Chrome's exclusive weight 256.
+var firefoxHeaderPriority = map[string]bool{"firefox_132": true, "firefox_133": true, "firefox_135": true}
+
+// chromiumProfile: a Chromium-based browser (Edge) of the given major version.
+// HEADERS carry Chrome's priority (exclusive, weight 256) as in the captures.
+func chromiumProfile(id tls.ClientHelloID, major int) profiles.ClientProfile {
+ settings, order, pseudo, flow := h2Chromium(major)
+ return profiles.NewClientProfile(id, settings, order, pseudo, flow, nil,
+  &http2.PriorityParam{StreamDep: 0, Exclusive: true, Weight: 255}, 0, false, nil, nil, 0, nil, false)
 }
 
 // conscryptOkhttpProfile: wire-accurate Android app hello (okhttp over
@@ -184,12 +214,12 @@ var extraProfiles = map[string]profiles.ClientProfile{
  "conscrypt_android_latest": conscryptOkhttpProfile(),
  "okhttp4_conscrypt":        conscryptOkhttpProfile(),
  // Edge (Chromium TLS stack): edge_99/edge_101 mirror curl_cffi names, edge_131 is current
- "edge_99":     profileFromH2(tls.HelloChrome_100, "chrome"),
- "edge_101":    profileFromH2(tls.HelloChrome_110, "chrome"),
- "edge_131":    profileFromH2(tls.HelloChrome_131, "chrome"),
- "edge_latest": profileFromH2(tls.HelloChrome_131, "chrome"),
+ "edge_99":     chromiumProfile(tls.HelloChrome_100, 99),
+ "edge_101":    chromiumProfile(tls.HelloChrome_110, 101),
+ "edge_131":    chromiumProfile(tls.HelloChrome_131, 131),
+ "edge_latest": chromiumProfile(tls.HelloChrome_131, 131),
  // Tor Browser 14+ (Firefox ESR 128 TLS stack, stable since FF110)
- "tor_145": profileFromH2(tls.HelloFirefox_120, "firefox"),
+ "tor_145": firefoxESR128Profile(tls.HelloFirefox_120),
  // macOS Safari desktop: Apple keeps the TLS ClientHello stable across 16/17/18/26;
  // utls HelloSafari_16_0 is the real, current Apple TLS stack
  "safari_macos_17_0": profileFromH2(tls.HelloSafari_16_0, "safari"),
@@ -222,12 +252,11 @@ func resolveProfile(name string) profiles.ClientProfile {
  if !ok {
   if ep, isExtra := lookupExtraProfile(name); isExtra { p = ep } else { p = profiles.DefaultClientProfile }
  }
- if h3FromChrome144[name] && len(p.GetHttp3Settings()) == 0 {
-  ref := profiles.MappedTLSClients["chrome_144"]
+ if firefoxHeaderPriority[name] {
   p = profiles.NewClientProfile(p.GetClientHelloId(), p.GetSettings(), p.GetSettingsOrder(), p.GetPseudoHeaderOrder(),
-   p.GetConnectionFlow(), p.GetPriorities(), p.GetHeaderPriority(), p.GetStreamID(), p.GetAllowHTTP(),
-   ref.GetHttp3Settings(), ref.GetHttp3SettingsOrder(), ref.GetHttp3PriorityParam(), ref.GetHttp3PseudoHeaderOrder(),
-   ref.GetHttp3SendGreaseFrames())
+   p.GetConnectionFlow(), p.GetPriorities(), &http2.PriorityParam{StreamDep: 0, Exclusive: false, Weight: 41},
+   p.GetStreamID(), p.GetAllowHTTP(), p.GetHttp3Settings(), p.GetHttp3SettingsOrder(), p.GetHttp3PriorityParam(),
+   p.GetHttp3PseudoHeaderOrder(), p.GetHttp3SendGreaseFrames())
  }
  if spec, err := p.GetClientHelloSpec(); err == nil && fixKeyShares(&spec) {
   id := p.GetClientHelloId()
@@ -242,22 +271,14 @@ func resolveProfile(name string) profiles.ClientProfile {
    p.GetHttp3Settings(), p.GetHttp3SettingsOrder(), p.GetHttp3PriorityParam(), p.GetHttp3PseudoHeaderOrder(),
    p.GetHttp3SendGreaseFrames())
  }
+ if c := h3CaptureFor(name); c != nil {
+  if hp, err := applyH3Capture(p, c); err == nil { p = hp }
+ }
  fixedProfiles.Store(name, p)
  return p
 }
 
 var fixedProfiles sync.Map
-
-// h3FromChrome144: Chromium profiles that upstream defines without HTTP/3
-// parameters (racing then sent only H3_DATAGRAM). They get chrome_144's: real
-// Chrome 157 (Windows, captured 2026-11-20, tests/fixtures/chrome_157_wire.json)
-// sends the same SETTINGS (1:65536, 6:262144, 7:100, 51:1, one GREASE setting),
-// pseudo-header order and priority as upstream's Chrome 144 capture, so the
-// versions in between are taken to match.
-var h3FromChrome144 = map[string]bool{
- "chrome_146": true, "chrome_146_PSK": true, "chrome_150": true, "chrome_150_PSK": true,
- "chrome_152": true, "chrome_152_PSK": true, "brave_146": true, "brave_146_PSK": true,
-}
 
 // fixKeyShares: every key share must belong to an offered group (RFC 8446
 // 4.2.8). Upstream's nike_android_mobile sends a GREASE key share without a
@@ -497,17 +518,9 @@ func applyExtensionOrder(spec *tls.ClientHelloSpec, order []int) {
 // ja3/ja4 live in wire.go (helloFields): one implementation for wire bytes
 // and for the configured spec.
 
-func settingIDNum(s http2.SettingID) uint16 {
- switch s {
- case http2.SettingHeaderTableSize: return 1
- case http2.SettingEnablePush: return 2
- case http2.SettingMaxConcurrentStreams: return 3
- case http2.SettingInitialWindowSize: return 4
- case http2.SettingMaxFrameSize: return 5
- case http2.SettingMaxHeaderListSize: return 6
- }
- return 0
-}
+// settingIDNum: the SETTINGS identifier on the wire (fhttp's SettingID values are the
+// RFC 9113 codes); unknown ones such as NO_RFC7540_PRIORITIES (9) printed as 0 before.
+func settingIDNum(s http2.SettingID) uint16 { return uint16(s) }
 
 func akamaiFromSpec(settings map[http2.SettingID]uint32, order []http2.SettingID,
  pseudo []string, flow uint32, priorities []http2.Priority) string {
@@ -763,6 +776,10 @@ func customJa3Profile(in src.RequestInput, rawPayload []byte) (profiles.ClientPr
  h2 := resolveCustomH2(h2in, ref)
  profile := profiles.NewClientProfile(helloID, h2.settings, h2.order, h2.pseudo, h2.flow, h2.priorities,
   h2.headerPriority, 0, false, h2.h3Settings, h2.h3Order, h2.h3Priority, h2.h3Pseudo, h2.h3Grease)
+ if ref != nil && ref.profile.GetHTTP3Fingerprint() != nil {
+  // filled from Chrome: HTTP/3 and QUIC look like that Chrome's too
+  profile = profile.WithHTTP3Fingerprint(ref.profile.GetHTTP3Fingerprint())
+ }
  return profile, buildSpec, adv, nil
 }
 
@@ -861,7 +878,7 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
    insecure: in.InsecureSkipVerify, noTickets: wantsNoSessionTickets(rawPayload)}
   if in.ServerNameOverwrite != nil { strict.serverName = *in.ServerNameOverwrite }
  }
- if layerErr := applySessionLayer(client, extras.okhttp(), strict); layerErr != nil { return nil, sessionId, false, src.NewTLSClientError(layerErr) }
+ if layerErr := applySessionLayer(client, extras.okhttp(), strict, plainConfig{proxyUrl: proxyUrl, localAddr: localAddr}); layerErr != nil { return nil, sessionId, false, src.NewTLSClientError(layerErr) }
  if captured { helloSinks.Store(client, sink) }
 
  return storePatchedSession(sessionId, client), sessionId, true, nil
@@ -982,15 +999,36 @@ var patchedSessions = struct {
  m map[string]tls_client.HttpClient
 }{m: map[string]tls_client.HttpClient{}}
 
+var upstreamLayerMu sync.Mutex
+
+// upstreamClient: a session built by upstream code still gets the request control
+// and http:// routes of ours (timeouts, per-request cookies, the session's proxy
+// and dialer for http://, the profile on http->https hops); without them its
+// http:// requests went through a bare client of their own.
+func upstreamClient(in src.RequestInput, proxyUrl string) (tls_client.HttpClient, string, bool, *src.TLSClientError) {
+ client, sessionId, withSession, cerr := src.CreateClient(in)
+ if cerr != nil { return client, sessionId, withSession, cerr }
+ upstreamLayerMu.Lock()
+ defer upstreamLayerMu.Unlock()
+ if _, done := clientTransport(client).(*hopTransport); done { return client, sessionId, withSession, nil }
+ var localAddr *net.TCPAddr
+ if in.LocalAddress != nil {
+  la, err := net.ResolveTCPAddr("", *in.LocalAddress)
+  if err != nil { return nil, sessionId, false, src.NewTLSClientError(err) }
+  localAddr = la
+ }
+ if err := applySessionLayer(client, false, nil, plainConfig{proxyUrl: proxyUrl, localAddr: localAddr}); err != nil {
+  return nil, sessionId, false, src.NewTLSClientError(err)
+ }
+ return client, sessionId, withSession, nil
+}
+
 func createPatchedClient(in src.RequestInput, rawPayload []byte) (tls_client.HttpClient, string, bool, *src.TLSClientError) {
  proxyUrl := ""
  if in.ProxyUrl != nil { proxyUrl = *in.ProxyUrl }
  // ja3_string sessions route through our builder (advanced controls + fingerprint);
  // identifier sessions go through the manual builder so yumeclient_close can always
  // call CloseIdleConnections
- if os.Getenv("YUMECLIENT_UPSTREAM_JA3") != "" && in.CustomTlsClient != nil && in.CustomTlsClient.Ja3String != "" {
-  return src.CreateClient(in)
- }
  if in.CustomTlsClient != nil && in.CustomTlsClient.Ja3String != "" {
   sessionId := ""
   if in.SessionId != nil { sessionId = *in.SessionId }
@@ -1001,7 +1039,7 @@ func createPatchedClient(in src.RequestInput, rawPayload []byte) (tls_client.Htt
  // silently falls back to DefaultClientProfile (Chrome) for unknown identifiers —
  // before 0.4.5 every extra profile went out on the wire as a Chrome hello.
  if in.TLSClientIdentifier == "" {
-  return src.CreateClient(in)
+  return upstreamClient(in, proxyUrl)
  }
  sessionId := ""
  if in.SessionId != nil { sessionId = *in.SessionId }
@@ -1068,7 +1106,7 @@ func createPatchedClient(in src.RequestInput, rawPayload []byte) (tls_client.Htt
    insecure: in.InsecureSkipVerify, noTickets: wantsNoSessionTickets(rawPayload)}
   if in.ServerNameOverwrite != nil { strict.serverName = *in.ServerNameOverwrite }
  }
- if layerErr := applySessionLayer(tlsClient, extras.okhttp(), strict); layerErr != nil { return nil, sessionId, false, src.NewTLSClientError(layerErr) }
+ if layerErr := applySessionLayer(tlsClient, extras.okhttp(), strict, plainConfig{proxyUrl: proxyUrl, localAddr: localAddr}); layerErr != nil { return nil, sessionId, false, src.NewTLSClientError(layerErr) }
  if captured { helloSinks.Store(tlsClient, sink) }
 
  return storePatchedSession(sessionId, tlsClient), sessionId, true, nil
@@ -1278,34 +1316,21 @@ func releaseClient(client tls_client.HttpClient) {
  closeClient(client, func() {
   helloSinks.Delete(client)
   sessionStyles.Delete(client)
-  plainTransports.Range(func(k, v any) bool {
-   if k.(plainKey).client == client {
-    v.(*http.Transport).CloseIdleConnections()
-    plainTransports.Delete(k)
-   }
-   return true
-  })
  })
 }
 
-// schemeGuard isolates plain-http requests from the https transport state.
-// Upstream keys its cached transports by host:443 regardless of scheme, so an
-// h2/h3 transport cached from an https call gets handed to an http:// request
-// for the same host -> "http2: unsupported scheme" / "protocol negotiated".
-// http:// always speaks plain HTTP/1.1 on a fresh dedicated transport here,
-// with the SAME cookie jar, timeout and redirect policy as the inner client.
+// schemeGuard: the session client as call.go uses it. http:// requests go through
+// the same client as https:// ones, so redirects between the schemes stay on the
+// session (cookies, redirect policy, the profile's TLS for every https:// hop);
+// hopTransport sends http:// hops to the session's plain transports (plain.go).
 type schemeGuard struct {
- inner tls_client.HttpClient
- // proxyUrl is remembered from session creation so plain-http requests keep
- // going through the operator's proxy instead of leaking direct connections.
+ inner    tls_client.HttpClient
  proxyUrl string
 }
 
 func wrapClient(client tls_client.HttpClient, proxyUrl string) *schemeGuard {
  return &schemeGuard{inner: client, proxyUrl: proxyUrl}
 }
-
-func httpErrUseLast(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 
 func proxyFuncFromUrl(raw string) func(*http.Request) (*url.URL, error) {
  if raw == "" { return nil }
@@ -1314,46 +1339,20 @@ func proxyFuncFromUrl(raw string) func(*http.Request) (*url.URL, error) {
  return func(*http.Request) (*url.URL, error) { return parsed, nil }
 }
 
-// plainTransports: one plain-http transport per (session, proxy), so http://
-// requests keep their connections alive between calls like any client does
-type plainKey struct {
- client tls_client.HttpClient
- proxy  string
-}
-
-var plainTransports sync.Map
-
-func (g *schemeGuard) buildPlainHTTPClient() *http.Client {
- inner := g.inner
- key := plainKey{client: inner, proxy: g.proxyUrl}
- _, ownSession := sessionStyles.Load(inner) // cached only for sessions removePatchedSession cleans up
- var transport *http.Transport
- if v, ok := plainTransports.Load(key); ok && ownSession {
-  transport = v.(*http.Transport)
- } else {
-  transport = http.DefaultTransport.(*http.Transport).Clone()
-  if pf := proxyFuncFromUrl(g.proxyUrl); pf != nil { transport.Proxy = pf }
-  if isOkhttpSession(inner) {
-   transport.IdleConnTimeout, transport.MaxIdleConns, transport.MaxIdleConnsPerHost = okhttpKeepAlive, okhttpMaxIdle, okhttpMaxIdle
-  }
-  if ownSession {
-   if v, loaded := plainTransports.LoadOrStore(key, transport); loaded { transport = v.(*http.Transport) }
-  }
- }
- var rt http.RoundTripper = transport
- if isOkhttpSession(inner) { rt = &okhttpBridge{inner: transport, jar: inner.GetCookieJar()} }
- // no client-level timeout: deadlines come from the request context
- // (reqControl), so http:// honours the same total/connect/read limits as https://
- client := &http.Client{Transport: &hopTransport{inner: rt}}
- if fr, ok := inner.(interface{ GetFollowRedirect() bool }); ok && !fr.GetFollowRedirect() {
-  client.CheckRedirect = httpErrUseLast
- }
- return client
-}
-
 func (g *schemeGuard) Do(req *http.Request) (*http.Response, error) {
  if strings.EqualFold(req.URL.Scheme, "http") {
-  return g.buildPlainHTTPClient().Do(req)
+  if hop, ok := clientTransport(g.inner).(*hopTransport); !ok || hop.plain == nil {
+   // a session built by upstream code (no request control): a plain client of its own
+   p := &plainRoutes{proxyUrl: g.proxyUrl}
+   rt, err := p.transport(false)
+   if err != nil { return nil, err }
+   c := &http.Client{Transport: rt}
+   if fr, ok := g.inner.(interface{ GetFollowRedirect() bool }); ok && !fr.GetFollowRedirect() {
+    c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+   }
+   defer p.closeIdle()
+   return c.Do(req)
+  }
  }
  return g.inner.Do(req)
 }

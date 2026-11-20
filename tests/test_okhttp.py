@@ -378,7 +378,9 @@ def test_raw_style_is_unchanged(h1):
     finally:
         s.close()
     head = h1.requests[0].split(CRLF)
-    assert head[1:4] == [b"user-agent: okhttp/4.12.0", b"accept: */*", b"accept-encoding: gzip"]
+    # Host first (as any HTTP/1.1 client sends it), then the headers as given
+    assert head[1].startswith(b"Host: ")
+    assert head[2:5] == [b"user-agent: okhttp/4.12.0", b"accept: */*", b"accept-encoding: gzip"]
     assert not any(l.startswith(b"Connection:") for l in head)
 
 

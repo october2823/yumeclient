@@ -1,9 +1,242 @@
 # github.com/bogdanfinn/tls-client v1.16.0
+diff --git a/h2c.go b/h2c.go
+new file mode 100644
+--- /dev/null
++++ b/h2c.go
+@@ -0,0 +1,168 @@
++package tls_client
++
++import (
++	"context"
++	"encoding/binary"
++	"errors"
++	"fmt"
++	"io"
++	"net"
++	"sync"
++
++	http "github.com/bogdanfinn/fhttp"
++	"github.com/bogdanfinn/fhttp/http2"
++	tls "github.com/bogdanfinn/utls"
++)
++
++// yumeclient: HTTP/2 over cleartext TCP with prior knowledge (RFC 9113 section
++// 3.3), the way OkHttp's Protocol.H2_PRIOR_KNOWLEDGE and gRPC speak to http://
++// servers. The connection preface carries this round tripper's HTTP/2 fingerprint
++// (SETTINGS and their order, WINDOW_UPDATE, PRIORITY frames, pseudo-header order,
++// HEADERS priority) and goes through its dialer (proxy, local address).
++
++type h2cState struct {
++	mu sync.Mutex
++	t2 *http2.Transport
++}
++
++// H2C returns the session's h2c round tripper (created on first use).
++func (rt *roundTripper) H2C() http.RoundTripper {
++	rt.h2c.mu.Lock()
++	if rt.h2c.t2 == nil {
++		rt.h2c.t2 = rt.newH2CTransport()
++	}
++	t2 := rt.h2c.t2
++	rt.h2c.mu.Unlock()
++	return &h2cTransport{rt: rt, t2: t2}
++}
++
++func (rt *roundTripper) newH2CTransport() *http2.Transport {
++	t2 := &http2.Transport{
++		AllowHTTP: true,
++		DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
++			return rt.dialH2C(ctx, network, addr)
++		},
++		DialTLS: func(network, addr string, _ *tls.Config) (net.Conn, error) {
++			return rt.dialH2C(context.Background(), network, addr)
++		},
++		ConnectionFlow:  rt.connectionFlow,
++		HeaderPriority:  rt.headerPriority,
++		IdleConnTimeout: defaultIdleConnectionTimeout,
++		InitialStreamID: rt.initialStreamID,
++		Priorities:      rt.priorities,
++		PushHandler:     &http2.DefaultPushHandler{},
++	}
++	if rt.transportOptions != nil {
++		t2.DisableCompression = rt.transportOptions.DisableCompression
++		if rt.transportOptions.IdleConnTimeout != nil {
++			t2.IdleConnTimeout = *rt.transportOptions.IdleConnTimeout
++		}
++	}
++	t2.PseudoHeaderOrder = rt.pseudoHeaderOrder
++	if t2.PseudoHeaderOrder == nil {
++		t2.PseudoHeaderOrder = []string{}
++	}
++	if rt.settings == nil {
++		// same defaults as the TLS transport
++		t2.Settings = map[http2.SettingID]uint32{
++			http2.SettingMaxConcurrentStreams: 1000,
++			http2.SettingMaxFrameSize:         16384,
++			http2.SettingInitialWindowSize:    6291456,
++			http2.SettingHeaderTableSize:      65536,
++		}
++		for k := range t2.Settings {
++			t2.SettingsOrder = append(t2.SettingsOrder, k)
++		}
++	} else {
++		t2.Settings, t2.SettingsOrder = rt.settings, rt.settingsOrder
++	}
++	return t2
++}
++
++func (rt *roundTripper) dialH2C(ctx context.Context, network, addr string) (net.Conn, error) {
++	conn, err := rt.dial(ctx, network, addr)
++	if err != nil {
++		return nil, err
++	}
++	return &h2cConn{Conn: conn, addr: addr}, nil
++}
++
++type h2cTransport struct {
++	rt *roundTripper
++	t2 *http2.Transport
++}
++
++func (t *h2cTransport) RoundTrip(req *http.Request) (*http.Response, error) {
++	t.rt.cachedTransportsLck.Lock()
++	closed := t.rt.closed
++	t.rt.cachedTransportsLck.Unlock()
++	if closed {
++		return nil, errClosed
++	}
++	return t.t2.RoundTrip(req)
++}
++
++func (t *h2cTransport) CloseIdleConnections() { t.t2.CloseIdleConnections() }
++
++// closeH2C closes the idle h2c connections (Close / CloseIdleConnections).
++func (rt *roundTripper) closeH2C() {
++	rt.h2c.mu.Lock()
++	t2 := rt.h2c.t2
++	rt.h2c.mu.Unlock()
++	if t2 != nil {
++		t2.CloseIdleConnections()
++	}
++}
++
++// H2CRefusedError: the server did not answer the h2c connection preface with an
++// HTTP/2 SETTINGS frame (it speaks HTTP/1.1 only, or closed the connection).
++type H2CRefusedError struct {
++	Addr   string
++	Detail string
++}
++
++func (e *H2CRefusedError) Error() string {
++	return fmt.Sprintf("%s does not speak HTTP/2 over cleartext (h2c prior knowledge): %s", e.Addr, e.Detail)
++}
++
++// h2cConn checks that the server's first frame is SETTINGS (RFC 9113 3.4).
++type h2cConn struct {
++	net.Conn
++	addr    string
++	checked bool
++	pending []byte
++}
++
++func (c *h2cConn) Read(p []byte) (int, error) {
++	if !c.checked {
++		c.checked = true
++		var head [9]byte
++		n, err := io.ReadFull(c.Conn, head[:])
++		if err != nil {
++			detail := "the server closed the connection"
++			if n > 0 {
++				detail = fmt.Sprintf("the server answered %q", head[:n])
++			} else if !errors.Is(err, io.EOF) {
++				return 0, err
++			}
++			return 0, &H2CRefusedError{Addr: c.addr, Detail: detail}
++		}
++		if head[3] != 0x4 || head[4]&0x1 != 0 || binary.BigEndian.Uint32(head[5:])&0x7fffffff != 0 {
++			return 0, &H2CRefusedError{Addr: c.addr, Detail: fmt.Sprintf("the server answered %q", head[:])}
++		}
++		c.pending = head[:]
++	}
++	if len(c.pending) > 0 {
++		n := copy(p, c.pending)
++		c.pending = c.pending[n:]
++		return n, nil
++	}
++	return c.Conn.Read(p)
++}
++
++// DialPlain opens a plain TCP connection through the round tripper's dialer (proxy,
++// local address): yumeclient's http:// transport uses it for SOCKS proxies, which
++// the plain net/http transport only knows as socks5://.
++func (rt *roundTripper) DialPlain(ctx context.Context, network, addr string) (net.Conn, error) {
++	return rt.dial(ctx, network, addr)
++}
+diff --git a/profiles/http3_fingerprint.go b/profiles/http3_fingerprint.go
+new file mode 100644
+--- /dev/null
++++ b/profiles/http3_fingerprint.go
+@@ -0,0 +1,44 @@
++package profiles
++
++import (
++	"time"
++
++	quic "github.com/bogdanfinn/quic-go-utls"
++	"github.com/bogdanfinn/quic-go-utls/http3"
++)
++
++// HTTP3Fingerprint is how a client looks over QUIC and HTTP/3: its ClientHello,
++// transport parameters and packet layout, the flow control it announces, and its
++// control and QPACK streams.
++type HTTP3Fingerprint struct {
++	QUIC              *quic.Fingerprint
++	InitialPacketSize uint16
++	// SrcConnIDLen is the length of the client's connection IDs; every connection
++	// gets its own UDP socket (0 is only possible that way).
++	SrcConnIDLen int
++
++	StreamReceiveWindow     uint64
++	ConnectionReceiveWindow uint64
++	MaxIncomingStreams      int64
++	MaxIncomingUniStreams   int64
++	MaxIdleTimeout          time.Duration
++	// Datagrams: max_datagram_frame_size is announced; H3Datagram: SETTINGS_H3_DATAGRAM.
++	Datagrams  bool
++	H3Datagram bool
++
++	// GreaseSetting appends a reserved setting to SETTINGS.
++	GreaseSetting bool
++	Control       *http3.ClientFingerprint
++	QPACK         *http3.QPACKStreams
++}
++
++// WithHTTP3Fingerprint returns the profile with an HTTP/3 fingerprint.
++func (c ClientProfile) WithHTTP3Fingerprint(fp *HTTP3Fingerprint) ClientProfile {
++	c.http3Fingerprint = fp
++	return c
++}
++
++// GetHTTP3Fingerprint returns the profile's HTTP/3 fingerprint, nil without one.
++func (c ClientProfile) GetHTTP3Fingerprint() *HTTP3Fingerprint {
++	return c.http3Fingerprint
++}
+diff --git a/profiles/profiles.go b/profiles/profiles.go
+--- a/profiles/profiles.go
++++ b/profiles/profiles.go
+@@ -108,6 +108,7 @@
+ 	http3PriorityParam     uint32
+ 	http3PseudoHeaderOrder []string
+ 	http3SendGreaseFrames  bool
++	http3Fingerprint       *HTTP3Fingerprint
+ }
+ 
+ func NewClientProfile(clientHelloId tls.ClientHelloID, settings map[http2.SettingID]uint32, settingsOrder []http2.SettingID, pseudoHeaderOrder []string, connectionFlow uint32, priorities []http2.Priority, headerPriority *http2.PriorityParam, streamID uint32, allowHTTP bool, http3Settings map[uint64]uint64, http3SettingsOrder []uint64, http3PriorityParam uint32, http3PseudoHeaderOrder []string, http3SendGreaseFrames bool) ClientProfile {
 diff --git a/race_gate.go b/race_gate.go
 new file mode 100644
 --- /dev/null
 +++ b/race_gate.go
-@@ -0,0 +1,373 @@
+@@ -0,0 +1,508 @@
 +package tls_client
 +
 +// yumeclient: protocol racing races connections, not requests.
@@ -22,11 +255,13 @@ new file mode 100644
 +	"net"
 +	"strings"
 +	"sync"
++	"time"
 +
 +	http "github.com/bogdanfinn/fhttp"
 +	"github.com/bogdanfinn/fhttp/httptrace"
 +	quic "github.com/bogdanfinn/quic-go-utls"
 +	"github.com/bogdanfinn/quic-go-utls/http3"
++	"github.com/bogdanfinn/tls-client/profiles"
 +	tls "github.com/bogdanfinn/utls"
 +)
 +
@@ -159,6 +394,12 @@ new file mode 100644
 +	mu     sync.Mutex
 +	udp    *quic.Transport
 +	closed bool
++
++	// with a fingerprint every connection has its own socket (Chrome's connection
++	// IDs are empty), and later connections announce the RTT measured before
++	fp      *profiles.HTTP3Fingerprint
++	sockets map[net.PacketConn]struct{}
++	rtts    map[string]time.Duration
 +}
 +
 +// newHTTP3 builds a gated HTTP/3 transport (an already decided gate for a transport
@@ -168,7 +409,8 @@ new file mode 100644
 +	if err != nil {
 +		return nil, err
 +	}
-+	return newRacedHTTP3(built.(*http3.Transport), gate), nil
++	r := newRacedHTTP3(built.(*http3.Transport), gate, pr.http3Fingerprint)
++	return r, nil
 +}
 +
 +func (r *racedHTTP3) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -192,11 +434,14 @@ new file mode 100644
 +	r.use.retire(func() { _ = r.Close() })
 +}
 +
-+func newRacedHTTP3(t3 *http3.Transport, gate *raceGate) *racedHTTP3 {
-+	r := &racedHTTP3{Transport: t3}
++func newRacedHTTP3(t3 *http3.Transport, gate *raceGate, fp *profiles.HTTP3Fingerprint) *racedHTTP3 {
++	r := &racedHTTP3{Transport: t3, fp: fp}
 +	dial := t3.Dial
 +	if dial == nil {
 +		dial = r.dialUDP
++		if fp != nil {
++			dial = r.dialOwnSocket
++		}
 +	}
 +	t3.Dial = func(ctx context.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (*quic.Conn, error) {
 +		if gate.lost("h3") {
@@ -322,13 +567,136 @@ new file mode 100644
 +	err := r.Transport.Close()
 +	r.mu.Lock()
 +	udp := r.udp
-+	r.udp, r.closed = nil, true
++	sockets := r.sockets
++	r.udp, r.sockets, r.closed = nil, nil, true
 +	r.mu.Unlock()
 +	if udp != nil {
 +		_ = udp.Close()
 +		_ = udp.Conn.Close()
 +	}
++	for s := range sockets {
++		_ = s.Close()
++	}
 +	return err
++}
++
++// dialOwnSocket dials a fingerprinted connection from a socket of its own, as
++// browsers do, with the fingerprint's connection ID length.
++func (r *racedHTTP3) dialOwnSocket(ctx context.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (*quic.Conn, error) {
++	udpAddr, err := resolveRaceUDPAddr(ctx, addr)
++	if err != nil {
++		return nil, err
++	}
++	network := "udp4"
++	if udpAddr.IP.To4() == nil {
++		network = "udp6"
++	}
++	sock, err := net.ListenUDP(network, nil)
++	if err != nil {
++		return nil, err
++	}
++	r.mu.Lock()
++	if r.closed {
++		r.mu.Unlock()
++		_ = sock.Close()
++		return nil, http3.ErrTransportClosed
++	}
++	if r.sockets == nil {
++		r.sockets = make(map[net.PacketConn]struct{})
++	}
++	r.sockets[sock] = struct{}{}
++	rtt := r.rtts[addr]
++	r.mu.Unlock()
++	release := func() {
++		r.mu.Lock()
++		delete(r.sockets, sock)
++		r.mu.Unlock()
++		_ = sock.Close()
++	}
++	cfg = withInitialRTT(cfg, rtt)
++
++	trace := httptrace.ContextClientTrace(ctx)
++	if trace != nil && trace.ConnectStart != nil {
++		trace.ConnectStart("udp", udpAddr.String())
++	}
++	if trace != nil && trace.TLSHandshakeStart != nil {
++		trace.TLSHandshakeStart()
++	}
++	var conn *quic.Conn
++	var tr *quic.Transport
++	if r.fp.SrcConnIDLen == 0 {
++		conn, err = quic.DialEarly(ctx, sock, udpAddr, tlsCfg, cfg)
++	} else {
++		tr = &quic.Transport{Conn: sock, ConnectionIDLength: r.fp.SrcConnIDLen}
++		conn, err = tr.DialEarly(ctx, udpAddr, tlsCfg, cfg)
++	}
++	var state tls.ConnectionState
++	if conn != nil {
++		state = conn.ConnectionState().TLS
++	}
++	if trace != nil && trace.TLSHandshakeDone != nil {
++		trace.TLSHandshakeDone(state, err)
++	}
++	if trace != nil && trace.ConnectDone != nil {
++		trace.ConnectDone("udp", udpAddr.String(), err)
++	}
++	if err != nil {
++		if tr != nil {
++			_ = tr.Close()
++		}
++		release()
++		return nil, err
++	}
++	go func() {
++		select {
++		case <-conn.HandshakeComplete():
++			r.noteRTT(addr, conn)
++		case <-conn.Context().Done():
++		}
++		<-conn.Context().Done()
++		r.noteRTT(addr, conn)
++		if tr != nil {
++			_ = tr.Close()
++		}
++		release()
++	}()
++	return conn, nil
++}
++
++func (r *racedHTTP3) noteRTT(addr string, conn *quic.Conn) {
++	rtt := conn.ConnectionStats().SmoothedRTT
++	if rtt <= 0 {
++		return
++	}
++	r.mu.Lock()
++	if r.rtts == nil {
++		r.rtts = make(map[string]time.Duration)
++	}
++	r.rtts[addr] = rtt
++	r.mu.Unlock()
++}
++
++// withInitialRTT fills in the optional google_initial_rtt transport parameter
++// (microseconds) Chrome sends on later connections to a server.
++func withInitialRTT(cfg *quic.Config, rtt time.Duration) *quic.Config {
++	if cfg == nil || cfg.Fingerprint == nil || rtt <= 0 {
++		return cfg
++	}
++	fp := *cfg.Fingerprint
++	fp.TransportParameters = append([]quic.TransportParameter(nil), fp.TransportParameters...)
++	changed := false
++	for i, tp := range fp.TransportParameters {
++		if tp.ID == 0x3127 && tp.Optional {
++			fp.TransportParameters[i].Value = uint64(rtt / time.Microsecond)
++			changed = true
++		}
++	}
++	if !changed {
++		return cfg
++	}
++	c := cfg.Clone()
++	c.Fingerprint = &fp
++	return c
 +}
 +
 +// closeTransport closes an HTTP/3 transport (its UDP socket too) once its open
@@ -380,19 +748,31 @@ new file mode 100644
 diff --git a/racer.go b/racer.go
 --- a/racer.go
 +++ b/racer.go
-@@ -9,6 +9,7 @@
+@@ -9,13 +9,20 @@
  
  	http "github.com/bogdanfinn/fhttp"
  	"github.com/bogdanfinn/fhttp/http2"
++	quic "github.com/bogdanfinn/quic-go-utls"
 +	"github.com/bogdanfinn/quic-go-utls/http3"
  	"github.com/bogdanfinn/tls-client/bandwidth"
++	"github.com/bogdanfinn/tls-client/profiles"
  	tls "github.com/bogdanfinn/utls"
++	"github.com/quic-go/qpack"
  )
-@@ -33,6 +34,17 @@
- 	// eviction, handed over because a raced request returns from RoundTrip
+ 
+ type protocolRacer struct {
+ 	protocolCache   map[string]string
+ 	protocolCacheMu sync.RWMutex
++	// broken: addresses where HTTP/3 failed after connecting (guarded by
++	// protocolCacheMu); races leave HTTP/3 out until the entry expires
++	broken map[string]brokenHTTP3
+ 
+ 	clientSessionCache  tls.ClientSessionCache
+ 	insecureSkipVerify  bool
+@@ -34,12 +41,24 @@
  	// before the branch that would otherwise do it.
  	dropTransport func(addr string, stale http.RoundTripper)
-+
+ 
 +	// discardConn closes the connection a lost HTTP/2 attempt dialed (stashed for
 +	// the transport by dialTLS).
 +	discardConn func(addr string)
@@ -403,10 +783,18 @@ diff --git a/racer.go b/racer.go
 +	// closed: the round tripper is closed, nothing gets cached (guarded by
 +	// cachedTransportsLck)
 +	closed bool
- 
++
  	// HTTP/3 specific settings
  	http3Settings          map[uint64]uint64
-@@ -85,40 +97,71 @@
+ 	http3SettingsOrder     []uint64
+ 	http3PriorityParam     uint32
+ 	http3PseudoHeaderOrder []string
+ 	http3SendGreaseFrames  bool
++	http3Fingerprint       *profiles.HTTP3Fingerprint
+ 
+ 	proxyURL string
+ }
+@@ -85,40 +104,180 @@
  	}
  }
  
@@ -431,7 +819,116 @@ diff --git a/racer.go b/racer.go
 -}
 -
 -func (pr *protocolRacer) tryUseCachedProtocol(req *http.Request, addr string, getTransportFunc func(*http.Request, string) error) (*http.Response, bool) {
-+	return pr.startRace(retry, addr, getTransportFunc)
++	resp, err = pr.startRace(retry, addr, getTransportFunc)
++	var failed *HTTP3BrokenError
++	if err == nil || !errors.As(err, &failed) {
++		return resp, err
++	}
++	// HTTP/3 connected, then failed the request: like Chrome, HTTP/3 counts as
++	// broken for this server and the request goes again over TCP when that is safe
++	if again := retryRequest(retry, failed.Err); again != nil {
++		return pr.startRace(again, addr, getTransportFunc)
++	}
++	return nil, err
++}
++
++// retryRequest: the request to send again after err, or nil when it must not be
++// (cancelled or timed out, or not idempotent and maybe processed).
++func retryRequest(req *http.Request, err error) *http.Request {
++	notSent := errors.Is(err, http3.ErrTransportClosed)
++	if req.Context().Err() != nil || !(notSent || replayable(req)) {
++		return nil
++	}
++	again, rewindErr := rewound(req)
++	if rewindErr != nil {
++		return nil
++	}
++	return again
++}
++
++// errHTTP3Broken: the race left HTTP/3 out (see brokenHTTP3).
++var errHTTP3Broken = errors.New("http3: broken for this server, not tried")
++
++// HTTP3BrokenError wraps the error of an HTTP/3 request that marked HTTP/3 broken
++// for the server: the session itself is fine (the next requests use TCP).
++type HTTP3BrokenError struct{ Err error }
++
++func (e *HTTP3BrokenError) Error() string { return e.Err.Error() }
++func (e *HTTP3BrokenError) Unwrap() error { return e.Err }
++
++// brokenHTTP3: Chrome's broken alternative service, per address. HTTP/3 stays out
++// of races for 5 minutes, doubled on every failure after the entry expired (up
++// to 2 days); a later HTTP/3 win forgets the entry.
++type brokenHTTP3 struct {
++	until    time.Time
++	failures int
++}
++
++const brokenHTTP3Delay = 5 * time.Minute
++const brokenHTTP3MaxDelay = 48 * time.Hour
++
++// http3Broke tells a failure of HTTP/3 itself with this server - the connection
++// closed with an error by either side, a QUIC protocol violation, a QPACK state the
++// decoder cannot follow - from everything else: a request the server reset, our own
++// cancellations and timeouts, a response refused for its size or fields, and a
++// connection that went quiet or that the server forgot (idle timeout, stateless
++// reset). Like Chrome, those get a new connection, not TCP.
++func http3Broke(req *http.Request, err error) bool {
++	if err == nil || req.Context().Err() != nil || errors.Is(err, errLostRace) || errors.Is(err, errClosed) ||
++		errors.Is(err, http3.ErrTransportClosed) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
++		return false
++	}
++	var h3err *http3.Error
++	if errors.As(err, &h3err) {
++		// closed by the server with an error, or by us over the server's misbehaviour;
++		// a graceful close (H3_NO_ERROR, QUIC's 0, and unknown or reserved codes, which
++		// RFC 9114 8.1 equates with H3_NO_ERROR) is not a failure
++		return h3err.Connection && http3FailureCode(uint64(h3err.ErrorCode))
++	}
++	var app *quic.ApplicationError
++	if errors.As(err, &app) {
++		return http3FailureCode(uint64(app.ErrorCode))
++	}
++	var transport *quic.TransportError
++	if errors.As(err, &transport) {
++		return transport.ErrorCode != quic.NoError && transport.ErrorCode != quic.ApplicationErrorErrorCode
++	}
++	var version *quic.VersionNegotiationError
++	var decompression *qpack.DecompressionError
++	return errors.As(err, &version) || errors.As(err, &decompression)
++}
++
++// http3FailureCode: the HTTP/3 (RFC 9114 8.1) and QPACK (RFC 9204 6) error codes
++// other than H3_NO_ERROR.
++func http3FailureCode(code uint64) bool {
++	return (code >= 0x101 && code <= 0x110) || (code >= 0x200 && code <= 0x202)
++}
++
++func (pr *protocolRacer) markHTTP3Broken(addr string) {
++	pr.protocolCacheMu.Lock()
++	defer pr.protocolCacheMu.Unlock()
++	if pr.broken == nil {
++		pr.broken = make(map[string]brokenHTTP3)
++	}
++	b := pr.broken[addr]
++	if time.Now().Before(b.until) {
++		return // already broken: concurrent failures count once
++	}
++	delay := brokenHTTP3Delay << min(b.failures, 9)
++	if delay > brokenHTTP3MaxDelay {
++		delay = brokenHTTP3MaxDelay
++	}
++	pr.broken[addr] = brokenHTTP3{until: time.Now().Add(delay), failures: b.failures + 1}
++	if pr.protocolCache[addr] == "h3" {
++		delete(pr.protocolCache, addr)
++	}
++}
++
++func (pr *protocolRacer) http3Broken(addr string) bool {
++	pr.protocolCacheMu.RLock()
++	defer pr.protocolCacheMu.RUnlock()
++	b, ok := pr.broken[addr]
++	return ok && time.Now().Before(b.until)
 +}
 +
 +// tryUseCachedProtocol returns the request to race with when there is no cached
@@ -470,6 +967,10 @@ diff --git a/racer.go b/racer.go
 +		return nil, err, nil // refused before sending: nothing wrong with the connection
 +	}
 +
++	if cachedProtocol == "h3" && http3Broke(req, err) {
++		pr.markHTTP3Broken(addr)
++		err = &HTTP3BrokenError{Err: err}
++	}
 +	// Later requests race again, on new connections (in-flight requests keep
 +	// theirs): after an error, and for HTTP/3 after a timeout or cancellation too —
 +	// UDP gets black-holed far more often than TCP, and only a race tells a silent
@@ -481,19 +982,15 @@ diff --git a/racer.go b/racer.go
 +	// Racing sends this request again: only when that is safe (and still wanted).
 +	// A transport closed under the request (retired by a sibling's failure) refused
 +	// it before sending anything.
-+	notSent := errors.Is(err, http3.ErrTransportClosed)
-+	if req.Context().Err() != nil || !(notSent || replayable(req)) {
-+		return nil, err, nil
-+	}
-+	retry, rewindErr := rewound(req)
-+	if rewindErr != nil {
++	retry := retryRequest(req, err)
++	if retry == nil {
 +		return nil, err, nil
 +	}
 +	return nil, nil, retry
  }
  
  func (pr *protocolRacer) getOrCreateTransport(protocol, addr string, req *http.Request, getTransportFunc func(*http.Request, string) error) (http.RoundTripper, error) {
-@@ -127,6 +170,9 @@
+@@ -127,6 +286,9 @@
  	pr.cachedTransportsLck.Lock()
  	defer pr.cachedTransportsLck.Unlock()
  
@@ -503,7 +1000,7 @@ diff --git a/racer.go b/racer.go
  	if transport, exists := pr.cachedTransports[transportKey]; exists {
  		return transport, nil
  	}
-@@ -142,7 +188,9 @@
+@@ -142,7 +304,9 @@
  
  func (pr *protocolRacer) createTransportForProtocol(protocol, addr string, req *http.Request, getTransportFunc func(*http.Request, string) error) (http.RoundTripper, error) {
  	if protocol == "h3" {
@@ -514,7 +1011,7 @@ diff --git a/racer.go b/racer.go
  	}
  
  	// For HTTP/2, use the standard transport creation
-@@ -155,76 +203,128 @@
+@@ -155,76 +319,138 @@
  }
  
  func (pr *protocolRacer) startRace(req *http.Request, addr string, getTransportFunc func(*http.Request, string) error) (*http.Response, error) {
@@ -533,7 +1030,13 @@ diff --git a/racer.go b/racer.go
 -func (pr *protocolRacer) attemptHTTP3(req *http.Request, resultCh chan<- racingResult) {
 -	h3Transport, err := buildHTTP3Transport(pr.getHTTP3Config())
 +
-+	go pr.attemptHTTP3(req, gate, h3Failed, resultCh)
++	if pr.http3Broken(addr) {
++		// HTTP/3 is broken for this server: TCP right away, nothing over UDP
++		close(h3Failed)
++		resultCh <- racingResult{protocol: "h3", err: errHTTP3Broken}
++	} else {
++		go pr.attemptHTTP3(req, gate, h3Failed, resultCh)
++	}
 +	go pr.attemptHTTP2(req, addr, getTransportFunc, gate, h3Failed, resultCh)
 +
 +	// only the winner sends the request, so both results come back promptly unless
@@ -548,6 +1051,10 @@ diff --git a/racer.go b/racer.go
 +		switch {
 +		case gate.won(result.protocol):
 +			winnerErr = result.err
++			if result.protocol == "h3" && http3Broke(req, result.err) {
++				pr.markHTTP3Broken(addr)
++				winnerErr = &HTTP3BrokenError{Err: result.err}
++			}
 +		case errors.Is(result.err, errLostRace):
 +		case result.protocol == "h2":
 +			h2Err = result.err
@@ -694,7 +1201,7 @@ diff --git a/racer.go b/racer.go
  }
  
  // roundTrip sends the request over transport and, when the dial underneath
-@@ -239,12 +339,30 @@
+@@ -239,12 +465,30 @@
  // the transport stored under that key dials through the round tripper. The
  // HTTP/3 transport brings its own dialer and never reports this.
  func (pr *protocolRacer) roundTrip(transport http.RoundTripper, req *http.Request, addr string) (*http.Response, error) {
@@ -728,7 +1235,7 @@ diff --git a/racer.go b/racer.go
  }
  
  func (pr *protocolRacer) getTransportKey(protocol, addr string) string {
-@@ -260,22 +378,67 @@
+@@ -260,22 +504,70 @@
  	pr.protocolCacheMu.Unlock()
  }
  
@@ -738,6 +1245,9 @@ diff --git a/racer.go b/racer.go
 +func (pr *protocolRacer) cacheWinningProtocol(addr, protocol string, transport http.RoundTripper) {
  	pr.protocolCacheMu.Lock()
  	pr.protocolCache[addr] = protocol
++	if protocol == "h3" {
++		delete(pr.broken, addr) // HTTP/3 works again
++	}
  	pr.protocolCacheMu.Unlock()
  
 +	if protocol == "h3" && transport != nil {
@@ -805,7 +1315,13 @@ diff --git a/racer.go b/racer.go
  }
  
  func (pr *protocolRacer) handleCachedProtocolError(err error, addr string, req *http.Request) {
-@@ -301,7 +464,8 @@
+@@ -296,12 +588,14 @@
+ 		http3PriorityParam:     pr.http3PriorityParam,
+ 		http3PseudoHeaderOrder: pr.http3PseudoHeaderOrder,
+ 		http3SendGreaseFrames:  pr.http3SendGreaseFrames,
++		http3Fingerprint:       pr.http3Fingerprint,
+ 		proxyURL:               pr.proxyURL,
+ 	}
  }
  
  type racingResult struct {
@@ -821,11 +1337,21 @@ diff --git a/racer.go b/racer.go
 diff --git a/roundtripper.go b/roundtripper.go
 --- a/roundtripper.go
 +++ b/roundtripper.go
-@@ -67,7 +67,10 @@
+@@ -12,6 +12,7 @@
+ 
+ 	http "github.com/bogdanfinn/fhttp"
+ 	"github.com/bogdanfinn/fhttp/http2"
++	quic "github.com/bogdanfinn/quic-go-utls"
+ 	"github.com/bogdanfinn/quic-go-utls/http3"
+ 	"github.com/bogdanfinn/tls-client/bandwidth"
+ 	"github.com/bogdanfinn/tls-client/profiles"
+@@ -67,7 +68,12 @@
  	sync.Mutex
  
  	cachedTransportsLck sync.Mutex
 -	connectionFlow      uint32
++	// h2c: HTTP/2 over cleartext with prior knowledge (h2c.go)
++	h2c h2cState
 +	// closed: Close was called, nothing is cached or sent any more (guarded by
 +	// cachedTransportsLck)
 +	closed         bool
@@ -833,10 +1359,29 @@ diff --git a/roundtripper.go b/roundtripper.go
  
  	forceHttp1   bool
  	disableHttp3 bool
-@@ -182,6 +185,48 @@
- 	}
+@@ -82,6 +88,7 @@
+ 	http3PriorityParam     uint32
+ 	http3PseudoHeaderOrder []string
+ 	http3SendGreaseFrames  bool
++	http3Fingerprint       *profiles.HTTP3Fingerprint
+ 
+ 	insecureSkipVerify          bool
+ 	withRandomTlsExtensionOrder bool
+@@ -100,6 +107,7 @@
+ 	http3PriorityParam     uint32
+ 	http3PseudoHeaderOrder []string
+ 	http3SendGreaseFrames  bool
++	http3Fingerprint       *profiles.HTTP3Fingerprint
+ 	proxyURL               string
  }
  
+@@ -180,6 +188,50 @@
+ 			tr.CloseIdleConnections()
+ 		}
+ 	}
++	rt.closeH2C()
++}
++
 +// Close closes every cached transport — HTTP/3 ones with their UDP sockets, which
 +// CloseIdleConnections leaves open — and connections stashed by dialTLS. Responses
 +// still being read are left alone: HTTP/3 transports close after them, HTTP/1.1 and
@@ -859,6 +1404,7 @@ diff --git a/roundtripper.go b/roundtripper.go
 +	for _, transport := range transports {
 +		closeTransport(transport)
 +	}
++	rt.closeH2C()
 +
 +	rt.Lock()
 +	for addr, conn := range rt.cachedConnections {
@@ -877,12 +1423,54 @@ diff --git a/roundtripper.go b/roundtripper.go
 +	if conn != nil {
 +		_ = conn.Close()
 +	}
-+}
-+
+ }
+ 
  func (rt *roundTripper) getHttp3Settings() map[uint64]uint64 {
- 	if len(rt.http3Settings) == 0 {
- 		return nil
-@@ -322,6 +367,10 @@
+@@ -220,6 +272,23 @@
+ 		TLSClientConfig: utlsConfig,
+ 		EnableDatagrams: true, // Chrome enables H3_DATAGRAM (setting 0x33)
+ 	}
++	if fp := cfg.http3Fingerprint; fp != nil {
++		t3.EnableDatagrams = fp.H3Datagram
++		t3.QUICConfig = &quic.Config{
++			InitialPacketSize:              fp.InitialPacketSize,
++			InitialStreamReceiveWindow:     fp.StreamReceiveWindow,
++			MaxStreamReceiveWindow:         max(fp.StreamReceiveWindow, 6<<20),
++			InitialConnectionReceiveWindow: fp.ConnectionReceiveWindow,
++			MaxConnectionReceiveWindow:     max(fp.ConnectionReceiveWindow, 15<<20),
++			MaxIncomingStreams:             fp.MaxIncomingStreams,
++			MaxIncomingUniStreams:          fp.MaxIncomingUniStreams,
++			MaxIdleTimeout:                 fp.MaxIdleTimeout,
++			EnableDatagrams:                fp.Datagrams || fp.H3Datagram,
++			Fingerprint:                    fp.QUIC,
++		}
++		t3.QPACKStreams = fp.QPACK
++		t3.Fingerprint = fp.Control
++	}
+ 
+ 	if cfg.proxyURL != "" {
+ 		parsedURL, parseErr := url.Parse(cfg.proxyURL)
+@@ -250,7 +319,7 @@
+ 	// Add random GREASE setting only for browsers that send it (Chrome)
+ 	// Firefox sends GREASE frames but not random GREASE settings
+ 	// Use priority parameter as identification: Chrome has it, Firefox doesn't
+-	if cfg.http3PriorityParam > 0 {
++	if (cfg.http3Fingerprint == nil && cfg.http3PriorityParam > 0) || (cfg.http3Fingerprint != nil && cfg.http3Fingerprint.GreaseSetting) {
+ 		greaseID := generateGREASESettingID()
+ 		greaseValue := generateGREASESettingValue()
+ 
+@@ -303,6 +372,10 @@
+ 	} else {
+ 		t3.MaxResponseHeaderBytes = profileDefaultMaxResponseHeaderBytes(cfg)
+ 	}
++	if cfg.http3Fingerprint != nil {
++		// SETTINGS_MAX_FIELD_SECTION_SIZE, if the browser sends it, is among the settings
++		t3.MaxResponseHeaderBytes = -1
++	}
+ 
+ 	return t3, nil
+ }
+@@ -322,6 +395,10 @@
  	}
  
  	rt.cachedTransportsLck.Lock()
@@ -893,7 +1481,7 @@ diff --git a/roundtripper.go b/roundtripper.go
  	if _, ok := rt.cachedTransports[addr]; !ok {
  		if err := rt.getTransport(req, addr); err != nil {
  			rt.cachedTransportsLck.Unlock()
-@@ -475,6 +524,7 @@
+@@ -475,6 +552,7 @@
  
  		t2 := http2.Transport{
  			DialTLS:         rt.dialTLSHTTP2,
@@ -901,7 +1489,15 @@ diff --git a/roundtripper.go b/roundtripper.go
  			TLSClientConfig: utlsConfig,
  			ConnectionFlow:  rt.connectionFlow,
  			HeaderPriority:  rt.headerPriority,
-@@ -614,6 +664,10 @@
+@@ -550,6 +628,7 @@
+ 			http3PriorityParam:     rt.http3PriorityParam,
+ 			http3PseudoHeaderOrder: rt.http3PseudoHeaderOrder,
+ 			http3SendGreaseFrames:  rt.http3SendGreaseFrames,
++			http3Fingerprint:       rt.http3Fingerprint,
+ 			proxyURL:               rt.proxyURL,
+ 		})
+ 		if err != nil {
+@@ -614,6 +693,10 @@
  
  func (rt *roundTripper) dialTLSHTTP2(network, addr string, _ *tls.Config) (net.Conn, error) {
  	return rt.dialTLS(context.Background(), network, addr)
@@ -912,11 +1508,20 @@ diff --git a/roundtripper.go b/roundtripper.go
  }
  
  // dialTLSForWebsocket establishes a TLS connection for WebSocket use.
-@@ -750,6 +804,7 @@
+@@ -726,6 +809,7 @@
+ 		http3PriorityParam:          clientProfile.GetHttp3PriorityParam(),
+ 		http3PseudoHeaderOrder:      clientProfile.GetHttp3PseudoHeaderOrder(),
+ 		http3SendGreaseFrames:       clientProfile.GetHttp3SendGreaseFrames(),
++		http3Fingerprint:            clientProfile.GetHTTP3Fingerprint(),
+ 		proxyURL:                    proxyURL,
+ 	}
+ 
+@@ -750,6 +834,8 @@
  			clientProfile.GetHttp3SendGreaseFrames(),
  			proxyURL,
  		)
 +		rt.racer.discardConn = rt.discardCachedConnection
++		rt.racer.http3Fingerprint = clientProfile.GetHTTP3Fingerprint()
  	}
  
  	if len(dialer) > 0 {

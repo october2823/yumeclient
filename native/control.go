@@ -151,11 +151,10 @@ type reqControl struct {
 	// release ends the request's use of its session (see holdSession), once
 	release func()
 
+	// stage limits; HTTP/3 reports the same trace events as HTTP/1.1 and HTTP/2
+	// (quic-go's http3: GotConn after the QUIC handshake, WroteRequest,
+	// GotFirstResponseByte), so they apply to every protocol
 	connect, write, read, total time.Duration
-	// stageTimers=false for protocol-racing sessions: quic-go's HTTP/3 transport
-	// does not report fhttp trace events, so connect/write timers could fire on
-	// a healthy h3 exchange. Total and body-read timeouts still apply.
-	stageTimers bool
 	// jar: per-request cookie jar consulted by hopTransport on every hop
 	jar *requestJar
 	// requireProto: see requestOptions.RequireProtocol
@@ -182,9 +181,9 @@ type reqControl struct {
 	remote, local                                                string
 }
 
-func newReqControl(id string, opts requestOptions, racing, follow bool) *reqControl {
+func newReqControl(id string, opts requestOptions, follow bool) *reqControl {
 	ctx, cancel := context.WithCancelCause(context.Background())
-	c := &reqControl{id: id, ctx: ctx, cancel: cancel, stageTimers: !racing, requireProto: opts.RequireProtocol, follow: follow, omit: opts.OmitHeaders,
+	c := &reqControl{id: id, ctx: ctx, cancel: cancel, requireProto: opts.RequireProtocol, follow: follow, omit: opts.OmitHeaders,
 		connect: msDuration(opts.ConnectMs), write: msDuration(opts.WriteMs),
 		read: msDuration(opts.ReadMs), total: msDuration(opts.TotalMs),
 		stage: "connect", start: time.Now()}
@@ -307,11 +306,7 @@ func (c *reqControl) trace() *httptrace.ClientTrace {
 					c.local = a.String()
 				}
 			}
-			if c.stageTimers {
-				c.armLocked("write", c.write)
-			} else {
-				c.armLocked("write", 0)
-			}
+			c.armLocked("write", c.write)
 		},
 		WroteRequest: func(httptrace.WroteRequestInfo) {
 			if c.dialing.Load() > 0 {
@@ -320,11 +315,7 @@ func (c *reqControl) trace() *httptrace.ClientTrace {
 			c.mu.Lock()
 			defer c.mu.Unlock()
 			c.wrote = time.Now()
-			if c.stageTimers {
-				c.armLocked("read", c.read)
-			} else {
-				c.armLocked("read", 0)
-			}
+			c.armLocked("read", c.read)
 		},
 		GotFirstResponseByte: func() {
 			if c.dialing.Load() > 0 {
@@ -345,11 +336,7 @@ func (c *reqControl) hopBegin() {
 	c.gotConn, c.wrote, c.firstByte = time.Time{}, time.Time{}, time.Time{}
 	c.proxyStart, c.proxyDone = time.Time{}, time.Time{}
 	c.remote, c.local = "", ""
-	if c.stageTimers {
-		c.armLocked("connect", c.connect)
-	} else {
-		c.armLocked("connect", 0)
-	}
+	c.armLocked("connect", c.connect)
 }
 
 // proxyDial brackets the proxy leg of a dial (TCP to the proxy + CONNECT/SOCKS).
@@ -529,6 +516,8 @@ func controlFrom(ctx context.Context) *reqControl {
 type hopTransport struct {
 	inner http.RoundTripper
 	use   inUse
+	// plain: http:// hops (plain.go); nil sends them to inner
+	plain *plainRoutes
 }
 
 // inUse counts a session's requests, each from RoundTrip until its response body
@@ -609,12 +598,18 @@ func (h *hopTransport) CloseIdleConnections() {
 	if c, ok := h.inner.(interface{ CloseIdleConnections() }); ok {
 		c.CloseIdleConnections()
 	}
+	if h.plain != nil {
+		h.plain.closeIdle()
+	}
 }
 
 // Close fully closes the transports underneath (HTTP/3 UDP sockets included).
 func (h *hopTransport) Close() {
 	if c, ok := h.inner.(interface{ Close() }); ok {
 		c.Close()
+		if h.plain != nil {
+			h.plain.closeIdle()
+		}
 	} else {
 		h.CloseIdleConnections()
 	}
@@ -678,7 +673,14 @@ func (h *hopTransport) roundTrip(req *http.Request) (*http.Response, error) {
 		}
 		req.Header["User-Agent"] = []string{}
 	}
-	resp, err := h.inner.RoundTrip(req)
+	rt := h.inner
+	if h.plain != nil && strings.EqualFold(req.URL.Scheme, "http") {
+		var err error
+		if rt, err = h.plain.transport(c != nil && c.requireProto == "h2"); err != nil {
+			return nil, err
+		}
+	}
+	resp, err := rt.RoundTrip(req)
 	if c != nil && err == nil {
 		c.hopReturned()
 		if c.jar != nil {
@@ -874,7 +876,7 @@ func (c *reqControl) historyPayload(final *http.Response) []map[string]any {
 // installRequestControl: deadlines move from http.Client.Timeout (fixed at
 // session creation, so a per-request timeout was silently ignored) to the
 // request context, and the hop hook goes in front of the transport.
-func installRequestControl(client tls_client.HttpClient) error {
+func installRequestControl(client tls_client.HttpClient, plain *plainConfig, okhttp bool) error {
 	v := reflect.ValueOf(client)
 	if v.Kind() != reflect.Ptr || v.IsNil() || v.Elem().Kind() != reflect.Struct {
 		return errors.New("unexpected tls-client client type")
@@ -893,7 +895,13 @@ func installRequestControl(client tls_client.HttpClient) error {
 		return errors.New("tls-client: http.Client.Jar is not settable")
 	}
 	jar.Set(reflect.Zero(jar.Type())) // cookies: per-request jar in hopTransport
-	return swapTransport(client, func(rt http.RoundTripper) http.RoundTripper { return &hopTransport{inner: rt} })
+	return swapTransport(client, func(rt http.RoundTripper) http.RoundTripper {
+		h := &hopTransport{inner: rt}
+		if plain != nil {
+			h.plain = newPlainRoutes(client, *plain, okhttp, rt)
+		}
+		return h
+	})
 }
 
 // closeClient closes a session's connections: CloseIdleConnections, then the full
@@ -1079,7 +1087,8 @@ func classifyError(err error, ctl *reqControl) (kind, stage string) {
 		return "invalid_request", "request"
 	}
 	var refused *alpnRefusedError
-	if errors.As(err, &refused) {
+	var h2cRefused *tls_client.H2CRefusedError
+	if errors.As(err, &refused) || errors.As(err, &h2cRefused) {
 		return "protocol", "connect"
 	}
 	var pe *proxyDialError
