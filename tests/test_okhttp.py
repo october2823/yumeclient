@@ -333,7 +333,7 @@ def test_keep_alpn_keeps_the_hello_and_speaks_http1(h1):
 def test_keep_alpn_refuses_h2_before_sending_anything(h2only):
     s = _okhttp(http_version="1.1", keep_alpn=True)
     try:
-        with pytest.raises(yumeclient.RequestError, match='selected ALPN "h2"'):
+        with pytest.raises(yumeclient.ProtocolError, match='selected ALPN "h2"'):
             s.get(f"https://localhost:{h2only.relay_port}/x")
     finally:
         s.close()

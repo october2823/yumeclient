@@ -84,6 +84,30 @@ def test_server_cannot_set_cookie_for_unrelated_domain(session):
     assert sent(session.get(url("other.test"))) == []
 
 
+def test_public_suffix_domain_is_rejected(session):
+    # Domain=co.uk / github.io would reach every site under the suffix (RFC 6265 5.3 step 5)
+    session.get(url("shop.example.co.uk", set=["ps=1; Domain=co.uk; Path=/", "ok=2; Domain=example.co.uk; Path=/"]))
+    session.get(url("alice.github.io", set=["gh=3; Domain=github.io; Path=/"]))
+    assert sent(session.get(url("victim.co.uk"))) == []
+    assert sent(session.get(url("bob.github.io"))) == []
+    assert sent(session.get(url("www.example.co.uk"))) == ["ok=2"]
+    assert sorted(c.name for c in session.cookies) == ["ok"]
+
+
+def test_public_suffix_host_keeps_its_own_cookie_host_only(session):
+    session.get(url("github.io", set=["own=1; Domain=github.io; Path=/"]))
+    assert sent(session.get(url("github.io"))) == ["own=1"]
+    assert sent(session.get(url("alice.github.io"))) == []
+    cookie = next(iter(session.cookies))
+    assert cookie.host_only and cookie.domain == "github.io"
+
+
+def test_ip_host_domain_cookie_is_host_only(session):
+    session.get(url("10.1.2.3", set=["ip=1; Domain=10.1.2.3; Path=/"]))
+    cookie = next(iter(session.cookies))
+    assert cookie.host_only and cookie.domain == "10.1.2.3"
+
+
 def test_path_scope_and_order(session):
     jar = session.cookies
     jar.set("p", "admin", domain="example.test", path="/admin")

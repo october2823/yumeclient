@@ -252,6 +252,11 @@ func okhttpLayout(r *http.Request, jar http.CookieJar) {
 	}
 	appOrder := h[http.HeaderOrderKey] // lowercased by tls-client
 	delete(h, http.HeaderOrderKey)
+	for _, k := range foldKeys(h, "user-agent") {
+		if len(h[k]) == 0 { // hopTransport's "no application User-Agent" marker
+			delete(h, k)
+		}
+	}
 	hop := r.Response != nil // redirect follow-up built by http.Client
 	hasBody := (r.Body != nil && r.Body != http.NoBody) || okhttpBodyMethods[strings.ToUpper(r.Method)]
 

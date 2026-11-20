@@ -76,6 +76,12 @@ def main() -> int:
             with session.get(base + "/s", stream=True) as streamed:
                 assert b"".join(streamed.iter_bytes(3)) == b"smoke-ok"
             assert yumeclient._debugStats()["streams"] == 0
+            trace = response.trace()
+            assert trace["request"]["header_source"] == "wire" and trace["response"]["status"] == 200, trace
+            clone = yumeclient.Session.from_profile(session.export_profile())
+            assert list(clone.headers.items()) == list(session.headers.items())
+            assert yumeclient.fingerprint_diff(session.export_profile(), clone.get(base + "/s")) == []
+            clone.close()
         asyncio.run(_async_checks(base))
     finally:
         server.shutdown()

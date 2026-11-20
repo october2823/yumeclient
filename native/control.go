@@ -28,6 +28,7 @@ import (
 	"net"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -52,6 +53,9 @@ type requestOptions struct {
 	MaxBodyBytes int64  `json:"maxBodyBytes"`
 	// Jar: snapshot of the Python CookieJar (the source of truth), see cookiejar.go
 	Jar []seedCookie `json:"jar"`
+	// RequireProtocol: ALPN every TLS connection must have negotiated ("h2" for
+	// http_version="2"); anything else is closed before the request is written
+	RequireProtocol string `json:"requireProtocol"`
 }
 
 func decodeRequestOptions(raw []byte) requestOptions {
@@ -98,6 +102,19 @@ func (e *bodyTooLarge) Error() string {
 	return fmt.Sprintf("response body exceeds max_content_size (%d bytes)", e.limit)
 }
 
+// protocolMismatch: the TLS connection negotiated another protocol than the
+// session requires (http_version="2" against an HTTP/1.1-only server).
+type protocolMismatch struct{ want, got, addr string }
+
+func (e *protocolMismatch) Error() string {
+	got := "no ALPN (HTTP/1.1)"
+	if e.got != "" {
+		got = fmt.Sprintf("ALPN %q", e.got)
+	}
+	return fmt.Sprintf("http_version=2: server %s negotiated %s instead of %q; the connection was closed "+
+		"before the request was sent (http_version='auto' follows the server's choice)", e.addr, got, e.want)
+}
+
 // proxyDialError marks failures of the proxy leg (dial to proxy, TLS to an
 // https proxy, CONNECT / SOCKS negotiation).
 type proxyDialError struct{ err error }
@@ -121,6 +138,11 @@ type reqControl struct {
 	stageTimers bool
 	// jar: per-request cookie jar consulted by hopTransport on every hop
 	jar *requestJar
+	// requireProto: see requestOptions.RequireProtocol
+	requireProto string
+	// uaMarker: header map of the current hop when hopTransport added the "no
+	// User-Agent" marker (nil otherwise); GotConn adapts it to the protocol
+	uaMarker http.Header
 
 	mu         sync.Mutex
 	timer      *time.Timer
@@ -134,12 +156,13 @@ type reqControl struct {
 	dialing atomic.Int32
 
 	start, hopStart, gotConn, wrote, firstByte, hopEnd, bodyDone time.Time
+	proxyStart, proxyDone                                        time.Time
 	remote, local                                                string
 }
 
 func newReqControl(id string, opts requestOptions, racing bool) *reqControl {
 	ctx, cancel := context.WithCancelCause(context.Background())
-	c := &reqControl{id: id, ctx: ctx, cancel: cancel, stageTimers: !racing,
+	c := &reqControl{id: id, ctx: ctx, cancel: cancel, stageTimers: !racing, requireProto: opts.RequireProtocol,
 		connect: msDuration(opts.ConnectMs), write: msDuration(opts.WriteMs),
 		read: msDuration(opts.ReadMs), total: msDuration(opts.TotalMs),
 		stage: "connect", start: time.Now()}
@@ -223,9 +246,41 @@ func (c *reqControl) trace() *httptrace.ClientTrace {
 			if c.dialing.Load() > 0 {
 				return
 			}
+			// plain http:// connections carry no ALPN and stay HTTP/1.1 (no h2c)
+			proto := ""
+			if info.Conn != nil {
+				if cs, ok := info.Conn.(interface{ ConnectionState() tls.ConnectionState }); ok {
+					proto = cs.ConnectionState().NegotiatedProtocol
+				}
+			}
+			if c.requireProto != "" && proto != c.requireProto {
+				if _, isTLS := info.Conn.(interface{ ConnectionState() tls.ConnectionState }); isTLS {
+					addr := ""
+					if a := info.Conn.RemoteAddr(); a != nil {
+						addr = a.String()
+					}
+					c.cancel(&protocolMismatch{want: c.requireProto, got: proto, addr: addr})
+					_ = info.Conn.Close() // GotConn precedes the write: nothing reaches the server
+					return
+				}
+			}
 			c.mu.Lock()
 			defer c.mu.Unlock()
+			if proto == "h2" && c.uaMarker != nil {
+				// the HTTP/1.1 writer omits a key without values, the HTTP/2 encoder skips
+				// such keys before its User-Agent check and then adds "Go-http-client/2.0";
+				// it omits the header only for an empty value. GotConn runs on the
+				// goroutine that encodes the headers right after it.
+				if v, ok := c.uaMarker["User-Agent"]; ok && len(v) == 0 { // okhttp may have replaced it
+					c.uaMarker["User-Agent"] = []string{""}
+				}
+			}
 			c.gotConn = time.Now()
+			if info.Reused {
+				// a dial this hop started may have lost the race to a freed idle
+				// connection: its proxy time does not belong to the connection used
+				c.proxyStart, c.proxyDone = time.Time{}, time.Time{}
+			}
 			if info.Conn != nil {
 				if a := info.Conn.RemoteAddr(); a != nil {
 					c.remote = a.String()
@@ -270,11 +325,23 @@ func (c *reqControl) hopBegin() {
 	defer c.mu.Unlock()
 	c.hopStart = time.Now()
 	c.gotConn, c.wrote, c.firstByte = time.Time{}, time.Time{}, time.Time{}
+	c.proxyStart, c.proxyDone = time.Time{}, time.Time{}
 	c.remote, c.local = "", ""
 	if c.stageTimers {
 		c.armLocked("connect", c.connect)
 	} else {
 		c.armLocked("connect", 0)
+	}
+}
+
+// proxyDial brackets the proxy leg of a dial (TCP to the proxy + CONNECT/SOCKS).
+func (c *reqControl) proxyDial(start bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if start {
+		c.proxyStart, c.proxyDone = time.Now(), time.Time{}
+	} else if !c.proxyStart.IsZero() {
+		c.proxyDone = time.Now()
 	}
 }
 
@@ -319,6 +386,9 @@ func (c *reqControl) timings() map[string]any {
 		out["connect"], out["write"] = nil, nil
 		out["wait"] = seconds(c.hopStart, c.hopEnd)
 	}
+	// proxy: part of connect spent reaching the target through the proxy (nil when the
+	// hop reused a connection or went direct)
+	out["proxy"] = seconds(c.proxyStart, c.proxyDone)
 	out["first_byte"] = seconds(c.start, headersAt)
 	out["body"] = seconds(c.hopEnd, end)
 	return out
@@ -442,18 +512,44 @@ type hopTransport struct{ inner http.RoundTripper }
 
 func (h *hopTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	c := controlFrom(req.Context())
+	cloned := false
 	if c != nil {
 		c.hopBegin()
 		// cookie handling moved here from http.Client.Jar (which is nil now): same
 		// AddCookie / SetCookies steps the client performs, but on the per-request jar
 		if c.jar != nil {
 			if cookies := c.jar.Cookies(req.URL); len(cookies) > 0 {
-				req = req.Clone(req.Context())
+				req, cloned = req.Clone(req.Context()), true
 				for _, ck := range cookies {
 					req.AddCookie(ck)
 				}
 			}
 		}
+	}
+	// fhttp adds "Go-http-client/1.1" unless the exact key "User-Agent" or
+	// "user-agent" is present (so also next to an application "USER-AGENT"), and
+	// "Go-http-client/2.0" on h2 unless some spelling is. A key without values means
+	// "omit" to the HTTP/1.1 writer; for h2 GotConn turns it into an empty value.
+	var marker http.Header
+	if req.Header["User-Agent"] == nil && req.Header["user-agent"] == nil {
+		if !cloned {
+			req = req.Clone(req.Context())
+		}
+		if req.Header == nil {
+			req.Header = http.Header{}
+		}
+		req.Header["User-Agent"] = []string{}
+		// not while racing h3 against TCP: both attempts share this map (the h3 one reads
+		// it concurrently) and the losing one outlives the hop, so GotConn must not write
+		// it. The TCP attempt may then send Go-http-client/2.0 (documented).
+		if c != nil && c.stageTimers && !hasHeaderKey(req.Header, "user-agent", "User-Agent") {
+			marker = req.Header
+		}
+	}
+	if c != nil {
+		c.mu.Lock()
+		c.uaMarker = marker
+		c.mu.Unlock()
 	}
 	resp, err := h.inner.RoundTrip(req)
 	if c != nil && err == nil {
@@ -465,6 +561,16 @@ func (h *hopTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 	}
 	return resp, err
+}
+
+// hasHeaderKey: a key equal to name ignoring case, other than except
+func hasHeaderKey(h http.Header, name string, except ...string) bool {
+	for k := range h {
+		if strings.EqualFold(k, name) && !slices.Contains(except, k) {
+			return true
+		}
+	}
+	return false
 }
 
 // installRequestControl: deadlines move from http.Client.Timeout (fixed at
@@ -566,7 +672,8 @@ func errorPayload(err error, ctl *reqControl) map[string]any {
 	if ctl != nil {
 		if cause := context.Cause(ctl.ctx); cause != nil && kind != "request" {
 			var st *stageTimeout
-			if errors.As(cause, &st) || errors.Is(cause, errCancelled) {
+			var pm *protocolMismatch
+			if errors.As(cause, &st) || errors.Is(cause, errCancelled) || errors.As(cause, &pm) {
 				msg = cause.Error()
 			}
 		}
@@ -589,7 +696,10 @@ func classifyError(err error, ctl *reqControl) (kind, stage string) {
 		cause := context.Cause(ctl.ctx)
 		var st *stageTimeout
 		var big *bodyTooLarge
+		var pm *protocolMismatch
 		switch {
+		case errors.As(cause, &pm):
+			return "protocol", "connect"
 		case errors.As(cause, &st):
 			if st.stage == "total" {
 				return "timeout", stage
@@ -606,6 +716,10 @@ func classifyError(err error, ctl *reqControl) (kind, stage string) {
 	var big *bodyTooLarge
 	if errors.As(err, &big) {
 		return "body_too_large", "body"
+	}
+	var refused *alpnRefusedError
+	if errors.As(err, &refused) {
+		return "protocol", "connect"
 	}
 	var pe *proxyDialError
 	if errors.As(err, &pe) {

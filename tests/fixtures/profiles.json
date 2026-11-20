@@ -1,0 +1,3673 @@
+{
+ "format": "yumeclient.profile-fixtures",
+ "version": 1,
+ "tls_server": "Python ssl (OpenSSL), ALPN http/1.1, SNI localhost",
+ "regenerate": "python scripts/profile_fixtures.py --update",
+ "profiles": {
+  "chrome_103": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,11-45-65281-35-23-5-51-10-13-17513-27-18-43-0-16-21,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_e5627efa2ab1",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,0023,002b,002d,0033,4469,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    11,
+    45,
+    65281,
+    35,
+    23,
+    5,
+    51,
+    10,
+    13,
+    17513,
+    27,
+    18,
+    43,
+    0,
+    16,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_104": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,16-13-43-27-65281-0-51-18-5-23-10-45-35-17513-11-21,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_e5627efa2ab1",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,0023,002b,002d,0033,4469,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    16,
+    13,
+    43,
+    27,
+    65281,
+    0,
+    51,
+    18,
+    5,
+    23,
+    10,
+    45,
+    35,
+    17513,
+    11,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_105": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,0-51-65281-27-11-23-13-35-18-16-45-43-5-10-17513-21,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_e5627efa2ab1",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,0023,002b,002d,0033,4469,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    51,
+    65281,
+    27,
+    11,
+    23,
+    13,
+    35,
+    18,
+    16,
+    45,
+    43,
+    5,
+    10,
+    17513,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_106": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,10-65281-45-51-23-0-5-17513-18-13-43-16-35-11-27-21,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_e5627efa2ab1",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,0023,002b,002d,0033,4469,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    10,
+    65281,
+    45,
+    51,
+    23,
+    0,
+    5,
+    17513,
+    18,
+    13,
+    43,
+    16,
+    35,
+    11,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_107": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,23-35-18-27-11-0-43-51-16-65281-13-17513-45-5-10-21,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_e5627efa2ab1",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,0023,002b,002d,0033,4469,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    23,
+    35,
+    18,
+    27,
+    11,
+    0,
+    43,
+    51,
+    16,
+    65281,
+    13,
+    17513,
+    45,
+    5,
+    10,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_108": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,45-5-65281-27-51-23-16-43-18-0-11-13-17513-10-35-21,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_e5627efa2ab1",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,0023,002b,002d,0033,4469,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    45,
+    5,
+    65281,
+    27,
+    51,
+    23,
+    16,
+    43,
+    18,
+    0,
+    11,
+    13,
+    17513,
+    10,
+    35,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_109": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,10-17513-51-45-18-5-23-43-16-35-65281-0-13-11-27-21,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_e5627efa2ab1",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,0023,002b,002d,0033,4469,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    10,
+    17513,
+    51,
+    45,
+    18,
+    5,
+    23,
+    43,
+    16,
+    35,
+    65281,
+    0,
+    13,
+    11,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_110": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,13-35-16-18-43-11-5-27-51-23-10-17513-45-65281-0-21,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_e5627efa2ab1",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,0023,002b,002d,0033,4469,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    13,
+    35,
+    16,
+    18,
+    43,
+    11,
+    5,
+    27,
+    51,
+    23,
+    10,
+    17513,
+    45,
+    65281,
+    0,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_111": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,45-35-17513-10-51-11-23-43-0-16-18-27-65281-5-13-21,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_e5627efa2ab1",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,0023,002b,002d,0033,4469,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    45,
+    35,
+    17513,
+    10,
+    51,
+    11,
+    23,
+    43,
+    0,
+    16,
+    18,
+    27,
+    65281,
+    5,
+    13,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_112": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,51-23-10-45-5-11-0-43-65281-18-35-17513-13-16-27-21,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_e5627efa2ab1",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,0023,002b,002d,0033,4469,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    51,
+    23,
+    10,
+    45,
+    5,
+    11,
+    0,
+    43,
+    65281,
+    18,
+    35,
+    17513,
+    13,
+    16,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_116_PSK": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,45-13-51-43-10-5-18-17513-0-16-35-23-65281-27-11-21,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_e5627efa2ab1",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,0023,002b,002d,0033,4469,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    45,
+    13,
+    51,
+    43,
+    10,
+    5,
+    18,
+    17513,
+    0,
+    16,
+    35,
+    23,
+    65281,
+    27,
+    11,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_116_PSK_PQ": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,17513-43-27-13-45-51-10-5-18-35-0-65281-11-16-23,25497-29-23-24,0",
+   "ja4": "t13d1515h2_8daaf6152771_f37e75b10bcc",
+   "ja4_r": "t13d1515h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,4469,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    17513,
+    43,
+    27,
+    13,
+    45,
+    51,
+    10,
+    5,
+    18,
+    35,
+    0,
+    65281,
+    11,
+    16,
+    23
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_117": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,27-5-43-13-23-16-35-17513-45-11-51-65281-18-0-10-21,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_e5627efa2ab1",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,0023,002b,002d,0033,4469,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    27,
+    5,
+    43,
+    13,
+    23,
+    16,
+    35,
+    17513,
+    45,
+    11,
+    51,
+    65281,
+    18,
+    0,
+    10,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_120": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,23-18-17513-65037-0-51-13-27-11-16-45-10-43-5-35-65281,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_02713d6af862",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,4469,fe0d,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    23,
+    18,
+    17513,
+    65037,
+    0,
+    51,
+    13,
+    27,
+    11,
+    16,
+    45,
+    10,
+    43,
+    5,
+    35,
+    65281
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_124": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,16-11-65281-51-13-0-17513-10-5-27-23-18-43-65037-45-35,25497-29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_02713d6af862",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,4469,fe0d,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    16,
+    11,
+    65281,
+    51,
+    13,
+    0,
+    17513,
+    10,
+    5,
+    27,
+    23,
+    18,
+    43,
+    65037,
+    45,
+    35
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_130_PSK": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,27-65037-23-51-45-43-13-18-17513-5-10-16-35-11-65281-0,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_02713d6af862",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,4469,fe0d,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    27,
+    65037,
+    23,
+    51,
+    45,
+    43,
+    13,
+    18,
+    17513,
+    5,
+    10,
+    16,
+    35,
+    11,
+    65281,
+    0
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_131": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,11-65281-13-10-43-17513-0-18-27-65037-51-35-16-45-5-23,4588-29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_02713d6af862",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,4469,fe0d,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    11,
+    65281,
+    13,
+    10,
+    43,
+    17513,
+    0,
+    18,
+    27,
+    65037,
+    51,
+    35,
+    16,
+    45,
+    5,
+    23
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_131_PSK": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,65037-11-13-18-27-51-35-23-17513-43-45-5-65281-16-0-10,4588-29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_02713d6af862",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,4469,fe0d,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    65037,
+    11,
+    13,
+    18,
+    27,
+    51,
+    35,
+    23,
+    17513,
+    43,
+    45,
+    5,
+    65281,
+    16,
+    0,
+    10
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_133": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,16-27-65037-51-11-65281-23-13-45-0-35-43-10-17613-5-18,4588-29-23-24,0",
+   "ja4": "t13d1516h3_8daaf6152771_d8a2da3f94cd",
+   "ja4_r": "t13d1516h3_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,44cd,fe0d,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h3",
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    16,
+    27,
+    65037,
+    51,
+    11,
+    65281,
+    23,
+    13,
+    45,
+    0,
+    35,
+    43,
+    10,
+    17613,
+    5,
+    18
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_133_PSK": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,35-23-11-51-10-18-45-5-65037-0-27-65281-17613-13-16-43,4588-29-23-24,0",
+   "ja4": "t13d1516h3_8daaf6152771_d8a2da3f94cd",
+   "ja4_r": "t13d1516h3_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,44cd,fe0d,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h3",
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    35,
+    23,
+    11,
+    51,
+    10,
+    18,
+    45,
+    5,
+    65037,
+    0,
+    27,
+    65281,
+    17613,
+    13,
+    16,
+    43
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_144": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,51-45-65037-43-0-17613-13-5-27-16-18-23-65281-35-11-10,4588-29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_d8a2da3f94cd",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,44cd,fe0d,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    51,
+    45,
+    65037,
+    43,
+    0,
+    17613,
+    13,
+    5,
+    27,
+    16,
+    18,
+    23,
+    65281,
+    35,
+    11,
+    10
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_144_PSK": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,17613-45-65281-51-10-23-0-27-18-5-65037-11-13-16-35-43,4588-29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_d8a2da3f94cd",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,44cd,fe0d,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    17613,
+    45,
+    65281,
+    51,
+    10,
+    23,
+    0,
+    27,
+    18,
+    5,
+    65037,
+    11,
+    13,
+    16,
+    35,
+    43
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_146": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,43-51764-45-11-65037-27-23-65281-35-16-0-18-10-17613-13-51-5,4588-29-23-24,0",
+   "ja4": "t13d1517h2_8daaf6152771_dcad5a053991",
+   "ja4_r": "t13d1517h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,44cd,ca34,fe0d,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    43,
+    51764,
+    45,
+    11,
+    65037,
+    27,
+    23,
+    65281,
+    35,
+    16,
+    0,
+    18,
+    10,
+    17613,
+    13,
+    51,
+    5
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_146_PSK": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,11-13-51-10-17613-23-45-16-43-51764-18-0-65037-27-65281-5-35,4588-29-23-24,0",
+   "ja4": "t13d1517h2_8daaf6152771_dcad5a053991",
+   "ja4_r": "t13d1517h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,44cd,ca34,fe0d,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    11,
+    13,
+    51,
+    10,
+    17613,
+    23,
+    45,
+    16,
+    43,
+    51764,
+    18,
+    0,
+    65037,
+    27,
+    65281,
+    5,
+    35
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_150": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,23-0-65037-45-43-27-35-16-18-11-5-51-10-13-17613-65281,4588-29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_806a8c22fdea",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,44cd,fe0d,ff01_0904,0905,0906,0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    23,
+    0,
+    65037,
+    45,
+    43,
+    27,
+    35,
+    16,
+    18,
+    11,
+    5,
+    51,
+    10,
+    13,
+    17613,
+    65281
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_150_PSK": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,13-43-35-65281-51-23-0-18-45-11-17613-27-5-65037-10-16,4588-29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_806a8c22fdea",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,44cd,fe0d,ff01_0904,0905,0906,0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    13,
+    43,
+    35,
+    65281,
+    51,
+    23,
+    0,
+    18,
+    45,
+    11,
+    17613,
+    27,
+    5,
+    65037,
+    10,
+    16
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_152": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,65281-23-65037-16-35-51764-5-45-0-43-10-17613-13-51-27-18-11,4588-29-23-24,0",
+   "ja4": "t13d1517h2_8daaf6152771_cb7bf5808d99",
+   "ja4_r": "t13d1517h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,44cd,ca34,fe0d,ff01_0904,0905,0906,0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    65281,
+    23,
+    65037,
+    16,
+    35,
+    51764,
+    5,
+    45,
+    0,
+    43,
+    10,
+    17613,
+    13,
+    51,
+    27,
+    18,
+    11
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "chrome_152_PSK": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,18-43-5-17613-51-27-51764-13-11-35-10-16-23-45-65037-65281-0,4588-29-23-24,0",
+   "ja4": "t13d1517h2_8daaf6152771_cb7bf5808d99",
+   "ja4_r": "t13d1517h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,44cd,ca34,fe0d,ff01_0904,0905,0906,0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    18,
+    43,
+    5,
+    17613,
+    51,
+    27,
+    51764,
+    13,
+    11,
+    35,
+    10,
+    16,
+    23,
+    45,
+    65037,
+    65281,
+    0
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "brave_146": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,18-65281-65037-43-16-45-23-5-13-51-27-0-11-35-17613-10,4588-29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_d8a2da3f94cd",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,44cd,fe0d,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    18,
+    65281,
+    65037,
+    43,
+    16,
+    45,
+    23,
+    5,
+    13,
+    51,
+    27,
+    0,
+    11,
+    35,
+    17613,
+    10
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "brave_146_PSK": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,45-65281-11-43-16-35-23-51-17613-10-13-0-18-5-27-65037,4588-29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_d8a2da3f94cd",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,44cd,fe0d,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    45,
+    65281,
+    11,
+    43,
+    16,
+    35,
+    23,
+    51,
+    17613,
+    10,
+    13,
+    0,
+    18,
+    5,
+    27,
+    65037
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "safari_15_6_1": {
+   "ja3": "771,4865-4866-4867-49196-49195-52393-49200-49199-52392-49162-49161-49172-49171-157-156-53-47-49160-49170-10,0-23-65281-10-11-16-5-13-18-51-45-43-27-21,29-23-24-25,0",
+   "ja4": "t13d2014h2_a09f3c656075_14788d8d241b",
+   "ja4_r": "t13d2014h2_000a,002f,0035,009c,009d,1301,1302,1303,c008,c009,c00a,c012,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,002b,002d,0033,ff01_0403,0804,0401,0503,0203,0805,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "4:4194304;3:100|10485760|0|m,s,p,a",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "safari_16_0": {
+   "ja3": "771,4865-4866-4867-49196-49195-52393-49200-49199-52392-49162-49161-49172-49171-157-156-53-47-49160-49170-10,0-23-65281-10-11-16-5-13-18-51-45-43-27-21,29-23-24-25,0",
+   "ja4": "t13d2014h2_a09f3c656075_14788d8d241b",
+   "ja4_r": "t13d2014h2_000a,002f,0035,009c,009d,1301,1302,1303,c008,c009,c00a,c012,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,002b,002d,0033,ff01_0403,0804,0401,0503,0203,0805,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "4:4194304;3:100|10485760|0|m,s,p,a",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "safari_ipad_15_6": {
+   "ja3": "771,4865-4866-4867-49196-49195-52393-49200-49199-52392-49162-49161-49172-49171-157-156-53-47-49160-49170-10,0-23-65281-10-11-16-5-13-18-51-45-43-27-21,29-23-24-25,0",
+   "ja4": "t13d2014h2_a09f3c656075_14788d8d241b",
+   "ja4_r": "t13d2014h2_000a,002f,0035,009c,009d,1301,1302,1303,c008,c009,c00a,c012,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,002b,002d,0033,ff01_0403,0804,0401,0503,0203,0805,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "4:2097152;3:100|10485760|0|m,s,p,a",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "safari_ios_15_5": {
+   "ja3": "771,4865-4866-4867-49196-49195-52393-49200-49199-52392-49162-49161-49172-49171-157-156-53-47-49160-49170-10,0-23-65281-10-11-16-5-13-18-51-45-43-27-21,29-23-24-25,0",
+   "ja4": "t13d2014h2_a09f3c656075_14788d8d241b",
+   "ja4_r": "t13d2014h2_000a,002f,0035,009c,009d,1301,1302,1303,c008,c009,c00a,c012,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,002b,002d,0033,ff01_0403,0804,0401,0503,0203,0805,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "4:2097152;3:100|10485760|0|m,s,p,a",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "safari_ios_15_6": {
+   "ja3": "771,4865-4866-4867-49196-49195-52393-49200-49199-52392-49162-49161-49172-49171-157-156-53-47-49160-49170-10,0-23-65281-10-11-16-5-13-18-51-45-43-27-21,29-23-24-25,0",
+   "ja4": "t13d2014h2_a09f3c656075_14788d8d241b",
+   "ja4_r": "t13d2014h2_000a,002f,0035,009c,009d,1301,1302,1303,c008,c009,c00a,c012,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,002b,002d,0033,ff01_0403,0804,0401,0503,0203,0805,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "4:2097152;3:100|10485760|0|m,s,p,a",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "safari_ios_16_0": {
+   "ja3": "771,4865-4866-4867-49196-49195-52393-49200-49199-52392-49162-49161-49172-49171-157-156-53-47-49160-49170-10,0-23-65281-10-11-16-5-13-18-51-45-43-27-21,29-23-24-25,0",
+   "ja4": "t13d2014h2_a09f3c656075_14788d8d241b",
+   "ja4_r": "t13d2014h2_000a,002f,0035,009c,009d,1301,1302,1303,c008,c009,c00a,c012,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,002b,002d,0033,ff01_0403,0804,0401,0503,0203,0805,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "4:2097152;3:100|10485760|0|m,s,p,a",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "safari_ios_17_0": {
+   "ja3": "771,4865-4866-4867-49196-49195-52393-49200-49199-52392-49162-49161-49172-49171-157-156-53-47-49160-49170-10,0-23-65281-10-11-16-5-13-18-51-45-43-27-21,29-23-24-25,0",
+   "ja4": "t13d2014h2_a09f3c656075_14788d8d241b",
+   "ja4_r": "t13d2014h2_000a,002f,0035,009c,009d,1301,1302,1303,c008,c009,c00a,c012,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,002b,002d,0033,ff01_0403,0804,0401,0503,0203,0805,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "2:0;4:2097152;3:100|10485760|0|m,s,p,a",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "safari_ios_18_0": {
+   "ja3": "771,4865-4866-4867-49196-49195-52393-49200-49199-52392-49162-49161-49172-49171-157-156-53-47-49160-49170-10,0-23-65281-10-11-16-5-13-18-51-45-43-27-21,29-23-24-25,0",
+   "ja4": "t13d2014h2_a09f3c656075_14788d8d241b",
+   "ja4_r": "t13d2014h2_000a,002f,0035,009c,009d,1301,1302,1303,c008,c009,c00a,c012,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,002b,002d,0033,ff01_0403,0804,0401,0503,0203,0805,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "2:0;3:100;4:2097152;0:1;0:1|10420225|0|m,s,a,p",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "safari_ios_18_5": {
+   "ja3": "771,4865-4866-4867-49196-49195-52393-49200-49199-52392-49162-49161-49172-49171-157-156-53-47-49160-49170-10,0-23-65281-10-11-16-5-13-18-51-45-43-27-21,29-23-24-25,0",
+   "ja4": "t13d2014h2_a09f3c656075_e42f34c56612",
+   "ja4_r": "t13d2014h2_000a,002f,0035,009c,009d,1301,1302,1303,c008,c009,c00a,c012,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,002b,002d,0033,ff01_0403,0804,0401,0503,0805,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "2:0;3:100;4:2097152;0:1|10420225|0|m,s,a,p",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "safari_ios_26_0": {
+   "ja3": "771,4866-4867-4865-49196-49195-52393-49200-49199-52392-49162-49161-49172-49171-157-156-53-47-49160-49170-10,0-23-65281-10-11-16-5-13-18-51-45-43-27,4588-29-23-24-25,0",
+   "ja4": "t13d2013h2_a09f3c656075_7f0f34a4126d",
+   "ja4_r": "t13d2013h2_000a,002f,0035,009c,009d,1301,1302,1303,c008,c009,c00a,c012,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,002b,002d,0033,ff01_0403,0804,0401,0503,0805,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "2:0;3:100;4:2097152;0:1|10420225|0|m,s,a,p",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "firefox_102": {
+   "ja3": "771,4865-4867-4866-49195-49199-52393-52392-49196-49200-49162-49161-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-34-51-43-13-45-28-21,29-23-24-25-256-257,0",
+   "ja4": "t13d1715h2_5b57614c22b0_3d5424432f57",
+   "ja4_r": "t13d1715h2_002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0015,0017,001c,0022,0023,002b,002d,0033,ff01_0403,0503,0603,0804,0805,0806,0401,0501,0601,0203,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    16,
+    5,
+    34,
+    51,
+    43,
+    13,
+    45,
+    28,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;4:131072;5:16384|12517377|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "upgrade-insecure-requests",
+    "sec-fetch-dest",
+    "sec-fetch-mode",
+    "sec-fetch-site",
+    "sec-fetch-user",
+    "accept-encoding",
+    "te",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "firefox_104": {
+   "ja3": "771,4865-4867-4866-49195-49199-52393-52392-49196-49200-49162-49161-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-34-51-43-13-45-28-21,29-23-24-25-256-257,0",
+   "ja4": "t13d1715h2_5b57614c22b0_3d5424432f57",
+   "ja4_r": "t13d1715h2_002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0015,0017,001c,0022,0023,002b,002d,0033,ff01_0403,0503,0603,0804,0805,0806,0401,0501,0601,0203,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    16,
+    5,
+    34,
+    51,
+    43,
+    13,
+    45,
+    28,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;4:131072;5:16384|12517377|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "upgrade-insecure-requests",
+    "sec-fetch-dest",
+    "sec-fetch-mode",
+    "sec-fetch-site",
+    "sec-fetch-user",
+    "accept-encoding",
+    "te",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "firefox_105": {
+   "ja3": "771,4865-4867-4866-49195-49199-52393-52392-49196-49200-49162-49161-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-34-51-43-13-45-28-21,29-23-24-25-256-257,0",
+   "ja4": "t13d1715h2_5b57614c22b0_3d5424432f57",
+   "ja4_r": "t13d1715h2_002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0015,0017,001c,0022,0023,002b,002d,0033,ff01_0403,0503,0603,0804,0805,0806,0401,0501,0601,0203,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    16,
+    5,
+    34,
+    51,
+    43,
+    13,
+    45,
+    28,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;4:131072;5:16384|12517377|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "upgrade-insecure-requests",
+    "sec-fetch-dest",
+    "sec-fetch-mode",
+    "sec-fetch-site",
+    "sec-fetch-user",
+    "accept-encoding",
+    "te",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "firefox_106": {
+   "ja3": "771,4865-4867-4866-49195-49199-52393-52392-49196-49200-49162-49161-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-34-51-43-13-45-28-21,29-23-24-25-256-257,0",
+   "ja4": "t13d1715h2_5b57614c22b0_3d5424432f57",
+   "ja4_r": "t13d1715h2_002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0015,0017,001c,0022,0023,002b,002d,0033,ff01_0403,0503,0603,0804,0805,0806,0401,0501,0601,0203,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    16,
+    5,
+    34,
+    51,
+    43,
+    13,
+    45,
+    28,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;4:131072;5:16384|12517377|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "upgrade-insecure-requests",
+    "sec-fetch-dest",
+    "sec-fetch-mode",
+    "sec-fetch-site",
+    "sec-fetch-user",
+    "accept-encoding",
+    "te",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "firefox_108": {
+   "ja3": "771,4865-4867-4866-49195-49199-52393-52392-49196-49200-49162-49161-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-34-51-43-13-45-28-21,29-23-24-25-256-257,0",
+   "ja4": "t13d1715h2_5b57614c22b0_3d5424432f57",
+   "ja4_r": "t13d1715h2_002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0015,0017,001c,0022,0023,002b,002d,0033,ff01_0403,0503,0603,0804,0805,0806,0401,0501,0601,0203,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    16,
+    5,
+    34,
+    51,
+    43,
+    13,
+    45,
+    28,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;4:131072;5:16384|12517377|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "upgrade-insecure-requests",
+    "sec-fetch-dest",
+    "sec-fetch-mode",
+    "sec-fetch-site",
+    "sec-fetch-user",
+    "accept-encoding",
+    "te",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "firefox_110": {
+   "ja3": "771,4865-4867-4866-49195-49199-52393-52392-49196-49200-49162-49161-49171-49172-156-157-47-53,0-23-65281-10-11-16-5-34-51-43-13-28-21,29-23-24-25-256-257,0",
+   "ja4": "t13d1713h2_5b57614c22b0_f81080dfc557",
+   "ja4_r": "t13d1713h2_002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0015,0017,001c,0022,002b,0033,ff01_0403,0503,0603,0804,0805,0806,0401,0501,0601,0203,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    34,
+    51,
+    43,
+    13,
+    28,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;4:131072;5:16384|12517377|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "upgrade-insecure-requests",
+    "sec-fetch-dest",
+    "sec-fetch-mode",
+    "sec-fetch-site",
+    "sec-fetch-user",
+    "accept-encoding",
+    "te",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "firefox_117": {
+   "ja3": "771,4865-4867-4866-49195-49199-52393-52392-49196-49200-49162-49161-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-34-51-43-13-45-28-21,29-23-24-25-256-257,0",
+   "ja4": "t13d1715h2_5b57614c22b0_3d5424432f57",
+   "ja4_r": "t13d1715h2_002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0015,0017,001c,0022,0023,002b,002d,0033,ff01_0403,0503,0603,0804,0805,0806,0401,0501,0601,0203,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    16,
+    5,
+    34,
+    51,
+    43,
+    13,
+    45,
+    28,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;4:131072;5:16384|12517377|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "upgrade-insecure-requests",
+    "sec-fetch-dest",
+    "sec-fetch-mode",
+    "sec-fetch-site",
+    "sec-fetch-user",
+    "accept-encoding",
+    "te",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "firefox_120": {
+   "ja3": "771,4865-4867-4866-49195-49199-52393-52392-49196-49200-49162-49161-49171-49172-156-157-47-53,0-23-65281-10-11-16-5-34-51-43-13-28-65037,29-23-24-25-256-257,0",
+   "ja4": "t13d1713h2_5b57614c22b0_748f4c70de1c",
+   "ja4_r": "t13d1713h2_002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0017,001c,0022,002b,0033,fe0d,ff01_0403,0503,0603,0804,0805,0806,0401,0501,0601,0203,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    34,
+    51,
+    43,
+    13,
+    28,
+    65037
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;4:131072;5:16384|12517377|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "upgrade-insecure-requests",
+    "sec-fetch-dest",
+    "sec-fetch-mode",
+    "sec-fetch-site",
+    "sec-fetch-user",
+    "accept-encoding",
+    "te",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "firefox_123": {
+   "ja3": "771,4865-4867-4866-49195-49199-52393-52392-49196-49200-49162-49161-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-34-51-43-13-45-28-65037,29-23-24-25-256-257,0",
+   "ja4": "t13d1715h2_5b57614c22b0_5c2c66f702b0",
+   "ja4_r": "t13d1715h2_002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0017,001c,0022,0023,002b,002d,0033,fe0d,ff01_0403,0503,0603,0804,0805,0806,0401,0501,0601,0203,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    16,
+    5,
+    34,
+    51,
+    43,
+    13,
+    45,
+    28,
+    65037
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;4:131072;5:16384|12517377|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "upgrade-insecure-requests",
+    "sec-fetch-dest",
+    "sec-fetch-mode",
+    "sec-fetch-site",
+    "sec-fetch-user",
+    "accept-encoding",
+    "te",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "firefox_132": {
+   "ja3": "771,4865-4867-4866-49195-49199-52393-52392-49196-49200-49162-49161-49171-49172-156-157-47-53,0-23-65281-10-11-16-5-34-51-43-13-28-27-65037,4588-29-23-24-25-256-257,0",
+   "ja4": "t13d1714h2_5b57614c22b0_3dd24b5ebec4",
+   "ja4_r": "t13d1714h2_002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0017,001b,001c,0022,002b,0033,fe0d,ff01_0403,0503,0603,0804,0805,0806,0401,0501,0601,0203,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    34,
+    51,
+    43,
+    13,
+    28,
+    27,
+    65037
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:131072;5:16384;0:1|12517377|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "upgrade-insecure-requests",
+    "sec-fetch-dest",
+    "sec-fetch-mode",
+    "sec-fetch-site",
+    "sec-fetch-user",
+    "accept-encoding",
+    "te",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "firefox_133": {
+   "ja3": "771,4865-4867-4866-49195-49199-52393-52392-49196-49200-49162-49161-49171-49172-156-157-47-53,0-23-65281-10-11-16-5-34-51-43-13-28-27-65037,4588-29-23-24-25-256-257,0",
+   "ja4": "t13d1714h2_5b57614c22b0_3dd24b5ebec4",
+   "ja4_r": "t13d1714h2_002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0017,001b,001c,0022,002b,0033,fe0d,ff01_0403,0503,0603,0804,0805,0806,0401,0501,0601,0203,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    34,
+    51,
+    43,
+    13,
+    28,
+    27,
+    65037
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:131072;5:16384|12517377|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "upgrade-insecure-requests",
+    "sec-fetch-dest",
+    "sec-fetch-mode",
+    "sec-fetch-site",
+    "sec-fetch-user",
+    "accept-encoding",
+    "te",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "firefox_135": {
+   "ja3": "771,4865-4867-4866-49195-49199-52393-52392-49196-49200-49162-49161-49171-49172-156-157-47-53,0-23-65281-10-11-16-5-34-18-51-43-13-28-27-65037,4588-29-23-24-25-256-257,0",
+   "ja4": "t13d1715h2_5b57614c22b0_a54fffd0eb61",
+   "ja4_r": "t13d1715h2_002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,001c,0022,002b,0033,fe0d,ff01_0403,0503,0603,0804,0805,0806,0401,0501,0601,0203,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    34,
+    18,
+    51,
+    43,
+    13,
+    28,
+    27,
+    65037
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:131072;5:16384|12517377|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "upgrade-insecure-requests",
+    "sec-fetch-dest",
+    "sec-fetch-mode",
+    "sec-fetch-site",
+    "sec-fetch-user",
+    "accept-encoding",
+    "te",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "firefox_146_PSK": {
+   "ja3": "771,4865-4867-4866-49195-49199-52393-52392-49196-49200-49162-49161-49171-49172-156-157-47-53,0-23-65281-10-11-16-5-34-18-51-43-13-45-28-27-65037,4588-29-23-24-25-256-257,0",
+   "ja4": "t13d1716h2_5b57614c22b0_42c24f99d423",
+   "ja4_r": "t13d1716h2_002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,001c,0022,002b,002d,0033,fe0d,ff01_0403,0503,0603,0804,0805,0806,0401,0501,0601,0203,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    34,
+    18,
+    51,
+    43,
+    13,
+    45,
+    28,
+    27,
+    65037
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:131072;5:16384|12517377|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "upgrade-insecure-requests",
+    "sec-fetch-dest",
+    "sec-fetch-mode",
+    "sec-fetch-site",
+    "sec-fetch-user",
+    "accept-encoding",
+    "te",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "firefox_147": {
+   "ja3": "771,4865-4867-4866-49195-49199-52393-52392-49196-49200-49162-49161-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-34-18-51-43-13-45-28-27-65037,4588-29-23-24-25-256-257,0",
+   "ja4": "t13d1717h2_5b57614c22b0_68c5a8c2958d",
+   "ja4_r": "t13d1717h2_002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,001c,0022,0023,002b,002d,0033,fe0d,ff01_0403,0503,0603,0804,0805,0806,0401,0501,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    16,
+    5,
+    34,
+    18,
+    51,
+    43,
+    13,
+    45,
+    28,
+    27,
+    65037
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:131072;5:16384|12517377|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "upgrade-insecure-requests",
+    "sec-fetch-dest",
+    "sec-fetch-mode",
+    "sec-fetch-site",
+    "sec-fetch-user",
+    "accept-encoding",
+    "te",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "firefox_147_PSK": {
+   "ja3": "771,4865-4867-4866-49195-49199-52393-52392-49196-49200-49162-49161-49171-49172-156-157-47-53,0-23-65281-10-11-16-5-34-51-43-13-45-28-27-65037,4588-29-23-24-25-256-257,0",
+   "ja4": "t13d1715h2_5b57614c22b0_f95a1ce30785",
+   "ja4_r": "t13d1715h2_002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0017,001b,001c,0022,002b,002d,0033,fe0d,ff01_0403,0503,0603,0804,0805,0806,0401,0501,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    34,
+    51,
+    43,
+    13,
+    45,
+    28,
+    27,
+    65037
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:131072;5:16384|12517377|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "upgrade-insecure-requests",
+    "sec-fetch-dest",
+    "sec-fetch-mode",
+    "sec-fetch-site",
+    "sec-fetch-user",
+    "accept-encoding",
+    "te",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "firefox_148": {
+   "ja3": "771,4865-4867-4866-49195-49199-52393-52392-49196-49200-49162-49161-49171-49172-51-57-156-157-47-53,0-23-65281-10-11-35-16-5-34-18-51-43-13-45-28-27-65037,4588-29-23-24-25-256-257,0",
+   "ja4": "t13d1917h2_4d8ed5baf28e_3cbfd9057e0d",
+   "ja4_r": "t13d1917h2_002f,0033,0035,0039,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,001c,0022,0023,002b,002d,0033,fe0d,ff01_0403,0503,0603,0804,0805,0806,0401,0501,0601,0203,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    16,
+    5,
+    34,
+    18,
+    51,
+    43,
+    13,
+    45,
+    28,
+    27,
+    65037
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:131072;5:16384|12517377|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "upgrade-insecure-requests",
+    "sec-fetch-dest",
+    "sec-fetch-mode",
+    "sec-fetch-site",
+    "sec-fetch-user",
+    "accept-encoding",
+    "te",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "opera_89": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,16-11-65281-18-35-51-0-23-10-43-17513-13-27-45-5-21,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_e5627efa2ab1",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,0023,002b,002d,0033,4469,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    16,
+    11,
+    65281,
+    18,
+    35,
+    51,
+    0,
+    23,
+    10,
+    43,
+    17513,
+    13,
+    27,
+    45,
+    5,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "opera_90": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,35-10-13-23-65281-51-5-17513-45-27-16-43-0-11-18-21,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_e5627efa2ab1",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,0023,002b,002d,0033,4469,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    35,
+    10,
+    13,
+    23,
+    65281,
+    51,
+    5,
+    17513,
+    45,
+    27,
+    16,
+    43,
+    0,
+    11,
+    18,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "opera_91": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,23-0-13-27-51-10-18-5-43-35-11-17513-65281-16-45-21,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_e5627efa2ab1",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,0023,002b,002d,0033,4469,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    23,
+    0,
+    13,
+    27,
+    51,
+    10,
+    18,
+    5,
+    43,
+    35,
+    11,
+    17513,
+    65281,
+    16,
+    45,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "zalando_android_mobile": {
+   "ja3": "771,4865-4866-4867-49195-49196-52393-49199-49200-52392-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-18-51-45-43-21,29-23-24,0",
+   "ja4": "t13d1514h2_8daaf6152771_43ade6aba3df",
+   "ja4_r": "t13d1514h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,0023,002b,002d,0033,ff01_0403,0804,0401,0503,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:4096;3:4294967295;4:16777216;5:16384;6:4294967295|15663105|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "zalando_ios_mobile": {
+   "ja3": "771,4865-4866-4867-49196-49195-52393-49200-49199-52392-49162-49161-49172-49171,0-23-65281-10-11-16-5-13-18-51-45-43-27-21,29-23-24-25,0",
+   "ja4": "t13d1314h2_f57a46bbacb6_14788d8d241b",
+   "ja4_r": "t13d1314h2_1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,002b,002d,0033,ff01_0403,0804,0401,0503,0203,0805,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:4096;3:100;4:2097152;5:16384;6:4294967295|15663105|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "nike_ios_mobile": {
+   "ja3": "771,4865-4866-4867-49196-49195-52393-49200-49199-52392-49162-49161-49172-49171,0-23-65281-10-11-16-5-13-18-51-45-43-27-21,29-23-24-25,0",
+   "ja4": "t13d1314h2_f57a46bbacb6_14788d8d241b",
+   "ja4_r": "t13d1314h2_1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,002b,002d,0033,ff01_0403,0804,0401,0503,0203,0805,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:4096;3:100;4:2097152;5:16384;6:4294967295|15663105|0|m,s,p,a",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "nike_android_mobile": {
+   "ja3": "771,4865-4866-4867-49195-49196-52393-49199-49200-52392-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-51-45-43-21,29-23-24,0",
+   "ja4": "t13d1513h2_8daaf6152771_eca864cca44a",
+   "ja4_r": "t13d1513h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0015,0017,0023,002b,002d,0033,ff01_0403,0804,0401,0503,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    16,
+    5,
+    13,
+    51,
+    45,
+    43,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:4096;3:4294967295;4:16777216;5:16384;6:4294967295|15663105|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "cloudscraper": {
+   "ja3": "771,49171-49172-49161-49162-255,0-11-10-35-16-22-23-13,23,0-1-2",
+   "ja4": "t12d0508h1_be41622fbb2f_3c5a66c06c35",
+   "ja4_r": "t12d0508h1_00ff,c009,c00a,c013,c014_000a,000b,000d,0016,0017,0023_0403,0503,0603,0807,0808,0809,080a,080b,0804,0805,0806,0401,0501,0601,0303,0203,0301,0201,0302,0202,0402,0502,0602",
+   "alpn_offered": [
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    11,
+    10,
+    35,
+    16,
+    22,
+    23,
+    13
+   ],
+   "handshake": "tls",
+   "shuffled": false
+  },
+  "mms_ios": {
+   "ja3": "771,4867-4865-4866-52393-52392-49195-49199-49196-49200-49161-49171-49162-49172-156-157-47-53-10,0-23-65281-10-11-35-13-51-45-43,29-23-24,0",
+   "ja4": "t13d181000_e8a523a41297_78e6aca7449b",
+   "ja4_r": "t13d181000_000a,002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_000a,000b,000d,0017,0023,002b,002d,0033,ff01_0403,0804,0401,0503,0805,0501,0806,0601,0201",
+   "alpn_offered": [],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    13,
+    51,
+    45,
+    43
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:4096;2:1;3:100;4:2097152;5:16384;6:4294967295|15663105|0|m,s,p,a",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "mms_ios_1": {
+   "ja3": "771,4867-4865-4866-52393-52392-49195-49199-49196-49200-49161-49171-49162-49172-156-157-47-53-10,0-23-65281-10-11-35-13-51-45-43,29-23-24,0",
+   "ja4": "t13d181000_e8a523a41297_78e6aca7449b",
+   "ja4_r": "t13d181000_000a,002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_000a,000b,000d,0017,0023,002b,002d,0033,ff01_0403,0804,0401,0503,0805,0501,0806,0601,0201",
+   "alpn_offered": [],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    13,
+    51,
+    45,
+    43
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:4096;2:1;3:100;4:2097152;5:16384;6:4294967295|15663105|0|m,s,p,a",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "mms_ios_2": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49161-49171-49162-49172-156-157-47-53-10,0-23-65281-10-11-35-13-51-45-43,29-23-24,0",
+   "ja4": "t13d181000_e8a523a41297_78e6aca7449b",
+   "ja4_r": "t13d181000_000a,002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_000a,000b,000d,0017,0023,002b,002d,0033,ff01_0403,0804,0401,0503,0805,0501,0806,0601,0201",
+   "alpn_offered": [],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    13,
+    51,
+    45,
+    43
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:4096;2:1;3:100;4:2097152;5:16384;6:4294967295|15663105|0|m,s,p,a",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "mms_ios_3": {
+   "ja3": "771,4865-4866-4867-49196-49195-52393-49200-49199-52392-49162-49161-49172-49171,0-23-65281-10-11-16-5-13-18-51-45-43-27-21,29-23-24-25,0",
+   "ja4": "t13d1314h2_f57a46bbacb6_2a6581477f52",
+   "ja4_r": "t13d1314h2_1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,002b,002d,0033,ff01_0403,0804,0401,0503,0203,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:4096;2:1;3:100;4:2097152;5:16384;6:4294967295|15663105|0|m,s,p,a",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "mesh_ios": {
+   "ja3": "771,4865-4866-4867-49196-49195-52393-49200-49199-52392-49162-49161-49172-49171,0-23-65281-10-11-16-5-13-18-51-45-43-27-21,29-23-24-25,0",
+   "ja4": "t13d1314h2_f57a46bbacb6_14788d8d241b",
+   "ja4_r": "t13d1314h2_1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,002b,002d,0033,ff01_0403,0804,0401,0503,0203,0805,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:4096;2:1;3:100;4:2097152;5:16384;6:4294967295|15663105|0|m,s,p,a",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "mesh_ios_1": {
+   "ja3": "771,4865-4866-4867-49196-49195-52393-49200-49199-52392-49162-49161-49172-49171,0-23-65281-10-11-16-5-13-18-51-45-43-27-21,29-23-24-25,0",
+   "ja4": "t13d1314h2_f57a46bbacb6_14788d8d241b",
+   "ja4_r": "t13d1314h2_1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,002b,002d,0033,ff01_0403,0804,0401,0503,0203,0805,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:4096;2:1;3:100;4:2097152;5:16384;6:4294967295|15663105|0|m,s,p,a",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "mesh_ios_2": {
+   "ja3": "771,4865-4866-4867-49196-49195-52393-49200-49199-52392-49188-49187-49162-49161-49192-49191-49172-49171,0-23-65281-10-11-16-5-13-18-51-45-43-27-21,29-23-24-25,0",
+   "ja4": "t13d1714h2_0633f72d41ca_14788d8d241b",
+   "ja4_r": "t13d1714h2_1301,1302,1303,c009,c00a,c013,c014,c023,c024,c027,c028,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,002b,002d,0033,ff01_0403,0804,0401,0503,0203,0805,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:4096;3:100;4:2097152|15663105|0|m,a,s,p",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "mesh_android": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-18-51-45-43-27-17513-21,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_e5627efa2ab1",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,0023,002b,002d,0033,4469,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    17513,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "mesh_android_1": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-18-51-45-43-27-17513-21,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_e5627efa2ab1",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,0023,002b,002d,0033,4469,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    17513,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "mesh_android_2": {
+   "ja3": "771,49195-49196-52393-49199-49200-52392-49161-49162-49171-49172-156-157-47-53,65281-0-23-35-13-5-16-11-10,29-23-24,0",
+   "ja4": "t12d1409h1_c866b44c5a26_b39be8c56a14",
+   "ja4_r": "t12d1409h1_002f,0035,009c,009d,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0017,0023,ff01_0403,0804,0401,0503,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    65281,
+    0,
+    23,
+    35,
+    13,
+    5,
+    16,
+    11,
+    10
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "confirmed_ios": {
+   "ja3": "771,4865-4866-4867-49196-49195-52393-49200-49199-52392-49162-49161-49172-49171,0-23-65281-10-11-16-5-13-18-51-45-43-27-21,29-23-24-25,0",
+   "ja4": "t13d1314h2_f57a46bbacb6_14788d8d241b",
+   "ja4_r": "t13d1314h2_1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,002b,002d,0033,ff01_0403,0804,0401,0503,0203,0805,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:4096;2:1;3:100;4:2097152;5:16384;6:4294967295|15663105|0|m,s,p,a",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "confirmed_android": {
+   "ja3": "771,49195-49196-52393-49199-49200-52392-49171-49172-156-157-47-53,65281-0-23-35-13-5-16-11-10,29-23-24,0",
+   "ja4": "t12d1209h2_d34a8e72043a_b39be8c56a14",
+   "ja4_r": "t12d1209h2_002f,0035,009c,009d,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0017,0023,ff01_0403,0804,0401,0503,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    65281,
+    0,
+    23,
+    35,
+    13,
+    5,
+    16,
+    11,
+    10
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "4:16777216|16711681|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "okhttp4_android_7": {
+   "ja3": "771,49195-49196-52393-49199-49200-52392-49171-49172-156-157-47-53,65281-0-23-35-13-16-11-10,23-24-25,0",
+   "ja4": "t12d1208h2_d34a8e72043a_31a7e1922da8",
+   "ja4_r": "t12d1208h2_002f,0035,009c,009d,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_000a,000b,000d,0017,0023,ff01_0601,0603,0501,0503,0401,0403,0301,0303,0201,0203",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    65281,
+    0,
+    23,
+    35,
+    13,
+    16,
+    11,
+    10
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "4:16777216|16711681|0|m,p,a,s",
+   "header_order": [
+    "host",
+    "connection",
+    "accept-encoding",
+    "user-agent"
+   ],
+   "shuffled": false
+  },
+  "okhttp4_android_8": {
+   "ja3": "771,49195-49196-52393-49199-49200-52392-49171-49172-156-157-47-53,65281-0-23-35-13-5-16-11-10,29-23-24,0",
+   "ja4": "t12d1209h2_d34a8e72043a_e08eabe7240f",
+   "ja4_r": "t12d1209h2_002f,0035,009c,009d,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0017,0023,ff01_0403,0401,0503,0501,0603,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    65281,
+    0,
+    23,
+    35,
+    13,
+    5,
+    16,
+    11,
+    10
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "4:16777216|16711681|0|m,p,a,s",
+   "header_order": [
+    "host",
+    "connection",
+    "accept-encoding",
+    "user-agent"
+   ],
+   "shuffled": false
+  },
+  "okhttp4_android_9": {
+   "ja3": "771,49195-49196-52393-49199-49200-52392-49171-49172-156-157-47-53,65281-0-23-35-13-5-16-11-10,29-23-24,0",
+   "ja4": "t12d1209h2_d34a8e72043a_b39be8c56a14",
+   "ja4_r": "t12d1209h2_002f,0035,009c,009d,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0017,0023,ff01_0403,0804,0401,0503,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    65281,
+    0,
+    23,
+    35,
+    13,
+    5,
+    16,
+    11,
+    10
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "4:16777216|16711681|0|m,p,a,s",
+   "header_order": [
+    "host",
+    "connection",
+    "accept-encoding",
+    "user-agent"
+   ],
+   "shuffled": false
+  },
+  "okhttp4_android_10": {
+   "ja3": "771,4865-4866-4867-49195-49196-52393-49199-49200-52392-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-51-45-43-21,29-23-24,0",
+   "ja4": "t13d1513h2_8daaf6152771_eca864cca44a",
+   "ja4_r": "t13d1513h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0015,0017,0023,002b,002d,0033,ff01_0403,0804,0401,0503,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    16,
+    5,
+    13,
+    51,
+    45,
+    43,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "4:16777216|16711681|0|m,p,a,s",
+   "header_order": [
+    "host",
+    "connection",
+    "accept-encoding",
+    "user-agent"
+   ],
+   "shuffled": false
+  },
+  "okhttp4_android_11": {
+   "ja3": "771,4865-4866-4867-49195-49196-52393-49199-49200-52392-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-51-45-43-21,29-23-24,0",
+   "ja4": "t13d1513h2_8daaf6152771_eca864cca44a",
+   "ja4_r": "t13d1513h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0015,0017,0023,002b,002d,0033,ff01_0403,0804,0401,0503,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    16,
+    5,
+    13,
+    51,
+    45,
+    43,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "4:16777216|16711681|0|m,p,a,s",
+   "header_order": [
+    "host",
+    "connection",
+    "accept-encoding",
+    "user-agent"
+   ],
+   "shuffled": false
+  },
+  "okhttp4_android_12": {
+   "ja3": "771,4865-4866-4867-49195-49196-52393-49199-49200-52392-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-51-45-43-21,29-23-24,0",
+   "ja4": "t13d1513h2_8daaf6152771_eca864cca44a",
+   "ja4_r": "t13d1513h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0015,0017,0023,002b,002d,0033,ff01_0403,0804,0401,0503,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    16,
+    5,
+    13,
+    51,
+    45,
+    43,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "4:16777216|16711681|0|m,p,a,s",
+   "header_order": [
+    "host",
+    "connection",
+    "accept-encoding",
+    "user-agent"
+   ],
+   "shuffled": false
+  },
+  "okhttp4_android_13": {
+   "ja3": "771,4865-4866-4867-49195-49196-52393-49199-49200-52392-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-51-45-43-21,29-23-24,0",
+   "ja4": "t13d1513h2_8daaf6152771_eca864cca44a",
+   "ja4_r": "t13d1513h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0015,0017,0023,002b,002d,0033,ff01_0403,0804,0401,0503,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    16,
+    5,
+    13,
+    51,
+    45,
+    43,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "4:16777216|16711681|0|m,p,a,s",
+   "header_order": [
+    "host",
+    "connection",
+    "accept-encoding",
+    "user-agent"
+   ],
+   "shuffled": false
+  },
+  "edge_99": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,65281-10-13-23-11-0-45-18-43-16-27-5-51-17513-35-21,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_e5627efa2ab1",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,0023,002b,002d,0033,4469,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    65281,
+    10,
+    13,
+    23,
+    11,
+    0,
+    45,
+    18,
+    43,
+    16,
+    27,
+    5,
+    51,
+    17513,
+    35,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "edge_101": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,35-13-23-11-0-10-65281-51-45-16-5-18-43-17513-27-21,29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_e5627efa2ab1",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,0023,002b,002d,0033,4469,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    35,
+    13,
+    23,
+    11,
+    0,
+    10,
+    65281,
+    51,
+    45,
+    16,
+    5,
+    18,
+    43,
+    17513,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "edge_131": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,45-18-13-5-43-35-23-51-10-17513-16-11-65037-0-65281-27,4588-29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_02713d6af862",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,4469,fe0d,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    45,
+    18,
+    13,
+    5,
+    43,
+    35,
+    23,
+    51,
+    10,
+    17513,
+    16,
+    11,
+    65037,
+    0,
+    65281,
+    27
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "edge_latest": {
+   "ja3": "771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,27-65037-17513-16-13-10-45-51-65281-5-43-11-23-0-35-18,4588-29-23-24,0",
+   "ja4": "t13d1516h2_8daaf6152771_02713d6af862",
+   "ja4_r": "t13d1516h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,002b,002d,0033,4469,fe0d,ff01_0403,0804,0401,0503,0805,0501,0806,0601",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    27,
+    65037,
+    17513,
+    16,
+    13,
+    10,
+    45,
+    51,
+    65281,
+    5,
+    43,
+    11,
+    23,
+    0,
+    35,
+    18
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p",
+   "header_order": [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "host"
+   ],
+   "shuffled": true
+  },
+  "tor_145": {
+   "ja3": "771,4865-4867-4866-49195-49199-52393-52392-49196-49200-49162-49161-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-34-51-43-13-45-28-65037,29-23-24-25-256-257,0",
+   "ja4": "t13d1715h2_5b57614c22b0_5c2c66f702b0",
+   "ja4_r": "t13d1715h2_002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0017,001c,0022,0023,002b,002d,0033,fe0d,ff01_0403,0503,0603,0804,0805,0806,0401,0501,0601,0203,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    16,
+    5,
+    34,
+    51,
+    43,
+    13,
+    45,
+    28,
+    65037
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "1:65536;2:0;4:131072;5:16384|12517377|0|m,p,a,s",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "upgrade-insecure-requests",
+    "sec-fetch-dest",
+    "sec-fetch-mode",
+    "sec-fetch-site",
+    "sec-fetch-user",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "safari_macos_17_0": {
+   "ja3": "771,4865-4866-4867-49196-49195-52393-49200-49199-52392-49162-49161-49172-49171-157-156-53-47-49160-49170-10,0-23-65281-10-11-16-5-13-18-51-45-43-27-21,29-23-24-25,0",
+   "ja4": "t13d2014h2_a09f3c656075_14788d8d241b",
+   "ja4_r": "t13d2014h2_000a,002f,0035,009c,009d,1301,1302,1303,c008,c009,c00a,c012,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,002b,002d,0033,ff01_0403,0804,0401,0503,0203,0805,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "4:4194304;3:100|10485760|0|m,s,p,a",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "safari_macos_18_0": {
+   "ja3": "771,4865-4866-4867-49196-49195-52393-49200-49199-52392-49162-49161-49172-49171-157-156-53-47-49160-49170-10,0-23-65281-10-11-16-5-13-18-51-45-43-27-21,29-23-24-25,0",
+   "ja4": "t13d2014h2_a09f3c656075_14788d8d241b",
+   "ja4_r": "t13d2014h2_000a,002f,0035,009c,009d,1301,1302,1303,c008,c009,c00a,c012,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,002b,002d,0033,ff01_0403,0804,0401,0503,0203,0805,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "4:4194304;3:100|10485760|0|m,s,p,a",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "safari_macos_26_0": {
+   "ja3": "771,4865-4866-4867-49196-49195-52393-49200-49199-52392-49162-49161-49172-49171-157-156-53-47-49160-49170-10,0-23-65281-10-11-16-5-13-18-51-45-43-27-21,29-23-24-25,0",
+   "ja4": "t13d2014h2_a09f3c656075_14788d8d241b",
+   "ja4_r": "t13d2014h2_000a,002f,0035,009c,009d,1301,1302,1303,c008,c009,c00a,c012,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0015,0017,001b,002b,002d,0033,ff01_0403,0804,0401,0503,0203,0805,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    16,
+    5,
+    13,
+    18,
+    51,
+    45,
+    43,
+    27,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "4:4194304;3:100|10485760|0|m,s,p,a",
+   "header_order": [
+    "user-agent",
+    "accept",
+    "accept-language",
+    "accept-encoding",
+    "host"
+   ],
+   "shuffled": false
+  },
+  "conscrypt_android_latest": {
+   "ja3": "771,4865-4866-4867-49195-49196-52393-49199-49200-52392-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-51-45-43-21,29-23-24,0",
+   "ja4": "t13d1513h2_8daaf6152771_eca864cca44a",
+   "ja4_r": "t13d1513h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0015,0017,0023,002b,002d,0033,ff01_0403,0804,0401,0503,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    16,
+    5,
+    13,
+    51,
+    45,
+    43,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "4:16777216|16711681|0|m,p,a,s",
+   "header_order": [
+    "host",
+    "connection",
+    "accept-encoding",
+    "user-agent"
+   ],
+   "shuffled": false
+  },
+  "okhttp4_conscrypt": {
+   "ja3": "771,4865-4866-4867-49195-49196-52393-49199-49200-52392-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-51-45-43-21,29-23-24,0",
+   "ja4": "t13d1513h2_8daaf6152771_eca864cca44a",
+   "ja4_r": "t13d1513h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0015,0017,0023,002b,002d,0033,ff01_0403,0804,0401,0503,0805,0501,0806,0601,0201",
+   "alpn_offered": [
+    "h2",
+    "http/1.1"
+   ],
+   "tls_extensions": [
+    0,
+    23,
+    65281,
+    10,
+    11,
+    35,
+    16,
+    5,
+    13,
+    51,
+    45,
+    43,
+    21
+   ],
+   "handshake": "ok",
+   "akamai_fingerprint": "4:16777216|16711681|0|m,p,a,s",
+   "header_order": [
+    "host",
+    "connection",
+    "accept-encoding",
+    "user-agent"
+   ],
+   "shuffled": false
+  }
+ }
+}

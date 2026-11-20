@@ -86,9 +86,12 @@ def parse_hello(rec: bytes) -> dict:
         while q < len(d):
             g = int.from_bytes(d[q:q + 2], "big"); n = int.from_bytes(d[q + 2:q + 4], "big")
             key_share.append((g, n)); q += 4 + n
-    alpn = ""
+    alpn, alpn_list = "", []
     if 16 in e:
         d = e[16]; alpn = d[3:3 + d[2]].decode()
+        q = 2
+        while q < len(d):
+            alpn_list.append(d[q + 1:q + 1 + d[q]].decode()); q += 1 + d[q]
     order = [t for t, _ in exts]
     ja3 = ",".join([str(legacy), "-".join(str(c) for c in ciphers if not _grease(c)),
                     "-".join(str(t) for t in order if not _grease(t)),
@@ -97,15 +100,18 @@ def parse_hello(rec: bytes) -> dict:
     es = [t for t in order if not _grease(t)]
     ver = {0x0304: "13", 0x0303: "12"}.get(max(v for v in versions if not _grease(v)), "00")
     ext_in = ",".join(f"{t:04x}" for t in sorted(t for t in es if t not in (0, 16)))
-    if sig:
-        ext_in += "_" + ",".join(f"{s:04x}" for s in sig)
+    sig_ja4 = [s for s in sig if not _grease(s)]  # JA4 ignores GREASE in every list (chrome_152 greases sigalgs)
+    if sig_ja4:
+        ext_in += "_" + ",".join(f"{s:04x}" for s in sig_ja4)
+    ja4_r = (f"t{ver}{'d' if 0 in e else 'i'}{len(cs):02d}{len(es):02d}{(alpn[0] + alpn[-1]) if alpn else '00'}_"
+             + ",".join(f"{c:04x}" for c in cs) + "_" + ext_in)
     ja4 = (f"t{ver}{'d' if 0 in e else 'i'}{len(cs):02d}{len(es):02d}{(alpn[0] + alpn[-1]) if alpn else '00'}_"
            f"{hashlib.sha256(','.join(f'{c:04x}' for c in cs).encode()).hexdigest()[:12]}_"
            f"{hashlib.sha256(ext_in.encode()).hexdigest()[:12]}")
     return {"rec_ver": rec[1:3].hex(), "rec_len": int.from_bytes(rec[3:5], "big"), "sid_len": b[34],
             "hs_len": hs_len, "ciphers": ciphers, "order": order, "groups": groups, "sig": sig,
             "key_share": key_share, "alpn": alpn, "ja3": ja3, "ja3_md5": hashlib.md5(ja3.encode()).hexdigest(),
-            "ja4": ja4}
+            "ja4": ja4, "ja4_r": ja4_r, "alpn_list": alpn_list}
 
 
 # ---------------------------------------------------------------------------

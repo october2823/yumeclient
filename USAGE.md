@@ -87,7 +87,11 @@ s.headers = {"User-Agent": "my/1.0"}        # полная замена — уй
 r = s.get(url, headers={"Accept": "text/css"})  # разовый override поверх сессионных
 ```
 
-- Заголовки регистронезависимы: `s.headers["accept"]` и `s.headers["Accept"]` — один ключ.
+- Заголовки регистронезависимы: `s.headers["accept"]` и `s.headers["Accept"]` — один ключ;
+  так же работают `in`, `get`, `pop`, `del`.
+- Удалённый заголовок не уходит вовсе: без `User-Agent` запрос идёт без него
+  (сетевой слой Go не подставляет `Go-http-client/1.1`); okhttp-профили по-прежнему
+  дописывают `User-Agent: okhttp/4.12.0`, как сам okhttp.
 - `header_order` не задан → порядок на проводе равен порядку вставки в `session.headers`.
 - `header_order=[...]` или `header_order=` в запросе задаёт порядок явно.
 - `default_headers(identifier, os)` возвращает baseline без сессии.
@@ -139,16 +143,35 @@ User-Agent: okhttp/4.12.0          ← только если вы не зада�
   Известное отличие: Go-кодер h2 режет `cookie` на отдельные поля, okhttp шлёт одно.
 - Вернуть прежнее поведение для okhttp-профиля: `header_style="raw"`.
 
-## HTTP/1.1 и ALPN (`http_version`, `keep_alpn`)
+## Протокол: `http_version`, ALPN, `keep_alpn`
 
-Протокол после хендшейка выбирает **сервер** из списка ALPN в ClientHello
-(RFC 7301); клиент обязан говорить на выбранном.
+`http_version` — пресет протокола: он согласованно задаёт ALPN в ClientHello,
+принудительный HTTP/1.1 и HTTP/3. Протокол после хендшейка выбирает **сервер**
+из списка ALPN (RFC 7301); явно заданную версию библиотека молча не понижает.
 
 | Настройка | ALPN в hello (JA4) | Протокол |
 |---|---|---|
 | `http_version="auto"` (по умолчанию) | профиль: `h2,http/1.1` (`…h2_…`) | что выбрал сервер — ровно как okhttp |
+| `http_version="2"` | профиль | только HTTP/2: если сервер выбрал `http/1.1` (или не прислал ALPN), соединение закрывается сразу после хендшейка, запрос не отправлен, `ProtocolError` |
 | `http_version="1.1"` / `force_http1=True` | переписан на `http/1.1` (`…h1_…`) | HTTP/1.1, но hello уже не как у приложения |
-| `http_version="1.1", keep_alpn=True` | профиль: `h2,http/1.1` (`…h2_…`) | HTTP/1.1, если сервер выбрал `http/1.1` (или не выбрал ничего); если выбрал `h2` — соединение закрывается сразу после хендшейка, ни одного байта HTTP не отправлено, `RequestError` |
+| `http_version="1.1", keep_alpn=True` | профиль: `h2,http/1.1` (`…h2_…`) | HTTP/1.1, если сервер выбрал `http/1.1` (или не выбрал ничего); если выбрал `h2` — соединение закрывается сразу после хендшейка, ни одного байта HTTP не отправлено, `ProtocolError` |
+| `http_version="3"` | профиль + QUIC | гонка HTTP/3 и TCP (кто быстрее) |
+
+`http://` — всегда HTTP/1.1 при любом `http_version` (ALPN есть только у TLS, h2c
+не поддерживается).
+
+Противоречивые настройки отклоняются в конструкторе `SessionConfigurationError`,
+до любого обращения к сети:
+
+- `force_http1=True` вместе с `http_version="2"` или `"3"`; `disable_http3=True` с `"3"`;
+- `keep_alpn=True` без `http_version="1.1"`, с `udp_proxy` или с `alpn_protocols` без `http/1.1`;
+- `alpn_protocols` (custom JA3) вместе с принудительным HTTP/1.1, если список не
+  `["http/1.1"]`: hello предложил бы `http/1.1` вместо вашего списка (сохранить список —
+  `keep_alpn=True`); `http_version="2"` с `alpn_protocols` без `h2`;
+- `http_version="3"` с прокси не `socks5://`.
+
+`r.used_protocol` и `r.connection_info["http_protocol"]` всегда совпадают;
+`connection_info["alpn_negotiated"]` — что выбрал сервер.
 
 Если с hello приложения сервер отдаёт приложению `http/1.1`, а вам `h2`, то
 hello отличается тем, на что смотрит сервер, — клиентская настройка это не
@@ -212,6 +235,7 @@ Session(timeout=None)                                 # без лимитов
 | `ConnectError` (`ConnectionError`) | `connect`, `dns` | соединение отклонено, хост не найден |
 | `ProxyError` (`ConnectError`) | `proxy` | прокси недоступен, CONNECT/SOCKS/авторизация |
 | `TLSError` (`ConnectError`) | `tls` | рукопожатие, сертификат |
+| `ProtocolError` (`ConnectError`) | `protocol` | сервер выбрал не тот протокол (`http_version="2"` → HTTP/1.1, `keep_alpn` → h2); запрос не отправлен |
 | `ConnectionClosed` (`ConnectionError`) | `connection_closed` | соединение закрыто/сброшено после установки |
 | `Timeout` (`TimeoutError`) | `timeout` | истёк `total` |
 | `ConnectTimeout` (`Timeout`, `ConnectError`) | `connect_timeout` | истёк `connect` |
@@ -259,6 +283,9 @@ r = await a.get(url, stream=True); body = await r.aread()
 - `session.close(grace=5.0)` даёт запросам в полёте `grace` секунд, затем отменяет
   их (`RequestCancelled`); `close(grace=None)` — ждать до конца.
 - `max_content_size=...` (сессия или запрос) — лимит распакованного тела в байтах.
+- Ctrl+C прерывает sync-запрос и чтение sync-стрима сразу (`KeyboardInterrupt`),
+  нативный запрос при этом отменяется и соединение закрывается. Раньше прерывание
+  срабатывало только после прихода ответа.
 
 ## Cookies
 
@@ -287,8 +314,11 @@ Cookie с любого redirect-хопа и любого хоста сохран
 - `s.cookies.for_url(url)` / `s.cookies.to_dict(url=url)` — что уйдёт на этот URL.
 - Cookie без домена (`s.cookies["k"] = "v"`) уходит на любой хост (как в requests),
   но не перекрывает одноимённую cookie, привязанную к хосту/домену.
-- Сервер не может выставить cookie чужому домену; Secure-cookie, полученная по
-  `http://`, сохраняется, но уходит только по https.
+- Сервер не может выставить cookie чужому домену или публичному суффиксу
+  (`Domain=com`, `co.uk`, `github.io`; список Mozilla PSL, как в браузерах): такая
+  cookie отбрасывается, а на самом суффикс-хосте становится host-only. `Domain=` на
+  IP-адресе — тоже host-only.
+- Secure-cookie, полученная по `http://`, сохраняется, но уходит только по https.
 
 ## Тело запроса
 
@@ -321,14 +351,16 @@ s.post(url, data=[("k", "1"), ("k2", "2")],     # multipart; порядок ча
 
 ```python
 {"connection_reused": False, "alpn_negotiated": "h2", "tls_version": "1.3",
- "tls_resumed": False, "http_protocol": "HTTP/2.0",
+ "tls_cipher": "TLS_AES_128_GCM_SHA256", "tls_resumed": False, "http_protocol": "HTTP/2.0",
  "remote_address": "203.0.113.5:443", "local_address": "192.168.1.10:51123",
- "timings": {"redirects": 0.0, "connect": 0.081, "write": 0.0002, "wait": 0.064,
-             "body": 0.003, "first_byte": 0.145, "total": 0.148}}
+ "timings": {"redirects": 0.0, "connect": 0.081, "proxy": None, "write": 0.0002,
+             "wait": 0.064, "body": 0.003, "first_byte": 0.145, "total": 0.148}}
 ```
 
-Тайминги относятся к последнему хопу; `redirects` — всё время до него; фазы в сумме
-дают `total`. Через прокси `remote_address` — адрес прокси.
+Тайминги относятся к последнему хопу; `redirects` — всё время до него; фазы
+`redirects + connect + write + wait + body` в сумме дают `total`. `proxy` — часть
+`connect`, ушедшая на путь через прокси (TCP до прокси + CONNECT/SOCKS); `None`, если
+соединение переиспользовано или прокси нет. Через прокси `remote_address` — адрес прокси.
 
 ## Fingerprint
 
@@ -353,7 +385,7 @@ s.post(url, data=[("k", "1"), ("k2", "2")],     # multipart; порядок ча
 
 `force_http1=True` переписывает ALPN в ClientHello на `http/1.1` (JA4 `…h1_…`),
 то есть меняет фингерпринт — для точной копии приложения, которое предлагает
-`h2,http/1.1`, используйте `keep_alpn=True` (см. «HTTP/1.1 и ALPN»).
+`h2,http/1.1`, используйте `keep_alpn=True` (см. «Протокол: `http_version`, ALPN, `keep_alpn`»).
 
 ## Транспортные параметры сессии
 
@@ -366,12 +398,70 @@ s.post(url, data=[("k", "1"), ("k2", "2")],     # multipart; порядок ча
 полный набор custom-JA3 полей (`ja3_string`, `h2_settings`, `pseudo_header_order`, ... —
 только вместе с `ja3_string`).
 
-Транспортные атрибуты можно менять между запросами — сессия пересоздаст
-Go-клиент. `await session.reset_connection()` (или `session.reset_connection()`
-для sync) пересоздаёт соединение принудительно. Смена `proxy` между запросами
-поддержана; `proxy=` отдельного запроса идёт через отдельную нативную сессию
-(свой пул соединений), а не через прокси сессии. `timeout` применяется к каждому
-запросу и Go-клиент не пересоздаёт.
+Транспортные параметры фиксированы на всё время жизни сессии: присваивание
+(`s.proxy = ...`, `s.http_version = ...`) — `AttributeError` (раньше оно молча
+игнорировалось). Для другой конфигурации создайте новую сессию
+(`Session.from_profile(s.export_profile(), proxy=...)` переносит идентичность).
+Можно менять `s.headers` (и содержимое `s.cookies`).
+
+На отдельный запрос задаются `proxy=`, `timeout=`, `headers=`, `cookies=`,
+`header_order=`, `allow_redirects=`, `stream=`, `max_content_size=`, `host_override=`.
+`proxy=` запроса идёт через отдельную нативную сессию (свой пул соединений), а не
+через прокси сессии. `await session.reset_connection()` (или
+`session.reset_connection()` для sync) пересоздаёт соединения принудительно.
+
+## Диагностика: профили, сравнение, трейсы
+
+```python
+import json
+from yumeclient import Session, fingerprint_diff
+
+s = Session(client_identifier="chrome_146", http_version="2")
+r = s.get(url)
+profile = s.export_profile()                 # JSON-safe, версионированный
+json.dump(profile, open("profile.json", "w"))
+
+s2 = Session.from_profile(json.load(open("profile.json")), proxy="socks5://...")
+r2 = s2.get(url)
+fingerprint_diff(profile, r2)    # [] - тот же отпечаток; иначе список отличий
+print(json.dumps(r2.trace(), indent=1))      # редактированный трейс запроса
+```
+
+- `export_profile()` — `{"format": "yumeclient.profile", "version": 1, "transport": {...},
+  "headers": [[имя, значение], ...], "fingerprint": {...}}`: профиль, OS, header style,
+  `http_version` и все явно заданные параметры ClientHello/HTTP/2, дефолтные заголовки
+  в порядке провода, последний наблюдённый отпечаток (`ja3`, `ja4`, `ja4_r`, Akamai,
+  ALPN, расширения, порядок заголовков). Прокси, таймауты, cookies, `verify`, CA и
+  локальный адрес **не** экспортируются. Байтовые поля — base64. Дефолтные заголовки
+  с учётными данными (`Authorization`, `Cookie`, имена с `token`/`secret`/`auth`/`key`/...)
+  тоже не попадают в профиль: их имена перечислены в `omitted_headers`, при
+  восстановлении задайте их заново; `export_profile(include_secrets=True)` — экспорт
+  со значениями. В `header_order` не учитываются заголовки, которые зависят от запроса
+  (`Cookie`, `Content-Length`, `Content-Type`, `Authorization`, `Referer`, `Origin`,
+  `Range`, условные).
+- `Session.from_profile(profile, **overrides)` / `AsyncSession.from_profile(...)` —
+  сессия из профиля; заголовки восстанавливаются точно (порядок, удалённые). Документ
+  другого формата, более новой версии или с неизвестным параметром —
+  `SessionConfigurationError`.
+- `fingerprint_diff(expected, actual)` — принимает `Response`, профиль или dict
+  отпечатка; проверяются поля, которые есть в `expected`. Каждое отличие —
+  `{"field", "kind", "expected", "actual"}`, `kind`: `value`, `missing`, `order` (те же
+  элементы в другом порядке, например случайный порядок расширений Chrome) или `set`
+  (+ `missing` / `unexpected`). GREASE игнорируется, JA3 сравнивается по компонентам
+  (`ja3.ciphers`, `ja3.extensions`, `ja3.groups`, ...).
+- `r.trace(redact=(), values=True, redact_query=True)` — `{"format": "yumeclient.trace", ...}`:
+  метод, URL без логина/пароля и фрагмента, со скрытыми значениями query (часть query
+  без `=` скрывается целиком; то же в `Location`, `Content-Location`, `Referer`,
+  `Origin`, `Link`, `Refresh`; путь URL не меняется), заголовки запроса в
+  порядке провода, протокол, ALPN, TLS-версия/шифр, тайминги, JA3/JA4/Akamai, длина и
+  SHA-256 тел (тело запроса больше 8 MiB — только длина). Значения `Authorization`,
+  `Cookie`, `Set-Cookie` и заголовков с `token`/`secret`/`session`/`auth`/`key`/`password`
+  в имени (и из `redact=`) заменены на `"[redacted]"`; `values=False` убирает все значения.
+  SHA-256 короткого тела с секретом можно подобрать перебором — учитывайте при отправке.
+- `tests/fixtures/profiles.json` — эталонный ClientHello каждого профиля (JA3/JA4/JA4_r,
+  ALPN, порядок расширений, Akamai, порядок заголовков); тест
+  `tests/test_profile_fixtures.py` сверяет с ним текущую сборку.
+  `python scripts/profile_fixtures.py` показывает отличия, `--update` перезаписывает.
 
 ## Multipart
 
@@ -379,7 +469,7 @@ Mapping или последовательность пар принимаютс�
 
 ## Ограничения
 
-Upstream CFFI не отдаёт redirect history, поэтому `history` пока пуст. Автодополнение custom JA3 из Chrome defaults не реализовано — передавайте поддерживаемые поля через схему upstream. Для некоторых профилей нет браузерно-точных HTTP/3 настроек; при запросе HTTP/3 используются параметры upstream по умолчанию. Публикация выполняется только после успешных CI-сборок и настройки Trusted Publishing в PyPI.
+Upstream CFFI не отдаёт redirect history, поэтому `history` пока пуст. Автодополнение custom JA3 из Chrome defaults не реализовано — передавайте поддерживаемые поля через схему upstream. Для некоторых профилей нет браузерно-точных HTTP/3 настроек; при запросе HTTP/3 используются параметры upstream по умолчанию. Профиль `cloudscraper` предлагает только CBC-шифры TLS 1.2 и расширение encrypt_then_mac, которое utls объявляет, но не реализует: с серверами на OpenSSL, принимающими CBC, рукопожатие падает (`bad record MAC`); BoringSSL (Cloudflare) и Go encrypt_then_mac не поддерживают, с ними профиль работает. Отпечаток профиля намеренно не меняется. При `http_version="3"` (гонка HTTP/3 и TCP) и сессии без `User-Agent` TCP-попытка по HTTP/2 отправит `user-agent: Go-http-client/2.0`: обе попытки используют одни заголовки, и подменить их только для одной из них нельзя — задайте `User-Agent` явно. Публикация выполняется только после успешных CI-сборок и настройки Trusted Publishing в PyPI.
 
 ## Примеры и тесты
 

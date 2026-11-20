@@ -4,6 +4,76 @@
 Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версионирование — [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [0.6.0] — 2026-11-20
+
+### Added
+- **Диагностика TLS-конфигурации** (`yumeclient.diagnostics`):
+  - `session.export_profile()` — версионированный JSON-снимок идентичности сессии
+    (профиль, OS, header style, `http_version`, все явные параметры ClientHello/HTTP/2,
+    дефолтные заголовки в порядке провода, последний наблюдённый отпечаток). Прокси,
+    таймауты, cookies, `verify`, CA, локальный адрес и заголовки с учётными данными
+    не экспортируются (последние — с `include_secrets=True`).
+  - `Session.from_profile(profile, **overrides)` / `AsyncSession.from_profile(...)` —
+    восстановление, заголовки точно (порядок и удалённые); чужой формат, более новая
+    версия или неизвестный параметр — `SessionConfigurationError`.
+  - `fingerprint_diff(expected, actual)` — сравнение отпечатков (`Response`, профиль или
+    dict) по полям: `value` / `missing` / `order` / `set`, GREASE игнорируется, JA3 —
+    по компонентам.
+  - `response.trace()` — редактированный трейс запроса: порядок заголовков на проводе,
+    протокол, ALPN, TLS-версия и шифр, тайминги, JA3/JA4/Akamai, длина и SHA-256 тел;
+    значения `Authorization`/`Cookie`/`Set-Cookie`/`*token*`/`*secret*`/`*key*`/... и
+    query (в том числе в `Location`, `Referer`, `Link`, `Refresh`) скрыты.
+  - `tests/fixtures/profiles.json` + `tests/test_profile_fixtures.py`: эталонный
+    ClientHello каждого из 93 профилей (JA3/JA4/JA4_r, ALPN, порядок расширений, Akamai,
+    порядок заголовков); `python scripts/profile_fixtures.py [--update]`.
+- `connection_info["tls_cipher"]` и `timings["proxy"]` (часть `connect` на путь через прокси).
+- `ProtocolError` (`ConnectError`, `kind="protocol"`).
+- `yumeclient.__version__`.
+
+### Fixed
+- **`http_version="2"` молча откатывался на HTTP/1.1**, если сервер выбирал `http/1.1`.
+  Теперь соединение закрывается сразу после хендшейка, запрос не отправляется,
+  `ProtocolError`. `keep_alpn` при выборе сервером `h2` тоже даёт `ProtocolError`
+  (раньше — общий `ConnectError`).
+- **Противоречивые настройки протокола** принимались и молча разрешались в пользу одной
+  из них: `force_http1=True` + `http_version="2"` (уходил HTTP/1.1), `alpn_protocols=["h2"]`
+  + `http_version="1.1"` (ALPN переписывался на `http/1.1`) и т. п. Теперь —
+  `SessionConfigurationError` в конструкторе, до сети (список — USAGE, «Протокол»).
+- **Присваивание транспортных параметров сессии игнорировалось** (`s.proxy = ...`,
+  `s.http_version = ...` записывались в объект-обёртку и ни на что не влияли, хотя
+  USAGE обещал пересоздание клиента) — теперь `AttributeError` с подсказкой.
+- **`session.headers` был регистронезависим только при записи**: `s.headers["user-agent"]`
+  и `del` давали `KeyError`, `"user-agent" in s.headers` — `False`, а
+  `s.headers.pop("user-agent", None)` ничего не удалял — заголовок продолжал уходить.
+  Теперь `[]`, `in`, `get`, `pop`, `del` не зависят от регистра.
+- **Без `User-Agent` уходил `User-Agent: Go-http-client/1.1`** (`…/2.0` на h2) — отпечаток
+  Go вместо профиля, а `USER-AGENT` в другом регистре уходил вторым заголовком рядом
+  с `Go-http-client`. Теперь заголовка нет вовсе (HTTP/1.1, HTTP/2, HTTP/3; исключение —
+  гонка `http_version="3"`, см. USAGE, «Ограничения»);
+  okhttp-профили по-прежнему добавляют `okhttp/4.12.0`.
+- `Headers |= {...}` и `Headers | {...}` не учитывали регистр и давали два заголовка.
+- Предупреждения запроса (`HTTP/2-only selection ...`) указывали на внутренности
+  `concurrent.futures`, а не на вызывающий код.
+- **Ctrl+C не прерывал sync-запрос**: блокирующий ctypes-вызов держал главный поток до
+  прихода ответа. Теперь `KeyboardInterrupt` — сразу (< 0.1 с), нативный запрос
+  отменяется, соединение закрывается; то же для чтения sync-стрима.
+- **Cookie на публичный суффикс** (`Domain=com`, `co.uk`, `github.io`) сохранялась и уходила
+  на все сайты под суффиксом. Теперь отбрасывается (Mozilla PSL, как в браузерах); на
+  самом суффикс-хосте — host-only. `Domain=` на IP-адресе — host-only.
+- **Профиль `nike_android_mobile` не подключался к серверам на OpenSSL** (nginx, Apache,
+  HAProxy) с TLS 1.3: `illegal_parameter` — upstream-спека шлёт GREASE key share без
+  GREASE в supported_groups (RFC 8446 4.2.8). Лишний key share убирается; JA3/JA4 не
+  меняются.
+
+### Changed
+- `http_version="2"` строгий (см. Fixed); `http://` остаётся HTTP/1.1 при любом
+  `http_version` (h2c не поддерживается).
+- Транспортные параметры сессии неизменяемы (см. Fixed); на запрос — `proxy=`,
+  `timeout=`, `headers=`, `cookies=`, `header_order=`, `allow_redirects=`, `stream=`,
+  `max_content_size=`.
+- `session.headers` больше не содержит дубликатов имени в разном регистре:
+  `Headers({"A": 1, "a": 2})` → `{"A": 2}`.
+
 ## [0.5.1] — 2026-11-20
 
 ### Fixed

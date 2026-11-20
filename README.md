@@ -27,8 +27,17 @@ with Session(timeout=TimeoutConfig(connect=5, read=30)) as s:
 
 Async task cancellation aborts the native request immediately; errors are typed
 (`ConnectTimeout`, `ReadTimeout`, `ProxyError`, `TLSError`, ...); `r.connection_info`
-reports reuse, ALPN, TLS and phase timings. Wheels: Windows x64, Linux x86_64/aarch64,
-macOS universal2, any Python ≥ 3.11.
+reports reuse, ALPN, TLS and phase timings. `http_version="2"` never falls back to
+HTTP/1.1 silently, and conflicting protocol options fail before any network I/O.
+
+```python
+profile = s.export_profile()                       # versioned, JSON-safe TLS/HTTP identity
+s2 = Session.from_profile(profile, proxy="socks5://127.0.0.1:1080")
+yumeclient.fingerprint_diff(profile, s2.get(url))  # [] when the wire fingerprint matches
+r.trace()                                          # redacted, shareable request trace
+```
+
+Wheels: Windows x64, Linux x86_64/aarch64, macOS universal2, any Python ≥ 3.11.
 
 
 ## Docs & examples

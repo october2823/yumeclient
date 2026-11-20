@@ -111,6 +111,8 @@ func (d *captureDialer) DialContext(ctx context.Context, network, addr string) (
 	if c := controlFrom(ctx); c != nil && d.proxied {
 		c.dialing.Add(1)
 		defer c.dialing.Add(-1)
+		c.proxyDial(true)
+		defer c.proxyDial(false)
 	}
 	conn, err := dialWithContext(ctx, func(ctx context.Context) (net.Conn, error) { return d.inner.DialContext(ctx, network, addr) })
 	if err != nil {
@@ -213,6 +215,7 @@ type connTrace struct {
 	haveTLS    bool
 	negotiated string
 	tlsVersion uint16
+	cipher     uint16
 	resumed    bool
 	headers    [][2]string
 }
@@ -223,10 +226,11 @@ func (t *connTrace) clientTrace() *httptrace.ClientTrace {
 			t.mu.Lock()
 			defer t.mu.Unlock()
 			t.got, t.reused, t.wasIdle, t.headers = true, info.Reused, info.WasIdle, nil
-			t.haveTLS, t.negotiated, t.tlsVersion, t.resumed = false, "", 0, false
+			t.haveTLS, t.negotiated, t.tlsVersion, t.resumed, t.cipher = false, "", 0, false, 0
 			if cs, ok := info.Conn.(interface{ ConnectionState() tls.ConnectionState }); ok {
 				st := cs.ConnectionState()
 				t.haveTLS, t.negotiated, t.tlsVersion, t.resumed = true, st.NegotiatedProtocol, st.Version, st.DidResume
+				t.cipher = st.CipherSuite
 			}
 		},
 		WroteHeaderField: func(key string, values []string) {
@@ -253,6 +257,9 @@ func (t *connTrace) report(out map[string]any, resp *http.Response) {
 		out["alpn_negotiated"] = t.negotiated
 		out["tls_version"] = map[uint16]string{0x0304: "1.3", 0x0303: "1.2", 0x0302: "1.1", 0x0301: "1.0"}[t.tlsVersion]
 		out["tls_resumed"] = t.resumed
+		if t.cipher != 0 {
+			out["tls_cipher"] = tls.CipherSuiteName(t.cipher)
+		}
 	}
 	headers := t.headers
 	if resp != nil && resp.ProtoMajor == 1 {

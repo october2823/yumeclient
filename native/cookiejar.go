@@ -23,6 +23,7 @@ import (
 	"time"
 
 	http "github.com/bogdanfinn/fhttp"
+	"golang.org/x/net/publicsuffix"
 )
 
 // seedCookie is one cookie of the Python snapshot ("jar" payload field).
@@ -149,6 +150,13 @@ func domainMatch(host, domain string) bool {
 	return strings.HasSuffix(host, "."+domain)
 }
 
+// isPublicSuffix: d is an ICANN or private public suffix (Mozilla list as
+// embedded in x/net, same as net/http/cookiejar). Unknown TLDs count as one.
+func isPublicSuffix(d string) bool {
+	ps, _ := publicsuffix.PublicSuffix(d)
+	return ps == d
+}
+
 // pathMatch: RFC 6265 5.1.4.
 func pathMatch(reqPath, cookiePath string) bool {
 	if reqPath == "" {
@@ -248,7 +256,18 @@ func (j *requestJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
 			if !domainMatch(host, d) {
 				continue // a host may not set cookies for an unrelated domain
 			}
-			e.domain = d
+			if net.ParseIP(host) != nil {
+				e.domain, e.hostOnly = host, true // Domain=<own IP>: still host-only
+			} else if isPublicSuffix(d) {
+				// RFC 6265 5.3 step 5: Domain=com / co.uk / github.io would reach every
+				// site under that suffix; only the suffix host itself keeps it, host-only
+				if d != host {
+					continue
+				}
+				e.domain, e.hostOnly = host, true
+			} else {
+				e.domain = d
+			}
 		} else {
 			e.domain, e.hostOnly = host, true
 		}

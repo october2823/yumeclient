@@ -214,6 +214,61 @@ func lookupExtraProfile(name string) (profiles.ClientProfile, bool) {
  return p, ok
 }
 
+// resolveProfile: mapped upstream profile, else extra profile, else upstream's
+// default (Chrome), with spec consistency fixes applied (cached per name).
+func resolveProfile(name string) profiles.ClientProfile {
+ if v, ok := fixedProfiles.Load(name); ok { return v.(profiles.ClientProfile) }
+ p, ok := profiles.MappedTLSClients[name]
+ if !ok {
+  if ep, isExtra := lookupExtraProfile(name); isExtra { p = ep } else { p = profiles.DefaultClientProfile }
+ }
+ if spec, err := p.GetClientHelloSpec(); err == nil && fixKeyShares(&spec) {
+  id := p.GetClientHelloId()
+  orig := id.SpecFactory
+  id.SpecFactory = func() (tls.ClientHelloSpec, error) {
+   s, err := orig()
+   if err == nil { fixKeyShares(&s) }
+   return s, err
+  }
+  p = profiles.NewClientProfile(id, p.GetSettings(), p.GetSettingsOrder(), p.GetPseudoHeaderOrder(),
+   p.GetConnectionFlow(), p.GetPriorities(), p.GetHeaderPriority(), p.GetStreamID(), p.GetAllowHTTP(),
+   p.GetHttp3Settings(), p.GetHttp3SettingsOrder(), p.GetHttp3PriorityParam(), p.GetHttp3PseudoHeaderOrder(),
+   p.GetHttp3SendGreaseFrames())
+ }
+ fixedProfiles.Store(name, p)
+ return p
+}
+
+var fixedProfiles sync.Map
+
+// fixKeyShares: every key share must belong to an offered group (RFC 8446
+// 4.2.8). Upstream's nike_android_mobile sends a GREASE key share without a
+// GREASE supported group, which OpenSSL servers (nginx, Apache, HAProxy)
+// reject with illegal_parameter; the share is dropped (JA3/JA4 unchanged).
+func fixKeyShares(spec *tls.ClientHelloSpec) bool {
+ var curves *tls.SupportedCurvesExtension
+ var shares *tls.KeyShareExtension
+ for _, e := range spec.Extensions {
+  switch x := e.(type) {
+  case *tls.SupportedCurvesExtension:
+   curves = x
+  case *tls.KeyShareExtension:
+   shares = x
+  }
+ }
+ if curves == nil || shares == nil { return false }
+ for _, c := range curves.Curves {
+  if isGREASEU16(uint16(c)) { return false }
+ }
+ kept := make([]tls.KeyShare, 0, len(shares.KeyShares))
+ for _, k := range shares.KeyShares {
+  if !isGREASEU16(uint16(k.Group)) { kept = append(kept, k) }
+ }
+ if len(kept) == len(shares.KeyShares) { return false }
+ shares.KeyShares = kept
+ return true
+}
+
 // ---------------------------------------------------------------------------
 // advanced ClientHello controls: tlsExtensionOrder / grease / pskMode /
 // echConfigList / udpProxyUrl, and per-request JA3/JA4/Akamai fingerprint.
@@ -886,14 +941,7 @@ func createPatchedClient(in src.RequestInput, rawPayload []byte) (tls_client.Htt
  }
  patchedSessions.Unlock()
 
- profile, ok := profiles.MappedTLSClients[in.TLSClientIdentifier]
- if !ok {
-  if ep, isExtra := lookupExtraProfile(in.TLSClientIdentifier); isExtra {
-   profile = ep
-  } else {
-   profile = profiles.DefaultClientProfile
-  }
- }
+ profile := resolveProfile(in.TLSClientIdentifier)
 
  timeoutMs := in.TimeoutMilliseconds
  if timeoutMs == 0 && in.TimeoutSeconds != 0 { timeoutMs = in.TimeoutSeconds * 1000 }
@@ -1125,14 +1173,7 @@ func fingerprintFromConfig(in src.RequestInput, rawPayload []byte) map[string]an
  }
 
  // identifier-based: mapped or extra profile
- var prof profiles.ClientProfile
- if p, ok := profiles.MappedTLSClients[in.TLSClientIdentifier]; ok {
-  prof = p
- } else if ep, ok := lookupExtraProfile(in.TLSClientIdentifier); ok {
-  prof = ep
- } else {
-  prof = profiles.DefaultClientProfile
- }
+ prof := resolveProfile(in.TLSClientIdentifier)
  s, err := prof.GetClientHelloSpec()
  if err != nil {
   if resolved, resolveErr := tls.UTLSIdToSpec(prof.GetClientHelloId()); resolveErr == nil {

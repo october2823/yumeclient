@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextvars
 import ctypes
 import functools
 import hashlib
@@ -19,12 +20,13 @@ import mimetypes
 import os
 import platform
 import re
+import sys
 import threading
 import time
 import uuid
 import warnings
 import weakref
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait as _waitFutures
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, AsyncIterator, Iterator, Mapping, Sequence
@@ -42,7 +44,9 @@ __all__ = ["Session", "AsyncSession", "Response", "CookieJar", "Headers", "Profi
            "SessionConfigurationError", "close_runtime", "encode_multipart", "choose_boundary",
            "TimeoutConfig", "InvalidRequestError", "RequestCancelled", "ConnectError", "ProxyError", "TLSError",
            "ConnectionClosed", "Timeout", "ConnectTimeout", "ReadTimeout", "WriteTimeout", "ResponseTooLarge",
-           "StreamClosed", "HTTPStatusError"]
+           "StreamClosed", "HTTPStatusError", "ProtocolError", "fingerprint_diff", "__version__"]
+
+__version__ = "0.6.0"
 
 
 class TLSClientError(RuntimeError): pass
@@ -78,6 +82,10 @@ class ProxyError(ConnectError):
     """The proxy leg failed: connecting to the proxy, CONNECT / SOCKS negotiation, proxy auth."""
 class TLSError(ConnectError):
     """TLS handshake or certificate verification failed."""
+class ProtocolError(ConnectError):
+    """The server negotiated an HTTP version the session does not allow (``http_version='2'``
+    got HTTP/1.1; ``keep_alpn=True`` got h2). The connection is closed after the TLS
+    handshake, before the request is written."""
 class ConnectionClosed(RequestError, ConnectionError):
     """The connection was closed or reset after it had been established."""
 class Timeout(RequestError, TimeoutError):
@@ -101,7 +109,7 @@ _ERROR_KINDS: dict[str, type[RequestError]] = {
     "write_timeout": WriteTimeout, "connect": ConnectError, "dns": ConnectError, "proxy": ProxyError,
     "tls": TLSError, "connection_closed": ConnectionClosed, "cancelled": RequestCancelled,
     "body_too_large": ResponseTooLarge, "invalid_request": InvalidRequestError,
-    "configuration": InvalidRequestError, "stream_closed": StreamClosed}
+    "configuration": InvalidRequestError, "stream_closed": StreamClosed, "protocol": ProtocolError}
 _RETRYABLE = frozenset({"timeout", "connect_timeout", "read_timeout", "write_timeout", "connect", "dns",
                         "proxy", "connection_closed"})
 _USERINFO = re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)[^\s/@]+@")
@@ -258,10 +266,33 @@ def _version(value: Any) -> str:
 
 
 class Headers(dict):
-    """Case-insensitive ordered header mapping: update()/[] replace in place, keeping wire order."""
-    def _resolve(self, key: str) -> str | None:
+    """Case-insensitive ordered header mapping: update()/[] replace in place, keeping wire order
+    and the first spelling of the name. Lookup, ``in``, ``del``, ``get`` and ``pop`` ignore case."""
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__()
+        self.update(*args, **kwargs)
+    def _resolve(self, key: Any) -> Any:
+        if not isinstance(key, str): return None
+        if dict.__contains__(self, key): return key
         lowered = key.lower()
-        return next((existing for existing in self if existing.lower() == lowered), None)
+        return next((existing for existing in self if isinstance(existing, str) and existing.lower() == lowered), None)
+    def __getitem__(self, key: Any) -> Any:
+        existing = self._resolve(key)
+        return dict.__getitem__(self, key if existing is None else existing)
+    def __contains__(self, key: Any) -> bool: return self._resolve(key) is not None
+    def __delitem__(self, key: Any) -> None:
+        existing = self._resolve(key)
+        dict.__delitem__(self, key if existing is None else existing)
+    def get(self, key: Any, default: Any = None) -> Any:
+        existing = self._resolve(key)
+        return default if existing is None else dict.__getitem__(self, existing)
+    def pop(self, key: Any, *default: Any) -> Any:
+        existing = self._resolve(key)
+        if existing is None:
+            if default: return default[0]
+            raise KeyError(key)
+        return dict.pop(self, existing)
+    def copy(self) -> "Headers": return Headers(self)
     def __setitem__(self, key: str, value: str) -> None:
         existing = self._resolve(key)
         dict.__setitem__(self, existing if existing is not None else key, value)
@@ -275,6 +306,57 @@ class Headers(dict):
             for key, value in items: self[key] = value
         for key, value in kwargs.items(): self[key] = value
     def set(self, key: str, value: str) -> None: self[key] = value
+    def __ior__(self, other: Any) -> "Headers":
+        self.update(other); return self
+    def __or__(self, other: Any) -> "Headers":
+        if not isinstance(other, Mapping): return NotImplemented
+        merged = Headers(self); merged.update(other); return merged
+    def __ror__(self, other: Any) -> "Headers":
+        if not isinstance(other, Mapping): return NotImplemented
+        merged = Headers(other); merged.update(self); return merged
+
+
+_PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def _warn(message: str, category: type[Warning] = UserWarning) -> None:
+    """warnings.warn attributed to the first caller outside this package."""
+    frame, level = sys._getframe(0), 1
+    while frame is not None and os.path.dirname(os.path.abspath(frame.f_code.co_filename)) == _PACKAGE_DIR:
+        frame, level = frame.f_back, level + 1
+    warnings.warn(message, category, stacklevel=level)
+
+
+_mainPool: ThreadPoolExecutor | None = None
+
+
+def _interruptible(call: Any, abort: Any) -> Any:
+    """Run a blocking native call so that Ctrl+C reaches the main thread.
+
+    A ctypes call keeps the main thread in C until it returns, so SIGINT used to be handled
+    only after the whole response had arrived. On the main thread the call runs on a helper
+    thread and is awaited in short slices; on KeyboardInterrupt ``abort()`` cancels it natively
+    and the interrupt is re-raised once the native call has returned. Other threads call directly.
+    """
+    global _mainPool
+    if threading.current_thread() is not threading.main_thread(): return call()
+    with _poolLock:
+        # main-thread calls are sequential; spare workers cover calls whose cancel is still unwinding
+        if _mainPool is None: _mainPool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="yumeclient-main")
+        pool = _mainPool
+    try: future = pool.submit(contextvars.copy_context().run, call)  # caller's contextvars (and 3.14 warning filters)
+    except RuntimeError: return call()  # interpreter shutdown (atexit handlers): plain blocking call
+    try:
+        # short waits return to the interpreter, which runs pending signal handlers (SIGINT).
+        # Not future.result(timeout=): yumeclient.Timeout is a TimeoutError too
+        while not _waitFutures((future,), timeout=0.05)[0]: pass
+    except BaseException:  # KeyboardInterrupt, or whatever a custom signal handler raised
+        abort()
+        try: late = future.result(timeout=5)
+        except BaseException: late = None
+        if isinstance(late, Response): late.close()
+        raise
+    return future.result()
 
 
 class _NativeStream:
@@ -310,6 +392,9 @@ class _NativeStream:
         """Abort a read in progress (it fails with RequestCancelled); never blocks."""
         if self.request_id and not self.closed: _cancelNative(self.request_id)
 
+    def read_sync(self, size: int, method: str | None, url: str | None) -> bytes:
+        return _interruptible(functools.partial(self.read, size, method, url), self.cancel)
+
     def close(self) -> None: self._finalizer()
 
 
@@ -323,7 +408,7 @@ class Response:
     """
     __slots__ = ("status_code", "headers", "cookies", "_content", "url", "used_protocol", "history",
                  "elapsed", "encoding", "fingerprint", "connection_info", "request_id", "_stream", "_async",
-                 "_owner", "_method", "__weakref__")
+                 "_owner", "_method", "_request", "__weakref__")
 
     def __init__(self, status_code: int, headers: dict[str, list[str]], cookies: dict[str, str],
                  content: bytes = b"", url: str = "", used_protocol: str = "",
@@ -338,6 +423,13 @@ class Response:
         self._async = False
         self._owner: Any = None
         self._method: str | None = None
+        self._request: dict[str, Any] | None = None
+
+    def trace(self, *, redact: Any = (), values: bool = True, redact_query: bool = True) -> dict[str, Any]:
+        """Redacted, JSON-safe description of this request (see :func:`yumeclient.diagnostics.request_trace`):
+        header order, ALPN, protocol, TLS fingerprint, timings and body hashes; credentials redacted."""
+        from .diagnostics import request_trace
+        return request_trace(self, redact=redact, values=values, redact_query=redact_query)
 
     # -- body ---------------------------------------------------------------
     @property
@@ -404,7 +496,7 @@ class Response:
             return
         try:
             while not stream.eof:
-                chunk = stream.read(chunk_size, self._method, self.url)
+                chunk = stream.read_sync(chunk_size, self._method, self.url)
                 if chunk: yield chunk
         finally:
             self.close()
@@ -433,7 +525,7 @@ class Response:
                                    method=self._method, url=_safeUrl(self.url))
             parts: list[bytes] = []
             try:
-                while not stream.eof: parts.append(stream.read(1 << 20, self._method, self.url))
+                while not stream.eof: parts.append(stream.read_sync(1 << 20, self._method, self.url))
             finally:
                 self.close()
             self._content, self._stream = b"".join(parts), None
@@ -517,25 +609,49 @@ def _applyJarDelta(jar: CookieJar, delta: Any) -> None:
                 host_only=bool(item.get("hostOnly")))
 
 
-def _validateTransport(*, http_version: str, force_http1: bool, disable_http3: bool,
-                       proxy: str | None, client_identifier: str, keep_alpn: bool = False,
-                       udp_proxy: str | None = None) -> dict[str, bool]:
+def _checkProtocol(*, http_version: str, force_http1: bool, disable_http3: bool, keep_alpn: bool,
+                   udp_proxy: str | None, proxy: str | None, alpn: Sequence[str] | None) -> None:
+    """Conflicting protocol options: rejected before any network I/O (constructor and
+    every request, since session attributes may be reassigned)."""
     httpVer = _version(http_version)
-    forceHttp1 = force_http1 or httpVer == "1.1"
-    racing = httpVer == "3"
-    if keep_alpn and not forceHttp1:
+    forced = force_http1 or httpVer == "1.1"
+    if force_http1 and httpVer in ("2", "3"):
+        raise SessionConfigurationError(f"force_http1=True conflicts with http_version={httpVer!r}")
+    if disable_http3 and httpVer == "3": raise SessionConfigurationError("http_version='3' conflicts with disable_http3=True")
+    if keep_alpn and not forced:
         raise SessionConfigurationError("keep_alpn=True needs http_version='1.1' (or force_http1=True); "
                                         "with http_version='auto' the profile's ALPN is already sent unchanged")
     if keep_alpn and udp_proxy: raise SessionConfigurationError("keep_alpn cannot be combined with udp_proxy")
-    if forceHttp1 and racing: raise SessionConfigurationError("http_version=3 cannot be combined with force_http1")
-    if disable_http3 and racing: raise SessionConfigurationError("http_version=3 conflicts with disable_http3")
-    if racing and proxy and not proxy.lower().startswith("socks5://"):
+    if httpVer == "3" and proxy and not proxy.lower().startswith("socks5://"):
         raise SessionConfigurationError("HTTP/3 racing with a proxy requires socks5:// to tunnel UDP")
+    if alpn is None: return
+    offer = list(alpn)
+    if not offer or not all(isinstance(p, str) and p for p in offer):
+        raise SessionConfigurationError("alpn_protocols must be a non-empty list of protocol names")
+    if forced and not keep_alpn and offer != ["http/1.1"]:
+        raise SessionConfigurationError(
+            f"alpn_protocols={offer!r} conflicts with forced HTTP/1.1: the ClientHello would offer "
+            "['http/1.1'] instead. Pass alpn_protocols=['http/1.1'], or keep_alpn=True to offer this "
+            "list and still speak HTTP/1.1")
+    if keep_alpn and "http/1.1" not in offer:
+        raise SessionConfigurationError(f"keep_alpn=True with alpn_protocols={offer!r}: the server cannot select http/1.1")
+    if httpVer == "2" and "h2" not in offer:
+        raise SessionConfigurationError(f"http_version='2' with alpn_protocols={offer!r}: h2 is not offered")
+
+
+def _validateTransport(*, http_version: str, force_http1: bool, disable_http3: bool,
+                       proxy: str | None, client_identifier: str, keep_alpn: bool = False,
+                       udp_proxy: str | None = None, alpn: Sequence[str] | None = None) -> dict[str, bool]:
+    httpVer = _version(http_version)
+    _checkProtocol(http_version=httpVer, force_http1=force_http1, disable_http3=disable_http3, keep_alpn=keep_alpn,
+                   udp_proxy=udp_proxy, proxy=proxy, alpn=alpn)
+    racing = httpVer == "3"
     if racing and client_identifier in {"chrome_152", "chrome_152_PSK", "chrome_150", "chrome_150_PSK"}:
-        warnings.warn("this profile has no browser-specific HTTP/3 settings; using library defaults", UserWarning, stacklevel=4)
+        _warn("this profile has no browser-specific HTTP/3 settings; using library defaults")
     if httpVer == "2" and client_identifier.startswith("chrome_133"):
-        warnings.warn("HTTP/2-only selection may alter this profile's ALPN fingerprint", UserWarning, stacklevel=4)
-    return {"forceHttp1": forceHttp1, "disableHttp3": disable_http3 or httpVer == "2", "withProtocolRacing": racing}
+        _warn("HTTP/2-only selection may alter this profile's ALPN fingerprint")
+    return {"forceHttp1": force_http1 or httpVer == "1.1", "disableHttp3": disable_http3 or httpVer == "2",
+            "withProtocolRacing": racing}
 
 
 def _encodeBody(*, data: Any, jsonBody: Any, files: Any, headers: dict[str, str],
@@ -702,6 +818,10 @@ class _Core:
                  header_style: HeaderStyle | str | None = None,
                  keep_alpn: bool = False,
                  max_content_size: int | None = None) -> None:
+        # explicit options as passed (Session.export_profile)
+        self._options = {name: value for name, value in locals().items()
+                         if name != "self" and value is not _CORE_DEFAULTS.get(name, _MISSING)
+                         and value != _CORE_DEFAULTS.get(name, _MISSING)}
         try:
             self.client_identifier = validate(client_identifier)
             self.client_os = validate_os(client_os, self.client_identifier)
@@ -709,11 +829,10 @@ class _Core:
             self.header_style = resolve_header_style("" if ja3_string else self.client_identifier, header_style)
         except ValueError as exc: raise SessionConfigurationError(str(exc)) from exc
         self.keep_alpn = bool(keep_alpn)
-        if self.keep_alpn and not (force_http1 or _version(http_version) == "1.1"):
-            raise SessionConfigurationError("keep_alpn=True needs http_version='1.1' (or force_http1=True); "
-                                            "with http_version='auto' the profile's ALPN is already sent unchanged")
-        if self.keep_alpn and udp_proxy is not None:
-            raise SessionConfigurationError("keep_alpn cannot be combined with udp_proxy")
+        if isinstance(alpn_protocols, str): alpn_protocols = [alpn_protocols]
+        _checkProtocol(http_version=_version(http_version), force_http1=force_http1, disable_http3=disable_http3,
+                       keep_alpn=self.keep_alpn, udp_proxy=udp_proxy, proxy=proxy,
+                       alpn=list(alpn_protocols) if alpn_protocols is not None else None)
         self.random_tls_extension_order = random_tls_extension_order
         self.http_version = _version(http_version)
         self.proxy, self.verify = proxy, verify
@@ -836,7 +955,7 @@ class _Core:
                  timeout: Any = None, proxy: str | None = None, allow_redirects: bool = True,
                  header_order: Sequence[str] | None = None, host_override: str | None = None,
                  stream: bool = False, max_content_size: int | None = None,
-                 _handle: _RequestHandle | None = None) -> Response:
+                 _handle: _RequestHandle | None = None, _flags: dict[str, bool] | None = None) -> Response:
         self._checkOpen()
         handle = _handle or _RequestHandle()
         timeouts = _timeoutConfig(timeout) if timeout is not None else self.timeout
@@ -853,10 +972,7 @@ class _Core:
             if isinstance(cookies, Mapping): explicitCookies = {str(k): str(v) for k, v in cookies.items()}
             elif isinstance(cookies, CookieJar): explicitCookies = cookies.to_dict(url=url)
             else: explicitCookies = {c["name"]: c["value"] for c in cookies}
-        flags = _validateTransport(http_version=self.http_version, force_http1=self.force_http1,
-                                   disable_http3=self.disable_http3, proxy=requestProxy,
-                                   client_identifier=self.client_identifier, keep_alpn=self.keep_alpn,
-                                   udp_proxy=self.udp_proxy)
+        flags = _flags if _flags is not None else self._flags(requestProxy)
         payload = _buildPayload(self._sessionIdFor(requestProxy), method=method, url=url, params=params, headers=merged,
                                 header_order=self.header_order, body=body, byteRequest=byteRequest,
                                 cookies=explicitCookies, flags=flags,
@@ -869,6 +985,7 @@ class _Core:
                                 udp_proxy=self.udp_proxy, want_fingerprint=True,
                                 header_style=self.header_style, keep_alpn=self.keep_alpn)
         payload["requestId"] = handle.id
+        if _version(self.http_version) == "2": payload["requireProtocol"] = "h2"
         payload["jar"] = self.cookies._snapshot()
         if stream: payload["stream"] = True
         if limit is not None: payload["maxBodyBytes"] = int(limit)
@@ -897,14 +1014,26 @@ class _Core:
         response.connection_info = result.get("connectionInfo")
         response.request_id = handle.id
         response._method = method.upper()
+        response._request = {"method": method.upper(), "url": payload.get("requestUrl"),
+                             "headers": list(merged.items()), "body": _requestBody(body, byteRequest)}
         if nativeStream is not None:
             response._stream = nativeStream
             self._streams.add(nativeStream)
         return response
 
+    def _flags(self, proxy: str | None) -> dict[str, bool]:
+        """Per-request protocol check and flags. Called in the caller's thread (before the
+        request moves to a worker) so that errors and warnings point at the caller."""
+        return _validateTransport(http_version=self.http_version, force_http1=self.force_http1,
+                                  disable_http3=self.disable_http3, proxy=self.proxy if proxy is None else proxy,
+                                  client_identifier=self.client_identifier, keep_alpn=self.keep_alpn,
+                                  udp_proxy=self.udp_proxy, alpn=(self.custom or {}).get("alpnProtocols"))
+
     def _syncRequest(self, method: str, url: str, **kwargs: Any) -> Response:
+        kwargs["_flags"] = self._flags(kwargs.get("proxy"))
         for oldId in self._retire(): _closeNative(oldId)
-        return self._request(method, url, **kwargs)
+        handle = _RequestHandle()
+        return _interruptible(functools.partial(self._request, method, url, _handle=handle, **kwargs), handle.cancel)
 
     def _cancelInflight(self, grace: float | None) -> None:
         """Let in-flight requests (other threads) finish for ``grace`` seconds, then cancel them."""
@@ -933,7 +1062,50 @@ class _Core:
             except TLSClientError: pass
 
 
-class Session:
+_MISSING = object()
+_CORE_DEFAULTS = {name: param.default for name, param in inspect.signature(_Core.__init__).parameters.items()
+                  if param.default is not inspect.Parameter.empty}
+
+
+# Transport options pick the native session (profile, protocol, proxy, TLS); they are fixed for
+# the lifetime of a Session. Assigning one on the facade used to be accepted and ignored.
+_FIXED_OPTIONS = frozenset(inspect.signature(_Core.__init__).parameters) - {"self", "headers", "cookies"}
+
+
+class _FixedTransport:
+    __slots__ = ()
+
+    @classmethod
+    def from_profile(cls, profile: Mapping[str, Any], **overrides: Any) -> Any:
+        """New session from :meth:`export_profile` output; ``overrides`` (e.g. ``proxy=``,
+        ``timeout=``) are passed to the constructor. The exported default headers replace the
+        profile defaults exactly (order and removals included) unless ``headers=`` is given.
+        Credential headers are not exported (see ``omitted_headers``): set them again."""
+        from .diagnostics import profile_options
+        kwargs, headers = profile_options(profile)
+        kwargs.update(overrides)
+        session = cls(**kwargs)
+        if headers is not None and "headers" not in overrides: session._core.headers = Headers(headers)
+        return session
+
+    def export_profile(self, *, include_fingerprint: bool = True, include_secrets: bool = False) -> dict[str, Any]:
+        """Versioned, JSON-safe snapshot of this session's TLS/HTTP identity (profile, OS,
+        header style, protocol and ClientHello options, default headers in order, last observed
+        fingerprint). Proxy, timeouts, cookies and certificate settings are not included;
+        credential-like default headers (Authorization, Cookie, *token*, *key*, ...) only with
+        ``include_secrets=True`` - otherwise their names are listed in ``omitted_headers``."""
+        from .diagnostics import export_profile
+        return export_profile(self, include_fingerprint=include_fingerprint, include_secrets=include_secrets)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in _FIXED_OPTIONS:
+            raise AttributeError(f"{name!r} is fixed for the lifetime of a session: create a new session. "
+                                 "Per request you can pass proxy=, timeout=, headers=, cookies=, header_order=, "
+                                 "allow_redirects=, stream=, max_content_size=")
+        object.__setattr__(self, name, value)
+
+
+class Session(_FixedTransport):
     """Blocking requests-style TLS session (cookies + default headers per profile)."""
     def __init__(self, **kwargs: Any) -> None:
         self._core = _Core(**kwargs)
@@ -973,7 +1145,7 @@ class Session:
     def options(self, url: str, **kwargs: Any) -> Response: return self.request("OPTIONS", url, **kwargs)
 
 
-class AsyncSession:
+class AsyncSession(_FixedTransport):
     """Async facade: same engine, every method awaitable, shared executor pool."""
     def __init__(self, **kwargs: Any) -> None:
         self._core = _Core(**kwargs)
@@ -1021,7 +1193,7 @@ class AsyncSession:
             for oldId in oldIds: await loop.run_in_executor(_executor, _closeNative, oldId)
             # wrap_future, not shield(run_in_executor): a shielded inner future that fails after
             # the outer one was cancelled is reported to the loop's exception handler (3.14)
-            future = _executor.submit(functools.partial(fn, *args, _handle=handle, **kwargs))
+            future = _executor.submit(contextvars.copy_context().run, functools.partial(fn, *args, _handle=handle, **kwargs))
             try: return await asyncio.wrap_future(future)
             except asyncio.CancelledError:
                 # abort the native request (connect, TLS, headers or body) instead of waiting
@@ -1035,6 +1207,7 @@ class AsyncSession:
 
     async def request(self, method: str, url: str, **kwargs: Any) -> Response:
         core = self._core
+        kwargs["_flags"] = core._flags(kwargs.get("proxy"))
         response = await self._run(core._request, method, url, **kwargs)
         response._async = True
         return response
@@ -1132,3 +1305,6 @@ async def aoptions(url: str, **kwargs: Any) -> Response: return await arequest("
 
 __all__ += ["request", "get", "head", "post", "put", "patch", "delete", "options",
             "arequest", "aget", "ahead", "apost", "aput", "apatch", "adelete", "aoptions"]
+
+
+from .diagnostics import _requestBody, fingerprint_diff  # noqa: E402  (needs the classes above)
