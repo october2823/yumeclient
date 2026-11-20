@@ -15,7 +15,8 @@ python -m pip install yumeclient
 ```
 
 Готовые wheels (`py3-none`, любой Python ≥ 3.11): Windows x64, Linux x86_64 и
-aarch64 (glibc ≥ 2.28), macOS universal2 (11+). Для других платформ — локальная сборка.
+aarch64 (manylinux2014: glibc ≥ 2.17 — CI запускает wheel в образе manylinux2014),
+macOS universal2 (11+). Для других платформ — локальная сборка.
 
 Локальная сборка: Go 1.24+, cgo, C-компилятор (Windows: MinGW-w64).
 
@@ -90,8 +91,24 @@ r = s.get(url, headers={"Accept": "text/css"})  # разовый override пов
 - Заголовки регистронезависимы: `s.headers["accept"]` и `s.headers["Accept"]` — один ключ;
   так же работают `in`, `get`, `pop`, `del`.
 - Удалённый заголовок не уходит вовсе: без `User-Agent` запрос идёт без него
-  (сетевой слой Go не подставляет `Go-http-client/1.1`); okhttp-профили по-прежнему
-  дописывают `User-Agent: okhttp/4.12.0`, как сам okhttp.
+  (сетевой слой Go не подставляет `Go-http-client/1.1` / `/2.0` — ни по HTTP/1.1, ни по
+  HTTP/2, ни при гонке HTTP/3); okhttp-профили по-прежнему дописывают
+  `User-Agent: okhttp/4.12.0`, как сам okhttp (убрать — `{"User-Agent": None}` в запросе).
+- `None` удаляет заголовок, как в requests: `s.get(url, headers={"User-Agent": None})` —
+  запрос без `User-Agent` (сессионный остаётся для других запросов). Работает и для
+  полей, которые иначе добавил бы сетевой слой: `Accept-Encoding`, `priority` (ниже),
+  умолчания `okhttp`-стиля (`User-Agent`, `Connection`, `Accept-Encoding`). Как и в
+  requests, `Content-Type` от `json=`/`files=`/`data=`-словаря всё равно ставится
+  (а `application/octet-stream` для `data=bytes` — умолчание yumeclient — убирается),
+  `{"Cookie": None}` убирает только ваш заголовок (cookies из jar уходят), `Host` и
+  `Content-Length` уходят всегда, недопустимое имя с `None` игнорируется.
+- Имя заголовка должно быть токеном RFC 9110, значение — без управляющих символов
+  (табуляция и не-ASCII допустимы); иначе `InvalidRequestError` до отправки. По HTTP/2
+  нельзя передать `Connection` (кроме `close`/`keep-alive`), `Upgrade` и
+  `Transfer-Encoding` (кроме `chunked`) — тоже `InvalidRequestError`, соединение остаётся.
+- Chromium-профили (`chrome_144`+, `brave_146`, custom JA3 с Chrome-заполнением) по
+  HTTP/2 и HTTP/3 отправляют последним `priority: u=0, i`, как Chrome; по HTTP/1.1 —
+  нет. Свой `Priority` в сессии или запросе заменяет его, `{"priority": None}` убирает.
 - `header_order` не задан → порядок на проводе равен порядку вставки в `session.headers`.
 - `header_order=[...]` или `header_order=` в запросе задаёт порядок явно.
 - `default_headers(identifier, os)` возвращает baseline без сессии.
@@ -120,6 +137,7 @@ Connection: Keep-Alive
 Accept-Encoding: gzip              ← если вы не задали Accept-Encoding или Range
 Cookie: a=1; b=2                   ← из cookie jar сессии
 User-Agent: okhttp/4.12.0          ← только если вы не задали свой user-agent
+                                     (Connection / Accept-Encoding / User-Agent: None — не уходят)
 ```
 
 - Сверено побайтово с настоящим okhttp 4.12.0 на одном и том же локальном сервере:
@@ -155,7 +173,7 @@ User-Agent: okhttp/4.12.0          ← только если вы не зада�
 | `http_version="2"` | профиль | только HTTP/2: если сервер выбрал `http/1.1` (или не прислал ALPN), соединение закрывается сразу после хендшейка, запрос не отправлен, `ProtocolError` |
 | `http_version="1.1"` / `force_http1=True` | переписан на `http/1.1` (`…h1_…`) | HTTP/1.1, но hello уже не как у приложения |
 | `http_version="1.1", keep_alpn=True` | профиль: `h2,http/1.1` (`…h2_…`) | HTTP/1.1, если сервер выбрал `http/1.1` (или не выбрал ничего); если выбрал `h2` — соединение закрывается сразу после хендшейка, ни одного байта HTTP не отправлено, `ProtocolError` |
-| `http_version="3"` | профиль + QUIC | гонка HTTP/3 и TCP (кто быстрее) |
+| `http_version="3"` | профиль + QUIC | гонка соединений HTTP/3 и TCP (TCP — через 300 мс или сразу после неудачи QUIC); запрос уходит один раз — по протоколу, первым установившему соединение (или по уже открытому), выигравший запоминается для хоста. После ошибки запомненного протокола (у HTTP/3 — и после таймаута/отмены: молчащий UDP) следующие запросы снова устраивают гонку на новых соединениях; таймаут или отмена HTTP/1.1/HTTP/2 протокол и пул сохраняют. Сам запрос повторяется гонкой, если он идемпотентный (GET/HEAD/OPTIONS/TRACE или с `Idempotency-Key`) и время ещё есть, или если не был отправлен |
 
 `http://` — всегда HTTP/1.1 при любом `http_version` (ALPN есть только у TLS, h2c
 не поддерживается).
@@ -201,6 +219,39 @@ with Session(client_identifier=Profiles.CHROME_152, client_os="android") as s:
 - По умолчанию OS выводится из профиля: `*_ios_* → ios`, `*_android_* → android`, desktop-safari → `macos`, остальное → `windows`.
 - Chrome-на-iOS — это CriOS без client hints (как в реальном браузере); okhttp/zalando/nike/mesh/confirmed/mobile-профили получают app-подобные наборы.
 - Неизвестный профиль или OS → `SessionConfigurationError` с подсказкой похожих вариантов.
+- HTTP/3-параметры (SETTINGS, порядок псевдозаголовков, приоритет): `chrome_144`–`chrome_152`
+  (+`_PSK`), `brave_146`, `firefox_147`/`148`. У `chrome_146`–`152` и `brave_146` upstream их
+  не задаёт — берутся параметры `chrome_144`: на проводе они совпадают с Chrome 157
+  (`tests/fixtures/chrome_157_wire.json`). Для остальных профилей `http_version="3"`
+  предупреждает и использует значения quic-go.
+- `cloudscraper` (только CBC-шифры TLS 1.2 + encrypt_then_mac) работает и с серверами
+  на OpenSSL: encrypt_then_mac (RFC 7366) реализован, а не только объявлен.
+
+### Custom JA3 (`ja3_string`)
+
+JA3 задаёт версию, шифры, порядок расширений, группы и форматы точек — но не
+содержимое расширений и не HTTP/2 / HTTP/3. Остальное:
+
+- явные параметры: `supported_signature_algorithms`, `supported_versions`,
+  `key_share_curves`, `alpn_protocols`, `alps_protocols`, `cert_compression_algos`,
+  `h2_settings`, `h2_settings_order`, `connection_flow`, `pseudo_header_order`,
+  `priority_frames`, `header_priority` — всегда важнее заполнения;
+- `fill_custom_with_chrome_defaults=True` (по умолчанию) — не заданное явно берётся из
+  `Profiles.LATEST_CHROME` (`chrome_152`): signature algorithms, версии, key shares
+  (Chrome-овские, но только для групп из JA3), ALPN/ALPS, сжатие сертификатов, ECH GREASE, HTTP/2 SETTINGS,
+  WINDOW_UPDATE, приоритет HEADERS, порядок псевдозаголовков, HTTP/3-параметры,
+  `priority`-заголовок;
+- `fill_custom_with_chrome_defaults=False` — общие значения: TLS 1.3/1.2, sigalgs
+  `0403,0804,0805,0806,0401,0501,0601`, ALPN `h2,http/1.1`, HTTP/2
+  `1:65536;2:0;3:1000;4:6291456;6:262144|15663105|0|m,a,s,p`, HTTP/3 — quic-go;
+- расширение 27 без `cert_compression_algos` → brotli, 28 (record_size_limit) → 16385;
+- key shares без `key_share_curves` (и без подходящих Chrome-овских) — для первых двух групп
+  JA3 плюс X25519, если она объявлена дальше; только для объявленных групп. Гибрид
+  `X25519MLKEM768` получает share только вместе с X25519 (как у Chrome).
+
+Списки принимают имена upstream (`"X25519MLKEM768"`, `"1.3"`, `"brotli"`) или числовые id
+(int, десятичная или `0x`-строка); GREASE-значения → `GREASE`. Неизвестное значение —
+`SessionConfigurationError` (upstream молча выбрасывал его из hello).
 
 ## Таймауты
 
@@ -342,10 +393,18 @@ s.post(url, data=[("k", "1"), ("k2", "2")],     # multipart; порядок ча
 ## Ответ
 
 `Response`: `status_code` / `status`, `headers` (dict[str, list[str]]),
-`cookies`, `content`, `text`, `encoding`, `url`, `elapsed`, `history`,
+`cookies`, `content`, `text`, `encoding`, `url`, `elapsed`, `history`, `is_redirect`,
 `used_protocol`, `http_version` ("1.1"/"2"/"3"), `ok`, `json()`,
 `raise_for_status()` (→ `HTTPStatusError`), `r["Content-Type"]` — регистронезависимо,
 `request_id`, `connection_info`, стрим-методы (см. «Стриминг и отмена»).
+
+`r.history` — ответы пройденных редиректов, от первого к последнему (как в requests):
+`status_code`, `headers`, `cookies` (Set-Cookie этого ответа), `url`, `used_protocol`,
+`elapsed` (этот переход: от отправки до заголовков ответа, как в requests), `content`
+(тело распаковано). Тело редиректа читается, только пока идёт: больше 64 KiB, пауза
+дольше 0.5 с (или read-таймаута, если он меньше), чтение дольше 2 с или тело, которое не
+распаковывается, дают `b""` — редирект при этом выполняется.
+При `allow_redirects=False` или без редиректов — `[]`.
 
 `r.connection_info`:
 
@@ -469,7 +528,23 @@ Mapping или последовательность пар принимаютс�
 
 ## Ограничения
 
-Upstream CFFI не отдаёт redirect history, поэтому `history` пока пуст. Автодополнение custom JA3 из Chrome defaults не реализовано — передавайте поддерживаемые поля через схему upstream. Для некоторых профилей нет браузерно-точных HTTP/3 настроек; при запросе HTTP/3 используются параметры upstream по умолчанию. Профиль `cloudscraper` предлагает только CBC-шифры TLS 1.2 и расширение encrypt_then_mac, которое utls объявляет, но не реализует: с серверами на OpenSSL, принимающими CBC, рукопожатие падает (`bad record MAC`); BoringSSL (Cloudflare) и Go encrypt_then_mac не поддерживают, с ними профиль работает. Отпечаток профиля намеренно не меняется. При `http_version="3"` (гонка HTTP/3 и TCP) и сессии без `User-Agent` TCP-попытка по HTTP/2 отправит `user-agent: Go-http-client/2.0`: обе попытки используют одни заголовки, и подменить их только для одной из них нельзя — задайте `User-Agent` явно. Публикация выполняется только после успешных CI-сборок и настройки Trusted Publishing в PyPI.
+- `http://` — всегда HTTP/1.1 (h2c не поддерживается).
+- HTTP/3 (гонка): стадийные таймауты connect/write/read-заголовков не отслеживаются
+  (quic-go их не сообщает) — работают `total` и пауза чтения тела.
+- HTTP/3-параметры есть не у всех профилей (см. «Профили и client_os»).
+- HTTP/1.1/HTTP/2-соединение, молча пропавшее (NAT, смена сети — без RST), замечает
+  только ядро: до этого запросы по нему кончаются таймаутом, а таймаут соединение не
+  сбрасывает (периодический PING по простою, как Go `ReadIdleTimeout`, не включён: он
+  заметен серверу и не похож на браузер).
+  Помогает `session.reset_connection()`.
+- Custom JA3 с группой `X25519MLKEM768` без key share для неё (в том числе без X25519
+  в JA3 — тогда share для гибрида не отправляется): если сервер выбирает её через
+  HelloRetryRequest, рукопожатие падает (utls, как и Go, не поддерживает ML-KEM в HRR).
+  Chrome всегда объявляет X25519 и отправляет key share для ML-KEM — так и задавайте.
+
+Сетевой стек — upstream-модули `fhttp`, `tls-client`, `utls` с правками
+(`native/third_party`, изменения — `native/third_party/patches/*.patch`; CI сверяет копии с
+upstream и проверяет, что в них нет других файлов: `python scripts/third_party.py check`).
 
 ## Примеры и тесты
 

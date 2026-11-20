@@ -30,6 +30,9 @@ def echo(native):
         def do_GET(self):
             seen.append(list(self.headers.items()))
             self.send_response(200); self.send_header("Content-Length", "0"); self.end_headers()
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            self.do_GET()
         def log_message(self, *args):
             pass
 
@@ -134,3 +137,84 @@ def test_request_warnings_point_at_the_caller(echo):
                 await s.get(url)
         return caught
     assert asyncio.run(run())[0].filename == __file__
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_no_go_user_agent_when_racing_http3(native):
+    # http_version="3" races QUIC against TCP; both attempts share the request headers.
+    # The local server has no HTTP/3, so the TCP attempt (HTTP/2) wins
+    from test_protocol import H2Server
+    srv = H2Server()
+    try:
+        with Session(client_identifier="chrome_133", verify=False, timeout=8, http_version="3") as s:
+            s.headers.pop("user-agent")
+            r = s.get(f"https://127.0.0.1:{srv.port}/a")
+        assert r.used_protocol == "HTTP/2.0"
+        assert _wireUserAgents(r) == []
+    finally:
+        srv.close()
+
+
+def _wire(response) -> list[tuple[str, str]]:
+    return [(name.lower(), value) for name, value in response.fingerprint["request_headers"]]
+
+
+def test_chromium_priority_header_only_over_http2(native, echo):
+    # Chrome 157 sends "priority: u=0, i" last on an HTTP/2 navigation and none on
+    # HTTP/1.1 (tests/fixtures/chrome_157_wire.json)
+    from test_protocol import H2Server
+    srv = H2Server()
+    try:
+        with Session(client_identifier="chrome_152", verify=False, timeout=5) as s:
+            h2 = s.get(f"https://127.0.0.1:{srv.port}/a")
+            own = s.get(f"https://127.0.0.1:{srv.port}/a", headers={"Priority": "u=3"})
+            h1 = s.get(echo[0])
+        assert h2.used_protocol == "HTTP/2.0" and _wire(h2)[-1] == ("priority", "u=0, i")
+        assert [v for k, v in _wire(own) if k == "priority"] == ["u=3"]
+        assert "priority" not in _names(echo[1][-1]) and h1.status_code == 200
+        with Session(client_identifier="firefox_147", verify=False, timeout=5) as s:
+            assert "priority" not in dict(_wire(s.get(f"https://127.0.0.1:{srv.port}/a")))
+    finally:
+        srv.close()
+
+
+def test_none_keeps_what_requests_keeps(native, echo):
+    # requests: the body still sets Content-Type, the jar still sends cookies, Host is
+    # always there, and a name that cannot be sent is just ignored
+    url, seen = echo
+    with Session(timeout=5, headers={"Content-Type": "application/json", "Cookie": "manual=1"}) as s:
+        s.cookies.set("jar", "1")
+        s.post(url, files={"f": ("a.txt", b"x")}, headers={"Content-Type": None})
+        s.post(url, json={"a": 1}, headers={"Content-Type": None, "Cookie": None})
+        s.get(url, headers={"Host": None, "Content-Length": None, "Bad Name": None})
+        s.post(url, data=b"raw", headers={"Content-Type": None})  # our own default goes
+    multipart, js, plain, raw = (_names(h) for h in seen[-4:])
+    assert "content-type" not in raw and raw["content-length"] == "3"
+    assert multipart["content-type"].startswith("multipart/form-data; boundary=")
+    assert js["content-type"] == "application/json" and js["cookie"] == "jar=1"
+    assert plain["host"].startswith("127.0.0.1:")
+
+
+def test_none_removes_a_header(native, echo):
+    # requests semantics: a None value removes the header (session default, profile
+    # default, or one the transport adds when absent). It used to go out with an empty value
+    from test_protocol import H2Server
+    url, seen = echo
+    srv = H2Server()
+    try:
+        with Session(client_identifier="chrome_152", verify=False, timeout=5, headers={"X-Session": "s"}) as s:
+            s.get(url, headers={"X-Session": None, "user-agent": None, "X-Never": None, "Accept-Encoding": None})
+            h2 = s.get(f"https://127.0.0.1:{srv.port}/a",
+                       headers={"priority": None, "Accept-Language": None, "accept-encoding": None})
+            again = s.get(url)
+        with Session(client_identifier="okhttp4_android_13", timeout=5) as s:  # okhttp's own defaults too
+            s.get(url, headers={"User-Agent": None, "Accept-Encoding": None, "Connection": None})
+        sent = _names(seen[0])
+        assert not {"x-session", "user-agent", "x-never", "accept-encoding"} & set(sent) and "accept" in sent
+        assert h2.used_protocol == "HTTP/2.0"
+        h2sent = {k for k, _ in _wire(h2)}
+        assert not {"priority", "accept-language", "accept-encoding"} & h2sent and "user-agent" in h2sent
+        assert _names(seen[1])["x-session"] == "s" and _names(seen[1])["user-agent"]  # per request only
+        assert not {"user-agent", "accept-encoding", "connection"} & set(_names(seen[2])) and "host" in _names(seen[2])
+    finally:
+        srv.close()

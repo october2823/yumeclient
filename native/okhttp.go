@@ -197,6 +197,14 @@ func (b *okhttpBridge) CloseIdleConnections() {
 	}
 }
 
+func (b *okhttpBridge) Close() {
+	if c, ok := b.inner.(interface{ Close() }); ok {
+		c.Close()
+	} else {
+		b.CloseIdleConnections()
+	}
+}
+
 // methods okhttp sends with a request body (HttpMethod.requiresRequestBody)
 var okhttpBodyMethods = map[string]bool{"POST": true, "PUT": true, "PATCH": true, "PROPPATCH": true, "REPORT": true}
 
@@ -252,9 +260,13 @@ func okhttpLayout(r *http.Request, jar http.CookieJar) {
 	}
 	appOrder := h[http.HeaderOrderKey] // lowercased by tls-client
 	delete(h, http.HeaderOrderKey)
-	for _, k := range foldKeys(h, "user-agent") {
-		if len(h[k]) == 0 { // hopTransport's "no application User-Agent" marker
-			delete(h, k)
+	// hopTransport's "no application User-Agent" marker; an omitted User-Agent
+	// (headers={"User-Agent": None}) stays, so okhttp's default is not added either
+	if c := controlFrom(r.Context()); c == nil || !c.omits("user-agent") {
+		for _, k := range foldKeys(h, "user-agent") {
+			if len(h[k]) == 0 {
+				delete(h, k)
+			}
 		}
 	}
 	hop := r.Response != nil // redirect follow-up built by http.Client

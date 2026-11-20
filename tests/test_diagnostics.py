@@ -43,7 +43,7 @@ class ConnectProxy:
     """CONNECT-only forward proxy; ``delay`` before the tunnel is established."""
 
     def __init__(self, delay: float = 0.0):
-        self.delay, self.seen = delay, []
+        self.delay, self.seen, self.clients = delay, [], []
         self.sock = socket.socket()
         self.sock.bind(("127.0.0.1", 0))
         self.sock.listen(16)
@@ -58,7 +58,22 @@ class ConnectProxy:
                 return
             threading.Thread(target=self._serve, args=(c,), daemon=True).start()
 
+    def drop(self):
+        """Close every established tunnel (the client sees its connections die)."""
+        for c in self.clients:
+            try: c.shutdown(socket.SHUT_RDWR)
+            except OSError: pass
+            c.close()
+        self.clients.clear()
+
     def _serve(self, c):
+        try:
+            self._tunnel(c)
+        except (OSError, ValueError):  # the client went away or drop() closed the socket
+            c.close()
+
+    def _tunnel(self, c):
+        self.clients.append(c)
         head = b""
         while b"\r\n\r\n" not in head:
             chunk = c.recv(4096)
@@ -81,7 +96,7 @@ class ConnectProxy:
                     if not data:
                         return
                     (up if s is c else c).sendall(data)
-        except OSError:
+        except (OSError, ValueError):
             pass
         finally:
             c.close(); up.close()
@@ -332,3 +347,28 @@ def test_trace_over_http2_keeps_authority_and_redacts_path_query(native):
     headers = dict((name, value) for name, value in trace["request"]["headers"])
     assert headers[":authority"] == f"127.0.0.1:{srv.port}"
     assert headers[":path"] == "/p?token=[redacted]&[redacted]"
+
+
+
+def test_later_http2_connections_get_request_control(native):
+    # a second HTTP/2 connection is dialed by the h2 connection pool, not by the first
+    # request's dial: proxy timing, connect timeout and cancellation must reach it too
+    from test_protocol import H2Server
+    srv, proxy = H2Server(), ConnectProxy(delay=0.2)
+    try:
+        with Session(verify=False, http_version="2", proxy=f"http://127.0.0.1:{proxy.port}",
+                     timeout=yumeclient.TimeoutConfig(total=10, connect=0.8)) as s:
+            first = s.get(f"https://127.0.0.1:{srv.port}/a")
+            proxy.drop(); time.sleep(0.2)
+            second = s.get(f"https://127.0.0.1:{srv.port}/b")
+            assert srv.connections == 2 and not second.connection_info["connection_reused"]
+            assert second.connection_info["timings"]["proxy"] >= 0.2, second.connection_info["timings"]
+            proxy.drop(); time.sleep(0.2)
+            proxy.delay = 3
+            start = time.perf_counter()
+            with pytest.raises(yumeclient.ConnectTimeout):
+                s.get(f"https://127.0.0.1:{srv.port}/c")
+            assert time.perf_counter() - start < 2.0
+        assert first.status_code == second.status_code == 200
+    finally:
+        proxy.close(); srv.close()

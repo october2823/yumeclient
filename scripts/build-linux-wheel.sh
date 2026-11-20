@@ -25,7 +25,10 @@ py=/opt/python/cp312-cp312/bin/python
 "$py" -m pip install --disable-pip-version-check setuptools wheel auditwheel
 "$py" setup.py bdist_wheel
 mkdir -p dist/repaired
-"$py" -m auditwheel repair dist/*-linux_*.whl -w dist/repaired
+# manylinux2014 (glibc 2.17), not the lowest tag the symbols allow: the Go runtime
+# needs Linux 3.2+, older manylinux tags would install on CentOS 5/6 (--only-plat:
+# auditwheel would otherwise add every older tag the symbols allow)
+"$py" -m auditwheel repair --plat "manylinux2014_$(uname -m)" --only-plat dist/*-linux_*.whl -w dist/repaired
 rm -f dist/*-linux_*.whl
 mv dist/repaired/*.whl dist/
 rm -rf dist/repaired build yumeclient.egg-info

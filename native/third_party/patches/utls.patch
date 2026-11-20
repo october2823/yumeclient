@@ -1,0 +1,208 @@
+# github.com/bogdanfinn/utls v1.7.8-barnius
+diff --git a/conn.go b/conn.go
+--- a/conn.go
++++ b/conn.go
+@@ -183,6 +183,10 @@
+ 	nextCipher any       // next encryption state
+ 	nextMac    hash.Hash // next MAC algorithm
+ 
++	// yumeclient: RFC 7366 encrypt-then-MAC for CBC records (TLS 1.0-1.2)
++	encryptThenMAC     bool
++	nextEncryptThenMAC bool
++
+ 	level         QUICEncryptionLevel // current QUIC encryption level
+ 	trafficSecret []byte              // current TLS 1.3 traffic secret
+ }
+@@ -221,8 +225,10 @@
+ 	}
+ 	hc.cipher = hc.nextCipher
+ 	hc.mac = hc.nextMac
++	hc.encryptThenMAC = hc.nextEncryptThenMAC
+ 	hc.nextCipher = nil
+ 	hc.nextMac = nil
++	hc.nextEncryptThenMAC = false
+ 	for i := range hc.seq {
+ 		hc.seq[i] = 0
+ 	}
+@@ -353,6 +359,7 @@
+ 
+ 	paddingGood := byte(255)
+ 	paddingLen := 0
++	macChecked := false // yumeclient: encrypt-then-MAC verified the MAC before decryption
+ 
+ 	explicitNonceLen := hc.explicitNonceLen()
+ 
+@@ -386,6 +393,34 @@
+ 				return nil, 0, alertBadRecordMAC
+ 			}
+ 		case cbcMode:
++			if hc.encryptThenMAC {
++				// RFC 7366: the MAC covers the header (with the length of IV and
++				// ciphertext), the IV and the ciphertext; it is checked first
++				blockSize, macSize := c.BlockSize(), hc.mac.Size()
++				n := len(payload) - macSize
++				if n < explicitNonceLen+blockSize || (n-explicitNonceLen)%blockSize != 0 {
++					return nil, 0, alertBadRecordMAC
++				}
++				record[3] = byte(n >> 8)
++				record[4] = byte(n)
++				localMAC := tls10MAC(hc.mac, hc.scratchBuf[:0], hc.seq[:], record[:recordHeaderLen], payload[:n], nil)
++				if subtle.ConstantTimeCompare(localMAC, payload[n:]) != 1 {
++					return nil, 0, alertBadRecordMAC
++				}
++				payload = payload[:n]
++				if explicitNonceLen > 0 {
++					c.SetIV(payload[:explicitNonceLen])
++					payload = payload[explicitNonceLen:]
++				}
++				c.CryptBlocks(payload, payload)
++				toRemove, good := extractPadding(payload)
++				if good != 255 {
++					return nil, 0, alertBadRecordMAC
++				}
++				plaintext = payload[:len(payload)-toRemove]
++				macChecked = true
++				break
++			}
+ 			blockSize := c.BlockSize()
+ 			minPayload := explicitNonceLen + roundUp(hc.mac.Size()+1, blockSize)
+ 			if len(payload)%blockSize != 0 || len(payload) < minPayload {
+@@ -432,7 +467,7 @@
+ 		plaintext = payload
+ 	}
+ 
+-	if hc.mac != nil {
++	if hc.mac != nil && !macChecked {
+ 		macSize := hc.mac.Size()
+ 		if len(payload) < macSize {
+ 			return nil, 0, alertBadRecordMAC
+@@ -538,6 +573,26 @@
+ 			record = c.Seal(record, nonce, payload, additionalData)
+ 		}
+ 	case cbcMode:
++		if hc.encryptThenMAC {
++			// RFC 7366: pad and encrypt, then MAC header (length of IV and
++			// ciphertext), IV and ciphertext
++			blockSize := c.BlockSize()
++			paddingLen := blockSize - len(payload)%blockSize
++			record, dst = sliceForAppend(record, len(payload)+paddingLen)
++			copy(dst, payload)
++			for i := len(payload); i < len(dst); i++ {
++				dst[i] = byte(paddingLen - 1)
++			}
++			if len(explicitNonce) > 0 {
++				c.SetIV(explicitNonce)
++			}
++			c.CryptBlocks(dst, dst)
++			n := len(record) - recordHeaderLen
++			record[3] = byte(n >> 8)
++			record[4] = byte(n)
++			record = append(record, tls10MAC(hc.mac, hc.scratchBuf[:0], hc.seq[:], record[:recordHeaderLen], record[recordHeaderLen:], nil)...)
++			break
++		}
+ 		mac := tls10MAC(hc.mac, hc.scratchBuf[:0], hc.seq[:], record[:recordHeaderLen], payload, nil)
+ 		blockSize := c.BlockSize()
+ 		plaintextLen := len(payload) + len(mac)
+diff --git a/handshake_client.go b/handshake_client.go
+--- a/handshake_client.go
++++ b/handshake_client.go
+@@ -891,7 +891,33 @@
+ 
+ 	c.in.prepareCipherSpec(c.vers, serverCipher, serverHash)
+ 	c.out.prepareCipherSpec(c.vers, clientCipher, clientHash)
++
++	// yumeclient: RFC 7366. The server acknowledges encrypt_then_mac only for a CBC
++	// suite; an acknowledgement for another suite is ignored, as OpenSSL does
++	if hs.serverHello.encryptThenMAC {
++		if !hs.offeredEncryptThenMAC() {
++			c.sendAlert(alertUnsupportedExtension)
++			return errors.New("tls: server sent an unsolicited encrypt_then_mac extension")
++		}
++		_, isCBC := clientCipher.(cbcMode)
++		c.in.nextEncryptThenMAC = isCBC
++		c.out.nextEncryptThenMAC = isCBC
++	}
+ 	return nil
++}
++
++// offeredEncryptThenMAC reports whether the ClientHello carried encrypt_then_mac
++// (uTLS specs add it as GenericExtension{Id: 22}).
++func (hs *clientHandshakeState) offeredEncryptThenMAC() bool {
++	if hs.uconn == nil {
++		return false
++	}
++	for _, ext := range hs.uconn.Extensions {
++		if e, ok := ext.(*GenericExtension); ok && e.Id == fakeExtensionEncryptThenMAC {
++			return true
++		}
++	}
++	return false
+ }
+ 
+ func (hs *clientHandshakeState) serverResumedSession() bool {
+diff --git a/handshake_client_tls13.go b/handshake_client_tls13.go
+--- a/handshake_client_tls13.go
++++ b/handshake_client_tls13.go
+@@ -607,6 +607,10 @@
+ 	// 1. Try to find the key in our new map (added in u_public.go)
+ 	if k, ok := hs.keyShareKeys.keys[selectedGroup]; ok {
+ 		clientKey = k
++	} else if (selectedGroup == X25519MLKEM768 || selectedGroup == X25519Kyber768Draft00) && hs.keyShareKeys.mlkemEcdhe != nil {
++		// yumeclient: the hybrid's own X25519 key; the legacy field holds the first
++		// classic share, which is not X25519 for shares like [X25519MLKEM768, P-384, X25519]
++		clientKey = hs.keyShareKeys.mlkemEcdhe
+ 	} else {
+ 		// 2. Fallback to the legacy single field.
+ 		clientKey = hs.keyShareKeys.ecdhe
+diff --git a/handshake_messages.go b/handshake_messages.go
+--- a/handshake_messages.go
++++ b/handshake_messages.go
+@@ -784,6 +784,9 @@
+ 	// [uTLS]
+ 	nextProtoNeg bool
+ 	nextProtos   []string
++
++	// yumeclient: RFC 7366 encrypt_then_mac acknowledged
++	encryptThenMAC bool
+ }
+ 
+ func (m *serverHelloMsg) marshal() ([]byte, error) {
+@@ -1053,6 +1056,11 @@
+ 				return false
+ 			}
+ 			m.serverNameAck = true
++		case fakeExtensionEncryptThenMAC: // yumeclient: RFC 7366, empty in ServerHello
++			if len(extData) != 0 {
++				return false
++			}
++			m.encryptThenMAC = true
+ 		default:
+ 			// Ignore unknown extensions.
+ 			continue
+diff --git a/u_public.go b/u_public.go
+--- a/u_public.go
++++ b/u_public.go
+@@ -290,6 +290,7 @@
+ 	Cookie                  []byte  // HelloRetryRequest extension
+ 	SelectedGroup           CurveID // HelloRetryRequest extension
+ 
++	EncryptThenMAC bool // yumeclient: RFC 7366 acknowledged
+ }
+ 
+ func (shm *PubServerHelloMsg) getPrivatePtr() *serverHelloMsg {
+@@ -318,6 +319,7 @@
+ 			selectedIdentity:             shm.SelectedIdentity,
+ 			cookie:                       shm.Cookie,
+ 			selectedGroup:                shm.SelectedGroup,
++			encryptThenMAC:               shm.EncryptThenMAC,
+ 		}
+ 	}
+ }
+@@ -348,6 +350,7 @@
+ 			SelectedIdentity:             shm.selectedIdentity,
+ 			Cookie:                       shm.cookie,
+ 			SelectedGroup:                shm.selectedGroup,
++			EncryptThenMAC:               shm.encryptThenMAC,
+ 		}
+ 	}
+ }

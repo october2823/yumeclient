@@ -31,9 +31,10 @@ def native():
 
 
 class H2Server:
-    """Minimal HTTP/2 server: answers every request stream with 200 "ok"."""
+    """Minimal HTTP/2 server: answers every request stream with 200 "ok".
+    ``frames`` records what clients sent: (type, flags, stream, payload)."""
 
-    def __init__(self):
+    def __init__(self, port: int = 0):
         fd, self._pem = tempfile.mkstemp(suffix=".pem")
         with os.fdopen(fd, "w") as fh:
             fh.write(_PEM)
@@ -41,9 +42,11 @@ class H2Server:
         self.ctx.load_cert_chain(self._pem)
         self.ctx.set_alpn_protocols(["h2"])
         self.connections = 0
+        self.disconnected = 0  # connections the client closed (or that ended)
         self.streams = 0
+        self.frames: list[tuple[int, int, int, bytes]] = []
         self.sock = socket.socket()
-        self.sock.bind(("127.0.0.1", 0))
+        self.sock.bind(("127.0.0.1", port))
         self.sock.listen(8)
         self.port = self.sock.getsockname()[1]
         threading.Thread(target=self._accept, daemon=True).start()
@@ -81,17 +84,23 @@ class H2Server:
                     length = int.from_bytes(head[:3], "big")
                     kind, flags = head[3], head[4]
                     stream = int.from_bytes(head[5:9], "big") & 0x7FFFFFFF
-                    self._read(s, length)
+                    payload = self._read(s, length)
+                    self.frames.append((kind, flags, stream, payload))
                     if kind == 4 and not flags & 1:
                         s.sendall(self._frame(4, 1, 0))  # SETTINGS ACK
                     elif kind == 1:  # HEADERS (END_HEADERS assumed: small requests)
                         self.streams += 1
-                        s.sendall(self._frame(1, 4, stream, b"\x88")  # :status 200 (static index 8)
-                                  + self._frame(0, 1, stream, b"ok"))
+                        self._respond(s, stream)
                     elif kind == 7:
                         return
         except (OSError, ConnectionError, ssl.SSLError):
             pass
+        finally:
+            self.disconnected += 1
+
+    def _respond(self, s, stream: int) -> None:
+        s.sendall(self._frame(1, 4, stream, b"\x88")  # :status 200 (static index 8)
+                  + self._frame(0, 1, stream, b"ok"))
 
     def close(self):
         self.sock.close()
@@ -178,9 +187,12 @@ def test_http2_never_falls_back_to_http1(h1):
             s.get(f"https://127.0.0.1:{h1.port}/x")
         assert info.value.kind == "protocol" and info.value.stage == "connect" and not info.value.retryable
         assert isinstance(info.value, yumeclient.ConnectError)
+    # the handshake happened (the error names the negotiated ALPN) but the request was
+    # never written; the server may miss the handshake end itself (the client closes
+    # right away: a reset on Windows), so its connection list is not asserted exactly
     time.sleep(0.2)
-    assert h1.connections == ["http/1.1"]  # the handshake happened ...
-    assert h1.requests == []  # ... but the request was never written
+    assert h1.connections in ([], ["http/1.1"])
+    assert h1.requests == []
 
 
 def test_auto_follows_the_server(h1):
@@ -203,6 +215,20 @@ def test_http2_works_and_is_reported_consistently(h2):
     assert h2.connections == 1 and h2.streams == 2
 
 
+def test_closed_session_closes_its_http2_connections(h2):
+    # session close never reached the tls-client transports: every closed session left
+    # an open HTTP/2 connection (and a goroutine) until the server hung up
+    before = yumeclient._debugStats()["goroutines"]
+    for _ in range(5):
+        with Session(verify=False, timeout=5, http_version="2") as s:
+            assert s.get(f"https://127.0.0.1:{h2.port}/").status_code == 200
+    deadline = time.monotonic() + 3
+    while h2.disconnected < 5 and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert h2.connections == 5 and h2.disconnected == 5
+    assert yumeclient._debugStats()["goroutines"] <= before + 1
+
+
 def test_http2_plain_http_stays_http1(native):
     # no ALPN on plain TCP and no h2c: http:// is HTTP/1.1 under every http_version
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -222,3 +248,21 @@ def test_http2_plain_http_stays_http1(native):
         assert r.status_code == 200 and r.used_protocol == "HTTP/1.1"
     finally:
         srv.shutdown(); srv.server_close()
+
+
+def test_header_http2_refuses_is_an_invalid_request(native):
+    # Connection/Upgrade/Transfer-Encoding are valid over HTTP/1.1 but not over
+    # HTTP/2: refused before sending, the session keeps its connection
+    srv = H2Server()
+    try:
+        with Session(verify=False, timeout=5) as s:
+            url = f"https://localhost:{srv.port}/"
+            assert s.get(url).used_protocol == "HTTP/2.0"
+            with pytest.raises(yumeclient.InvalidRequestError) as info:
+                s.get(url, headers={"Connection": "Upgrade", "Upgrade": "websocket"})
+            assert info.value.kind == "invalid_request" and "Upgrade" in str(info.value)
+            r = s.get(url)
+        assert r.connection_info["connection_reused"]
+        assert srv.connections == 1 and srv.streams == 2
+    finally:
+        srv.close()

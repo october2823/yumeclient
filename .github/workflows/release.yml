@@ -86,8 +86,39 @@ jobs:
       - shell: bash
         run: python scripts/smoke_wheel.py
 
+  # the Linux wheels claim manylinux2014 (glibc 2.17); run them on that glibc
+  smoke-oldest-glibc:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-22.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: wheelhouse
+          merge-multiple: true
+      - shell: bash
+        run: |
+          docker run --rm -v "$PWD:/w" -w /w quay.io/pypa/manylinux2014_${{ matrix.arch }} bash -euc '
+            ldd --version | head -1
+            ran=0
+            for py in cp311-cp311 cp312-cp312 cp313-cp313 cp314-cp314; do
+              [ -x /opt/python/$py/bin/python ] || continue
+              /opt/python/$py/bin/python -m pip install -q --only-binary=:all: --no-index --find-links wheelhouse yumeclient
+              /opt/python/$py/bin/python scripts/smoke_wheel.py
+              ran=$((ran + 1))
+            done
+            test "$ran" -ge 1'
+
   publish:
-    needs: [build, smoke]
+    needs: [build, smoke, smoke-oldest-glibc]
     if: github.event_name == 'release' || inputs.publish
     runs-on: ubuntu-latest
     permissions:

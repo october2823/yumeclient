@@ -25,4 +25,9 @@ require (
 	golang.org/x/text v0.32.0 // indirect
 )
 
-replace github.com/bogdanfinn/tls-client => github.com/bogdanfinn/tls-client v1.16.0
+// patched copies, see scripts/third_party.py and native/third_party/patches
+replace (
+	github.com/bogdanfinn/fhttp => ./third_party/fhttp
+	github.com/bogdanfinn/tls-client => ./third_party/tls-client
+	github.com/bogdanfinn/utls => ./third_party/utls
+)

@@ -1,0 +1,922 @@
+# github.com/bogdanfinn/tls-client v1.16.0
+diff --git a/race_gate.go b/race_gate.go
+new file mode 100644
+--- /dev/null
++++ b/race_gate.go
+@@ -0,0 +1,373 @@
++package tls_client
++
++// yumeclient: protocol racing races connections, not requests.
++//
++// Upstream sent the request over HTTP/3 and, 300 ms later, over HTTP/2 as well, and
++// used whichever answered first: every request whose HTTP/3 response took longer than
++// that reached the server twice (both reading the one request body), and the losing
++// attempt was left running. Here the first protocol to have a connection claims the
++// request (an HTTP/3 connection counts once its handshake is complete, so a 0-RTT
++// connection cannot claim it early); the other gives up before sending anything.
++
++import (
++	"context"
++	"errors"
++	"io"
++	"net"
++	"strings"
++	"sync"
++
++	http "github.com/bogdanfinn/fhttp"
++	"github.com/bogdanfinn/fhttp/httptrace"
++	quic "github.com/bogdanfinn/quic-go-utls"
++	"github.com/bogdanfinn/quic-go-utls/http3"
++	tls "github.com/bogdanfinn/utls"
++)
++
++// errClosed: the round tripper was closed (its session removed); nothing was sent.
++var errClosed = errors.New("tls-client: session is closed")
++
++// errLostRace: the other protocol connected first; this attempt sent nothing.
++var errLostRace = errors.New("http3 racing: the other protocol connected first")
++
++type raceGate struct {
++	once   sync.Once
++	winner string
++	done   chan struct{}
++}
++
++func newRaceGate() *raceGate { return &raceGate{done: make(chan struct{})} }
++
++// claim makes protocol the winner unless another one already is.
++func (g *raceGate) claim(protocol string) bool {
++	g.once.Do(func() { g.winner = protocol; close(g.done) })
++	return g.winner == protocol
++}
++
++func (g *raceGate) decided() bool {
++	select {
++	case <-g.done:
++		return true
++	default:
++		return false
++	}
++}
++
++func (g *raceGate) won(protocol string) bool { return g.decided() && g.winner == protocol }
++
++func (g *raceGate) lost(protocol string) bool { return g.decided() && g.winner != protocol }
++
++// cancelOnLoss returns ctx, cancelled once another protocol wins.
++func (g *raceGate) cancelOnLoss(ctx context.Context, protocol string) (context.Context, context.CancelFunc) {
++	ctx, cancel := context.WithCancel(ctx)
++	go func() {
++		select {
++		case <-g.done:
++			if g.winner != protocol {
++				cancel()
++			}
++		case <-ctx.Done():
++		}
++	}()
++	return ctx, cancel
++}
++
++// usage counts the requests a transport serves, each until its response body is
++// closed, so the transport can be closed once they are done instead of under them.
++// Once retired its close runs whenever it is idle (a request that took the
++// transport just before it was retired is cleaned up after too).
++type usage struct {
++	mu     sync.Mutex
++	active int
++	onIdle func()
++}
++
++func (u *usage) begin() {
++	u.mu.Lock()
++	u.active++
++	u.mu.Unlock()
++}
++
++func (u *usage) end() {
++	u.mu.Lock()
++	u.active--
++	fn := u.takeIdleLocked()
++	u.mu.Unlock()
++	if fn != nil {
++		fn()
++	}
++}
++
++func (u *usage) takeIdleLocked() func() {
++	if u.active > 0 {
++		return nil
++	}
++	return u.onIdle
++}
++
++// retire runs fn now when nothing is in use, otherwise when the last use ends (and
++// again after any later use). Only the first call counts; fn must be idempotent.
++func (u *usage) retire(fn func()) {
++	u.mu.Lock()
++	if u.onIdle != nil {
++		u.mu.Unlock()
++		return
++	}
++	u.onIdle = fn
++	fn = u.takeIdleLocked()
++	u.mu.Unlock()
++	if fn != nil {
++		fn()
++	}
++}
++
++// track ends the use begun for a round trip when it failed, or when the response
++// body is closed.
++func (u *usage) track(resp *http.Response, err error) (*http.Response, error) {
++	if err != nil || resp == nil || resp.Body == nil {
++		u.end()
++		return resp, err
++	}
++	resp.Body = &endOnClose{ReadCloser: resp.Body, end: u.end}
++	return resp, nil
++}
++
++type endOnClose struct {
++	io.ReadCloser
++	once sync.Once
++	end  func()
++}
++
++func (b *endOnClose) Close() error {
++	err := b.ReadCloser.Close()
++	b.once.Do(b.end)
++	return err
++}
++
++// racedHTTP3 is an HTTP/3 transport whose dials go through a race gate. With its own
++// Dial an http3.Transport opens no UDP socket, so this one owns it; Close releases it
++// (CloseIdleConnections alone left every transport's socket and its goroutines behind).
++type racedHTTP3 struct {
++	*http3.Transport
++	use    usage
++	mu     sync.Mutex
++	udp    *quic.Transport
++	closed bool
++}
++
++// newHTTP3 builds a gated HTTP/3 transport (an already decided gate for a transport
++// that is not racing).
++func (pr *protocolRacer) newHTTP3(gate *raceGate) (*racedHTTP3, error) {
++	built, err := buildHTTP3Transport(pr.getHTTP3Config())
++	if err != nil {
++		return nil, err
++	}
++	return newRacedHTTP3(built.(*http3.Transport), gate), nil
++}
++
++func (r *racedHTTP3) RoundTrip(req *http.Request) (*http.Response, error) {
++	r.use.begin()
++	return r.use.track(r.Transport.RoundTrip(req))
++}
++
++// CloseIdleConnections: quic-go counts a connection idle as soon as RoundTrip has
++// returned, with its response body possibly still being read, so connections are
++// only closed here while no response is open.
++func (r *racedHTTP3) CloseIdleConnections() {
++	r.use.mu.Lock() // a request beginning meanwhile waits: its connection stays
++	defer r.use.mu.Unlock()
++	if r.use.active == 0 {
++		r.Transport.CloseIdleConnections()
++	}
++}
++
++// retire closes the transport once no response it served is open any more.
++func (r *racedHTTP3) retire() {
++	r.use.retire(func() { _ = r.Close() })
++}
++
++func newRacedHTTP3(t3 *http3.Transport, gate *raceGate) *racedHTTP3 {
++	r := &racedHTTP3{Transport: t3}
++	dial := t3.Dial
++	if dial == nil {
++		dial = r.dialUDP
++	}
++	t3.Dial = func(ctx context.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (*quic.Conn, error) {
++		if gate.lost("h3") {
++			return nil, errLostRace
++		}
++		if gate.won("h3") {
++			return dial(ctx, addr, tlsCfg, cfg) // a later connection of the winner
++		}
++		dctx, cancel := gate.cancelOnLoss(ctx, "h3")
++		defer cancel()
++		conn, err := dial(dctx, addr, tlsCfg, cfg)
++		if err != nil {
++			if gate.lost("h3") {
++				return nil, errLostRace
++			}
++			return nil, err
++		}
++		// DialEarly returns before the handshake when 0-RTT is possible: claim only
++		// for a connection that is really there
++		select {
++		case <-conn.HandshakeComplete():
++		case <-conn.Context().Done():
++			if gate.lost("h3") {
++				return nil, errLostRace
++			}
++			return nil, context.Cause(conn.Context())
++		case <-dctx.Done():
++			_ = conn.CloseWithError(0, "")
++			if gate.lost("h3") {
++				return nil, errLostRace
++			}
++			return nil, context.Cause(dctx)
++		}
++		if !gate.claim("h3") {
++			_ = conn.CloseWithError(0, "")
++			return nil, errLostRace
++		}
++		return conn, nil
++	}
++	return r
++}
++
++// dialUDP is http3.Transport's default dial (resolve, then DialEarly on a shared UDP
++// socket) with the same trace events.
++func (r *racedHTTP3) dialUDP(ctx context.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (*quic.Conn, error) {
++	r.mu.Lock()
++	if r.closed {
++		r.mu.Unlock()
++		return nil, http3.ErrTransportClosed
++	}
++	if r.udp == nil {
++		udpConn, err := net.ListenUDP("udp", nil)
++		if err != nil {
++			r.mu.Unlock()
++			return nil, err
++		}
++		r.udp = &quic.Transport{Conn: udpConn}
++	}
++	udp := r.udp
++	r.mu.Unlock()
++
++	udpAddr, err := resolveRaceUDPAddr(ctx, addr)
++	if err != nil {
++		return nil, err
++	}
++	trace := httptrace.ContextClientTrace(ctx)
++	if trace != nil && trace.ConnectStart != nil {
++		trace.ConnectStart("udp", udpAddr.String())
++	}
++	if trace != nil && trace.TLSHandshakeStart != nil {
++		trace.TLSHandshakeStart()
++	}
++	conn, err := udp.DialEarly(ctx, udpAddr, tlsCfg, cfg)
++	var state tls.ConnectionState
++	if conn != nil {
++		state = conn.ConnectionState().TLS
++	}
++	if trace != nil && trace.TLSHandshakeDone != nil {
++		trace.TLSHandshakeDone(state, err)
++	}
++	if trace != nil && trace.ConnectDone != nil {
++		trace.ConnectDone("udp", udpAddr.String(), err)
++	}
++	return conn, err
++}
++
++func resolveRaceUDPAddr(ctx context.Context, addr string) (*net.UDPAddr, error) {
++	host, portStr, err := net.SplitHostPort(addr)
++	if err != nil {
++		return nil, err
++	}
++	port, err := net.LookupPort("udp", portStr)
++	if err != nil {
++		return nil, err
++	}
++	trace := httptrace.ContextClientTrace(ctx)
++	if trace != nil && trace.DNSStart != nil {
++		trace.DNSStart(httptrace.DNSStartInfo{Host: host})
++	}
++	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
++	if trace != nil && trace.DNSDone != nil {
++		trace.DNSDone(httptrace.DNSDoneInfo{Addrs: ips, Err: err})
++	}
++	if err != nil {
++		return nil, err
++	}
++	if len(ips) == 0 {
++		return nil, &net.DNSError{Err: "no such host", Name: host, IsNotFound: true}
++	}
++	want6 := strings.ContainsRune(addr, '[') // an IPv6 literal; IPv4 preferred otherwise
++	ip := ips[0]
++	for _, candidate := range ips {
++		if (candidate.IP.To4() == nil) == want6 {
++			ip = candidate
++			break
++		}
++	}
++	return &net.UDPAddr{IP: ip.IP, Port: port, Zone: ip.Zone}, nil
++}
++
++// Close closes the transport, its connections and its UDP socket.
++func (r *racedHTTP3) Close() error {
++	err := r.Transport.Close()
++	r.mu.Lock()
++	udp := r.udp
++	r.udp, r.closed = nil, true
++	r.mu.Unlock()
++	if udp != nil {
++		_ = udp.Close()
++		_ = udp.Conn.Close()
++	}
++	return err
++}
++
++// closeTransport closes an HTTP/3 transport (its UDP socket too) once its open
++// responses are done and closes the idle connections of any other.
++func closeTransport(t http.RoundTripper) {
++	switch c := t.(type) {
++	case *racedHTTP3:
++		c.retire()
++	case interface{ Close() error }:
++		_ = c.Close()
++	case interface{ CloseIdleConnections() }:
++		c.CloseIdleConnections()
++	}
++}
++
++// replayable: a request that may be sent again after a failure (net/http's rule).
++func replayable(req *http.Request) bool {
++	if req.Body != nil && req.Body != http.NoBody && req.GetBody == nil {
++		return false
++	}
++	switch req.Method {
++	case "", http.MethodGet, http.MethodHead, http.MethodOptions, http.MethodTrace:
++		return true
++	}
++	for key := range req.Header {
++		if strings.EqualFold(key, "Idempotency-Key") || strings.EqualFold(key, "X-Idempotency-Key") {
++			return true
++		}
++	}
++	return false
++}
++
++// rewound returns req with a fresh body for sending it again.
++func rewound(req *http.Request) (*http.Request, error) {
++	if req.Body == nil || req.Body == http.NoBody {
++		return req, nil
++	}
++	if req.GetBody == nil {
++		return nil, errors.New("request body cannot be sent again")
++	}
++	body, err := req.GetBody()
++	if err != nil {
++		return nil, err
++	}
++	copied := *req
++	copied.Body = body
++	return &copied, nil
++}
+diff --git a/racer.go b/racer.go
+--- a/racer.go
++++ b/racer.go
+@@ -9,6 +9,7 @@
+ 
+ 	http "github.com/bogdanfinn/fhttp"
+ 	"github.com/bogdanfinn/fhttp/http2"
++	"github.com/bogdanfinn/quic-go-utls/http3"
+ 	"github.com/bogdanfinn/tls-client/bandwidth"
+ 	tls "github.com/bogdanfinn/utls"
+ )
+@@ -33,6 +34,17 @@
+ 	// eviction, handed over because a raced request returns from RoundTrip
+ 	// before the branch that would otherwise do it.
+ 	dropTransport func(addr string, stale http.RoundTripper)
++
++	// discardConn closes the connection a lost HTTP/2 attempt dialed (stashed for
++	// the transport by dialTLS).
++	discardConn func(addr string)
++
++	// uses counts the requests of HTTP/1.1 and HTTP/2 transports (http.RoundTripper
++	// -> *usage) so a discarded one closes its connections after them.
++	uses sync.Map
++	// closed: the round tripper is closed, nothing gets cached (guarded by
++	// cachedTransportsLck)
++	closed bool
+ 
+ 	// HTTP/3 specific settings
+ 	http3Settings          map[uint64]uint64
+@@ -85,40 +97,71 @@
+ 	}
+ }
+ 
+-// race races HTTP/3 and HTTP/2 connections and uses whichever responds first.
+-// Similar to Chrome's "Happy Eyeballs" approach.
++// race races HTTP/3 and HTTP/2 connections and sends the request over whichever
++// connects first. Similar to Chrome's "Happy Eyeballs" approach.
+ func (pr *protocolRacer) race(req *http.Request, addr string, getTransportFunc func(*http.Request, string) error) (*http.Response, error) {
++	if pr.isClosed() {
++		return nil, errClosed
++	}
+ 	// Try cached protocol first if available
+-	if resp, shouldRace := pr.tryUseCachedProtocol(req, addr, getTransportFunc); !shouldRace {
+-		return resp, nil
++	resp, err, retry := pr.tryUseCachedProtocol(req, addr, getTransportFunc)
++	if retry == nil {
++		return resp, err
+ 	}
+ 
+ 	// No cached protocol or it failed - start racing
+-	return pr.startRace(req, addr, getTransportFunc)
+-}
+-
+-func (pr *protocolRacer) tryUseCachedProtocol(req *http.Request, addr string, getTransportFunc func(*http.Request, string) error) (*http.Response, bool) {
++	return pr.startRace(retry, addr, getTransportFunc)
++}
++
++// tryUseCachedProtocol returns the request to race with when there is no cached
++// protocol or it failed in a way that allows sending the request again.
++func (pr *protocolRacer) tryUseCachedProtocol(req *http.Request, addr string, getTransportFunc func(*http.Request, string) error) (*http.Response, error, *http.Request) {
+ 	pr.protocolCacheMu.RLock()
+ 	cachedProtocol, found := pr.protocolCache[addr]
+ 	pr.protocolCacheMu.RUnlock()
+ 
+ 	if !found {
+-		return nil, true // No cache, proceed to racing
++		return nil, nil, req // No cache, proceed to racing
+ 	}
+ 
+ 	transport, err := pr.getOrCreateTransport(cachedProtocol, addr, req, getTransportFunc)
++	if errors.Is(err, errClosed) {
++		return nil, err, nil
++	}
+ 	if err != nil {
+ 		pr.handleCachedProtocolError(err, addr, req)
+-		return nil, true // Cached protocol failed, proceed to racing
++		return nil, nil, req // Cached protocol failed, proceed to racing
+ 	}
+ 
+ 	resp, err := pr.roundTrip(transport, req, addr)
+ 	if err == nil {
+-		return resp, false // Success!
+-	}
+-
+-	pr.clearProtocolCache(addr)
+-	return nil, true
++		return resp, nil, nil // Success!
++	}
++	var headerErr *http2.RequestHeaderError
++	if errors.As(err, &headerErr) {
++		return nil, err, nil // refused before sending: nothing wrong with the connection
++	}
++
++	// Later requests race again, on new connections (in-flight requests keep
++	// theirs): after an error, and for HTTP/3 after a timeout or cancellation too —
++	// UDP gets black-holed far more often than TCP, and only a race tells a silent
++	// path from a slow server. A slow HTTP/1.1 or HTTP/2 server keeps its connection.
++	if req.Context().Err() == nil || cachedProtocol == "h3" {
++		pr.clearProtocolCache(addr)
++		pr.discardTransport(cachedProtocol, addr, transport)
++	}
++	// Racing sends this request again: only when that is safe (and still wanted).
++	// A transport closed under the request (retired by a sibling's failure) refused
++	// it before sending anything.
++	notSent := errors.Is(err, http3.ErrTransportClosed)
++	if req.Context().Err() != nil || !(notSent || replayable(req)) {
++		return nil, err, nil
++	}
++	retry, rewindErr := rewound(req)
++	if rewindErr != nil {
++		return nil, err, nil
++	}
++	return nil, nil, retry
+ }
+ 
+ func (pr *protocolRacer) getOrCreateTransport(protocol, addr string, req *http.Request, getTransportFunc func(*http.Request, string) error) (http.RoundTripper, error) {
+@@ -127,6 +170,9 @@
+ 	pr.cachedTransportsLck.Lock()
+ 	defer pr.cachedTransportsLck.Unlock()
+ 
++	if pr.closed {
++		return nil, errClosed
++	}
+ 	if transport, exists := pr.cachedTransports[transportKey]; exists {
+ 		return transport, nil
+ 	}
+@@ -142,7 +188,9 @@
+ 
+ func (pr *protocolRacer) createTransportForProtocol(protocol, addr string, req *http.Request, getTransportFunc func(*http.Request, string) error) (http.RoundTripper, error) {
+ 	if protocol == "h3" {
+-		return buildHTTP3Transport(pr.getHTTP3Config())
++		gate := newRaceGate()
++		gate.claim("h3")
++		return pr.newHTTP3(gate)
+ 	}
+ 
+ 	// For HTTP/2, use the standard transport creation
+@@ -155,76 +203,128 @@
+ }
+ 
+ func (pr *protocolRacer) startRace(req *http.Request, addr string, getTransportFunc func(*http.Request, string) error) (*http.Response, error) {
++	gate := newRaceGate()
++	h3Failed := make(chan struct{})
+ 	resultCh := make(chan racingResult, 2)
+-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+-	defer cancel()
+-
+-	go pr.attemptHTTP3(req, resultCh)
+-	go pr.attemptHTTP2(req, addr, getTransportFunc, resultCh)
+-
+-	return pr.waitForRaceWinner(ctx, addr, resultCh, cancel)
+-}
+-
+-func (pr *protocolRacer) attemptHTTP3(req *http.Request, resultCh chan<- racingResult) {
+-	h3Transport, err := buildHTTP3Transport(pr.getHTTP3Config())
++
++	go pr.attemptHTTP3(req, gate, h3Failed, resultCh)
++	go pr.attemptHTTP2(req, addr, getTransportFunc, gate, h3Failed, resultCh)
++
++	// only the winner sends the request, so both results come back promptly unless
++	// the winner is still waiting for its response (bounded by the request context)
++	var winnerErr, h2Err, h3Err error
++	for i := 0; i < 2; i++ {
++		result := <-resultCh
++		if result.err == nil && result.response != nil {
++			pr.cacheWinningProtocol(addr, result.protocol, result.transport)
++			return result.response, nil
++		}
++		switch {
++		case gate.won(result.protocol):
++			winnerErr = result.err
++		case errors.Is(result.err, errLostRace):
++		case result.protocol == "h2":
++			h2Err = result.err
++		default:
++			h3Err = result.err
++		}
++	}
++
++	// neither connected: the TCP error (refused, unreachable, TLS) says more than
++	// QUIC's handshake timeout
++	for _, err := range []error{winnerErr, h2Err, h3Err} {
++		if err != nil {
++			return nil, err
++		}
++	}
++	return nil, errors.New("http3 racing: both protocols failed to connect")
++}
++
++func (pr *protocolRacer) attemptHTTP3(req *http.Request, gate *raceGate, failed chan<- struct{}, resultCh chan<- racingResult) {
++	if pr.isClosed() {
++		close(failed)
++		resultCh <- racingResult{protocol: "h3", err: errClosed}
++		return
++	}
++	h3Transport, err := pr.newHTTP3(gate)
+ 	if err != nil {
++		close(failed)
+ 		resultCh <- racingResult{protocol: "h3", err: fmt.Errorf("failed to build HTTP/3 transport: %w", err)}
+ 		return
+ 	}
+ 
+ 	resp, err := h3Transport.RoundTrip(req)
+-	if err != nil {
+-		resultCh <- racingResult{protocol: "h3", err: fmt.Errorf("HTTP/3 request failed: %w", err)}
+-	} else {
+-		resultCh <- racingResult{protocol: "h3", response: resp}
+-	}
+-}
+-
+-func (pr *protocolRacer) attemptHTTP2(req *http.Request, addr string, getTransportFunc func(*http.Request, string) error, resultCh chan<- racingResult) {
+-	// Chrome-like 300ms delay before starting HTTP/2
++	if err == nil {
++		resultCh <- racingResult{protocol: "h3", response: resp, transport: h3Transport}
++		return
++	}
++	_ = h3Transport.Close()
++	close(failed)
++	if !errors.Is(err, errLostRace) {
++		err = fmt.Errorf("HTTP/3 request failed: %w", err)
++	}
++	resultCh <- racingResult{protocol: "h3", err: err}
++}
++
++func (pr *protocolRacer) attemptHTTP2(req *http.Request, addr string, getTransportFunc func(*http.Request, string) error, gate *raceGate, h3Failed <-chan struct{}, resultCh chan<- racingResult) {
++	// Chrome-like 300ms delay before starting HTTP/2 (none once HTTP/3 has failed)
+ 	// https://groups.google.com/a/chromium.org/g/proto-quic/c/igD7dLSct24
+-	time.Sleep(300 * time.Millisecond)
+-
++	delay := time.NewTimer(300 * time.Millisecond)
++	defer delay.Stop()
++	select {
++	case <-delay.C:
++	case <-h3Failed:
++	case <-gate.done:
++	case <-req.Context().Done():
++		resultCh <- racingResult{protocol: "h2", err: context.Cause(req.Context())}
++		return
++	}
++	if gate.lost("h2") {
++		resultCh <- racingResult{protocol: "h2", err: errLostRace}
++		return
++	}
++
++	// A cached transport has a working connection (a failed one is discarded before
++	// a race); otherwise HTTP/2 claims the request only after its own TLS handshake.
+ 	pr.cachedTransportsLck.Lock()
+-	if _, ok := pr.cachedTransports[addr]; !ok {
+-		if err := getTransportFunc(req, addr); err != nil {
++	if pr.closed {
++		pr.cachedTransportsLck.Unlock()
++		resultCh <- racingResult{protocol: "h2", err: errClosed}
++		return
++	}
++	_, cached := pr.cachedTransports[addr]
++	if !cached {
++		// the dial is abandoned as soon as HTTP/3 wins
++		dctx, cancel := gate.cancelOnLoss(req.Context(), "h2")
++		err := getTransportFunc(req.WithContext(dctx), addr)
++		cancel()
++		if err != nil {
+ 			pr.cachedTransportsLck.Unlock()
++			if gate.lost("h2") {
++				err = errLostRace
++			}
+ 			resultCh <- racingResult{protocol: "h2", err: err}
+ 			return
+ 		}
+ 	}
+ 	h2Transport := pr.cachedTransports[addr]
++	won := gate.claim("h2")
++	if !won && !cached && pr.cachedTransports[addr] == h2Transport {
++		// built for this race only: no later race may take it for a connected one
++		delete(pr.cachedTransports, addr)
++	}
+ 	pr.cachedTransportsLck.Unlock()
++
++	if !won {
++		if !cached && pr.discardConn != nil {
++			pr.discardConn(addr)
++		}
++		resultCh <- racingResult{protocol: "h2", err: errLostRace}
++		return
++	}
+ 
+ 	resp, err := pr.roundTrip(h2Transport, req, addr)
+ 	resultCh <- racingResult{protocol: "h2", response: resp, err: err}
+-}
+-
+-func (pr *protocolRacer) waitForRaceWinner(ctx context.Context, addr string, resultCh <-chan racingResult, cancel context.CancelFunc) (*http.Response, error) {
+-	var lastErr error
+-
+-	for i := 0; i < 2; i++ {
+-		select {
+-		case result := <-resultCh:
+-			if result.err == nil && result.response != nil {
+-				pr.cacheWinningProtocol(addr, result.protocol)
+-				cancel()
+-				return result.response, nil
+-			}
+-			lastErr = result.err
+-
+-		case <-ctx.Done():
+-			if lastErr != nil {
+-				return nil, lastErr
+-			}
+-			return nil, ctx.Err()
+-		}
+-	}
+-
+-	if lastErr != nil {
+-		return nil, lastErr
+-	}
+-	return nil, errors.New("http3 racing: both protocols failed to connect")
+ }
+ 
+ // roundTrip sends the request over transport and, when the dial underneath
+@@ -239,12 +339,30 @@
+ // the transport stored under that key dials through the round tripper. The
+ // HTTP/3 transport brings its own dialer and never reports this.
+ func (pr *protocolRacer) roundTrip(transport http.RoundTripper, req *http.Request, addr string) (*http.Response, error) {
+-	resp, err := transport.RoundTrip(req)
+-	if err != nil && errors.Is(err, errProtocolChanged) && pr.dropTransport != nil {
+-		pr.dropTransport(addr, transport)
++	var resp *http.Response
++	var err error
++	if _, ok := transport.(*racedHTTP3); ok {
++		resp, err = transport.RoundTrip(req) // counts its own uses
++	} else {
++		use := pr.usageOf(transport)
++		use.begin()
++		resp, err = use.track(transport.RoundTrip(req))
++	}
++	if err != nil && errors.Is(err, errProtocolChanged) {
++		// forgotten and, once its last request is done, closed
++		pr.discardTransport("", addr, transport)
+ 	}
+ 
+ 	return resp, err
++}
++
++// usageOf returns the use counter of an HTTP/1.1 or HTTP/2 transport.
++func (pr *protocolRacer) usageOf(transport http.RoundTripper) *usage {
++	if u, ok := pr.uses.Load(transport); ok {
++		return u.(*usage)
++	}
++	u, _ := pr.uses.LoadOrStore(transport, &usage{})
++	return u.(*usage)
+ }
+ 
+ func (pr *protocolRacer) getTransportKey(protocol, addr string) string {
+@@ -260,22 +378,67 @@
+ 	pr.protocolCacheMu.Unlock()
+ }
+ 
+-func (pr *protocolRacer) cacheWinningProtocol(addr, protocol string) {
++// cacheWinningProtocol remembers the protocol and, for HTTP/3, keeps the transport
++// that won (upstream cached a fresh one and leaked the winner with its connection).
++func (pr *protocolRacer) cacheWinningProtocol(addr, protocol string, transport http.RoundTripper) {
+ 	pr.protocolCacheMu.Lock()
+ 	pr.protocolCache[addr] = protocol
+ 	pr.protocolCacheMu.Unlock()
+ 
++	if protocol == "h3" && transport != nil {
++		pr.cachedTransportsLck.Lock()
++		_, exists := pr.cachedTransports[addr+":h3"]
++		keep := !exists && !pr.closed
++		if keep {
++			pr.cachedTransports[addr+":h3"] = transport
++		}
++		pr.cachedTransportsLck.Unlock()
++		if !keep {
++			// a concurrent race won first, or the round tripper is closed: close
++			// this one once its response is done
++			closeTransport(transport)
++		}
++	}
++}
++
++// discardTransport forgets a cached transport that failed a request so the next
++// race starts from new connections. Requests still using it are left alone: the
++// transport is closed (HTTP/3) or has its idle connections closed (HTTP/1.1,
++// HTTP/2) once they are done.
++func (pr *protocolRacer) discardTransport(protocol, addr string, transport http.RoundTripper) {
+ 	if protocol == "h3" {
+-		h3Transport, err := buildHTTP3Transport(pr.getHTTP3Config())
+-		if err != nil {
+-			// Never cache a nil transport, the next request would panic on it.
+-			return
+-		}
+-
+ 		pr.cachedTransportsLck.Lock()
+-		pr.cachedTransports[addr+":h3"] = h3Transport
++		if pr.cachedTransports[addr+":h3"] == transport {
++			delete(pr.cachedTransports, addr+":h3")
++		}
+ 		pr.cachedTransportsLck.Unlock()
+-	}
++		closeTransport(transport)
++		return
++	}
++	if pr.dropTransport != nil {
++		pr.dropTransport(addr, transport)
++	}
++	pr.usageOf(transport).retire(func() {
++		closeTransport(transport)
++		pr.uses.Delete(transport)
++	})
++}
++
++func (pr *protocolRacer) isClosed() bool {
++	pr.cachedTransportsLck.Lock()
++	defer pr.cachedTransportsLck.Unlock()
++	return pr.closed
++}
++
++// close marks the racer closed (nothing is cached any more) and empties the
++// protocol cache.
++func (pr *protocolRacer) close() {
++	pr.cachedTransportsLck.Lock()
++	pr.closed = true
++	pr.cachedTransportsLck.Unlock()
++	pr.protocolCacheMu.Lock()
++	pr.protocolCache = make(map[string]string)
++	pr.protocolCacheMu.Unlock()
+ }
+ 
+ func (pr *protocolRacer) handleCachedProtocolError(err error, addr string, req *http.Request) {
+@@ -301,7 +464,8 @@
+ }
+ 
+ type racingResult struct {
+-	protocol string
+-	response *http.Response
+-	err      error
+-}
++	protocol  string
++	response  *http.Response
++	err       error
++	transport http.RoundTripper // the HTTP/3 transport that served response
++}
+diff --git a/roundtripper.go b/roundtripper.go
+--- a/roundtripper.go
++++ b/roundtripper.go
+@@ -67,7 +67,10 @@
+ 	sync.Mutex
+ 
+ 	cachedTransportsLck sync.Mutex
+-	connectionFlow      uint32
++	// closed: Close was called, nothing is cached or sent any more (guarded by
++	// cachedTransportsLck)
++	closed         bool
++	connectionFlow uint32
+ 
+ 	forceHttp1   bool
+ 	disableHttp3 bool
+@@ -182,6 +185,48 @@
+ 	}
+ }
+ 
++// Close closes every cached transport — HTTP/3 ones with their UDP sockets, which
++// CloseIdleConnections leaves open — and connections stashed by dialTLS. Responses
++// still being read are left alone: HTTP/3 transports close after them, HTTP/1.1 and
++// HTTP/2 ones close idle connections only.
++func (rt *roundTripper) Close() {
++	var transports []http.RoundTripper
++	if rt.racer != nil {
++		rt.racer.close()
++	}
++	rt.cachedTransportsLck.Lock()
++	rt.closed = true
++	for addr, transport := range rt.cachedTransports {
++		transports = append(transports, transport)
++		delete(rt.cachedTransports, addr)
++	}
++	rt.cachedTransportsLck.Unlock()
++	rt.cachedKindsLck.Lock()
++	rt.cachedKinds = make(map[string]transportKind)
++	rt.cachedKindsLck.Unlock()
++	for _, transport := range transports {
++		closeTransport(transport)
++	}
++
++	rt.Lock()
++	for addr, conn := range rt.cachedConnections {
++		_ = conn.Close()
++		delete(rt.cachedConnections, addr)
++	}
++	rt.Unlock()
++}
++
++// discardCachedConnection closes the connection dialTLS stashed for addr, if any.
++func (rt *roundTripper) discardCachedConnection(addr string) {
++	rt.Lock()
++	conn := rt.cachedConnections[addr]
++	delete(rt.cachedConnections, addr)
++	rt.Unlock()
++	if conn != nil {
++		_ = conn.Close()
++	}
++}
++
+ func (rt *roundTripper) getHttp3Settings() map[uint64]uint64 {
+ 	if len(rt.http3Settings) == 0 {
+ 		return nil
+@@ -322,6 +367,10 @@
+ 	}
+ 
+ 	rt.cachedTransportsLck.Lock()
++	if rt.closed {
++		rt.cachedTransportsLck.Unlock()
++		return nil, errClosed
++	}
+ 	if _, ok := rt.cachedTransports[addr]; !ok {
+ 		if err := rt.getTransport(req, addr); err != nil {
+ 			rt.cachedTransportsLck.Unlock()
+@@ -475,6 +524,7 @@
+ 
+ 		t2 := http2.Transport{
+ 			DialTLS:         rt.dialTLSHTTP2,
++			DialTLSContext:  rt.dialTLSHTTP2Context, // yumeclient: later connections get the request context
+ 			TLSClientConfig: utlsConfig,
+ 			ConnectionFlow:  rt.connectionFlow,
+ 			HeaderPriority:  rt.headerPriority,
+@@ -614,6 +664,10 @@
+ 
+ func (rt *roundTripper) dialTLSHTTP2(network, addr string, _ *tls.Config) (net.Conn, error) {
+ 	return rt.dialTLS(context.Background(), network, addr)
++}
++
++func (rt *roundTripper) dialTLSHTTP2Context(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
++	return rt.dialTLS(ctx, network, addr)
+ }
+ 
+ // dialTLSForWebsocket establishes a TLS connection for WebSocket use.
+@@ -750,6 +804,7 @@
+ 			clientProfile.GetHttp3SendGreaseFrames(),
+ 			proxyURL,
+ 		)
++		rt.racer.discardConn = rt.discardCachedConnection
+ 	}
+ 
+ 	if len(dialer) > 0 {

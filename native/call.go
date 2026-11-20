@@ -18,6 +18,7 @@ import (
 	"unsafe"
 
 	http "github.com/bogdanfinn/fhttp"
+	http2 "github.com/bogdanfinn/fhttp/http2"
 	"github.com/bogdanfinn/fhttp/httptrace"
 	tls_client "github.com/bogdanfinn/tls-client"
 	src "github.com/bogdanfinn/tls-client/cffi_src"
@@ -50,7 +51,7 @@ func runCall(rawInput []byte) map[string]any {
 		return failure("invalid_request", "invalid input: "+err.Error(), nil)
 	}
 	opts := decodeRequestOptions(rawInput)
-	ctl := newReqControl(opts.RequestId, opts, in.WithProtocolRacing)
+	ctl := newReqControl(opts.RequestId, opts, in.WithProtocolRacing, in.FollowRedirects)
 	if !registerRequest(ctl) { // cancelled before the call started
 		ctl.cancel(errCancelled)
 		out := errorPayload(errCancelled, ctl)
@@ -70,6 +71,14 @@ func runCall(rawInput []byte) map[string]any {
 		sessionProxy = *in.ProxyUrl
 	}
 	client, session, withSession, clientErr := createPatchedClient(in, rawInput)
+	// a session removed (by a failed request) right after the lookup is closing:
+	// its replacement is built on the next lookup
+	for tries := 0; clientErr == nil && !holdSession(client, ctl); tries++ {
+		if tries == 3 {
+			return failure("request", "session was closed concurrently", ctl)
+		}
+		client, session, withSession, clientErr = createPatchedClient(in, rawInput)
+	}
 	if clientErr != nil {
 		return failure("configuration", "client creation failed: "+clientErr.Error(), ctl)
 	}
@@ -93,15 +102,21 @@ func runCall(rawInput []byte) map[string]any {
 	trace := &connTrace{}
 	ctx := httptrace.WithClientTrace(ctl.ctx, trace.clientTrace())
 	ctx = httptrace.WithClientTrace(ctx, ctl.trace())
+	if len(opts.H2Headers) > 0 {
+		ctx = http2.WithExtraHeaders(ctx, opts.H2Headers)
+	}
 	req = req.WithContext(withControl(ctx, ctl))
 	resp, err := wrapClient(client, sessionProxy).Do(req)
 	if err != nil {
 		out := errorPayload(err, ctl)
 		// a broken session is rebuilt on the next call; a cancelled or timed-out
-		// request leaves the pool usable (the transport already dropped the conn)
-		if withSession && !isControlCause(ctl) {
-			src.RemoveSession(session)
-			removePatchedSession(session)
+		// request leaves the pool usable (the transport already dropped the conn),
+		// and so does one HTTP/2 refused to send
+		var headerErr *http2.RequestHeaderError
+		if withSession && !isControlCause(ctl) && !errors.As(err, &headerErr) {
+			if !removePatchedSession(session, client) {
+				src.RemoveSession(session) // an upstream-built session
+			}
 		}
 		return out
 	}
@@ -138,8 +153,9 @@ func runCall(rawInput []byte) map[string]any {
 	if readErr != nil {
 		out := errorPayload(readErr, ctl)
 		if withSession && !isControlCause(ctl) {
-			src.RemoveSession(session)
-			removePatchedSession(session)
+			if !removePatchedSession(session, client) {
+				src.RemoveSession(session) // an upstream-built session
+			}
 		}
 		return out
 	}
@@ -176,6 +192,7 @@ func finishPayload(payload map[string]any, in src.RequestInput, rawInput []byte,
 	}
 	payload["cookies"] = ctl.jar.valuesFor(finalURL)
 	payload["jarDelta"] = ctl.jar.delta()
+	payload["history"] = ctl.historyPayload(resp)
 	info := map[string]any{}
 	trace.report(info, resp)
 	delete(info, "request_headers")

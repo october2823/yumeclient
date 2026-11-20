@@ -227,3 +227,6 @@ dist/
 *.dylib
 *.h
 .pytest_cache/
+
+# local go build output
+native/*.exe

@@ -222,6 +222,13 @@ func resolveProfile(name string) profiles.ClientProfile {
  if !ok {
   if ep, isExtra := lookupExtraProfile(name); isExtra { p = ep } else { p = profiles.DefaultClientProfile }
  }
+ if h3FromChrome144[name] && len(p.GetHttp3Settings()) == 0 {
+  ref := profiles.MappedTLSClients["chrome_144"]
+  p = profiles.NewClientProfile(p.GetClientHelloId(), p.GetSettings(), p.GetSettingsOrder(), p.GetPseudoHeaderOrder(),
+   p.GetConnectionFlow(), p.GetPriorities(), p.GetHeaderPriority(), p.GetStreamID(), p.GetAllowHTTP(),
+   ref.GetHttp3Settings(), ref.GetHttp3SettingsOrder(), ref.GetHttp3PriorityParam(), ref.GetHttp3PseudoHeaderOrder(),
+   ref.GetHttp3SendGreaseFrames())
+ }
  if spec, err := p.GetClientHelloSpec(); err == nil && fixKeyShares(&spec) {
   id := p.GetClientHelloId()
   orig := id.SpecFactory
@@ -240,6 +247,17 @@ func resolveProfile(name string) profiles.ClientProfile {
 }
 
 var fixedProfiles sync.Map
+
+// h3FromChrome144: Chromium profiles that upstream defines without HTTP/3
+// parameters (racing then sent only H3_DATAGRAM). They get chrome_144's: real
+// Chrome 157 (Windows, captured 2026-11-20, tests/fixtures/chrome_157_wire.json)
+// sends the same SETTINGS (1:65536, 6:262144, 7:100, 51:1, one GREASE setting),
+// pseudo-header order and priority as upstream's Chrome 144 capture, so the
+// versions in between are taken to match.
+var h3FromChrome144 = map[string]bool{
+ "chrome_146": true, "chrome_146_PSK": true, "chrome_150": true, "chrome_150_PSK": true,
+ "chrome_152": true, "chrome_152_PSK": true, "brave_146": true, "brave_146_PSK": true,
+}
 
 // fixKeyShares: every key share must belong to an offered group (RFC 8446
 // 4.2.8). Upstream's nike_android_mobile sends a GREASE key share without a
@@ -282,6 +300,9 @@ type advancedTls struct {
  echConfigList []byte
  grease        *bool
  pskMode       string
+ // chromeDefaults: profile whose values fill what the custom JA3 leaves open
+ // (fill_custom_with_chrome_defaults=True), "" = generic values only
+ chromeDefaults string
 }
 
 // decodeAdvancedTls reads the extra fields straight from the raw payload JSON
@@ -294,6 +315,7 @@ func decodeAdvancedTls(rawPayload []byte) *advancedTls {
    ECHConfigListB64  string `json:"echConfigList"`
    Grease            *bool  `json:"grease"`
    PskMode           string `json:"pskMode"`
+   ChromeDefaults    string `json:"chromeDefaultsProfile"`
   } `json:"customTlsClient"`
  }
  if err := json.Unmarshal(rawPayload, &envelope); err != nil || envelope.CustomTlsClient == nil {
@@ -307,6 +329,7 @@ func decodeAdvancedTls(rawPayload []byte) *advancedTls {
  }
  if c.Grease != nil { a.grease = c.Grease }
  if c.PskMode != "" { a.pskMode = c.PskMode }
+ a.chromeDefaults = c.ChromeDefaults
  return a
 }
 
@@ -487,7 +510,7 @@ func settingIDNum(s http2.SettingID) uint16 {
 }
 
 func akamaiFromSpec(settings map[http2.SettingID]uint32, order []http2.SettingID,
- pseudo []string, flow uint32) string {
+ pseudo []string, flow uint32, priorities []http2.Priority) string {
  // canonical Akamai fingerprint: SETTINGS in send order (id:value, ';'),
  // then |<connection window increment>|<headers priority?>|, then pseudo order letters
  parts := []string{}
@@ -497,7 +520,19 @@ func akamaiFromSpec(settings map[http2.SettingID]uint32, order []http2.SettingID
  if len(parts) == 0 { return "" }
  fp := strings.Join(parts, ";")
  fp += "|" + fmt.Sprintf("%d", flow)
- fp += "|0"
+ // PRIORITY frames sent after the preface: stream:exclusive:dependency:weight
+ // (weight as on the wire plus one, 1-256), "0" when none
+ if len(priorities) == 0 {
+  fp += "|0"
+ } else {
+  frames := make([]string, 0, len(priorities))
+  for _, p := range priorities {
+   excl := 0
+   if p.PriorityParam.Exclusive { excl = 1 }
+   frames = append(frames, fmt.Sprintf("%d:%d:%d:%d", p.StreamID, excl, p.PriorityParam.StreamDep, int(p.PriorityParam.Weight)+1))
+  }
+  fp += "|" + strings.Join(frames, ",")
+ }
  letters := map[string]string{":method": "m", ":authority": "a", ":scheme": "s", ":path": "p"}
  pseudoParts := []string{}
  for _, p := range pseudo {
@@ -508,8 +543,8 @@ func akamaiFromSpec(settings map[http2.SettingID]uint32, order []http2.SettingID
 }
 
 func fingerprintFromSpec(spec *tls.ClientHelloSpec, settings map[http2.SettingID]uint32,
- settingsOrder []http2.SettingID, pseudo []string, flow uint32) map[string]any {
- akamai := akamaiFromSpec(settings, settingsOrder, pseudo, flow)
+ settingsOrder []http2.SettingID, pseudo []string, flow uint32, priorities []http2.Priority) map[string]any {
+ akamai := akamaiFromSpec(settings, settingsOrder, pseudo, flow, priorities)
  out := fieldsFromSpec(spec).report()
  out["akamai_fingerprint"] = akamai
  out["akamai_hash_sha256_96"] = hex.EncodeToString(func() []byte { s := sha256.Sum256([]byte(akamai)); return s[:12] }())
@@ -544,21 +579,41 @@ func ensureKeyShare(spec *tls.ClientHelloSpec) {
      groups = append(groups, sc.Curves...)
     }
    }
-   seenX25519 := false
-   shares := make([]tls.KeyShare, 0, 2)
-   for _, g := range groups {
-    if isGREASEU16(uint16(g)) { continue }
-    if g == tls.X25519 { seenX25519 = true }
-    shares = append(shares, tls.KeyShare{Group: g})
-    if len(shares) >= 2 { break } // Chrome-style: at most first two groups carry shares
-   }
-   if !seenX25519 {
-    shares = append(shares, tls.KeyShare{Group: tls.X25519})
-   }
-   if len(shares) == 0 { shares = []tls.KeyShare{{Group: tls.X25519}} }
-   ks.KeyShares = shares
+   ks.KeyShares = defaultKeyShares(groups)
   }
  }
+}
+
+// defaultKeyShares: Chrome-style shares for the first two declared groups, plus
+// X25519 when it is declared further down. Only declared groups get a share (a
+// share for a group missing from supported_groups is illegal_parameter, RFC 8446
+// 4.2.8), and a hybrid ML-KEM/Kyber share only together with X25519 (as Chrome;
+// uTLS cannot complete a handshake on a hybrid share alone).
+func defaultKeyShares(groups []tls.CurveID) []tls.KeyShare {
+ declared := map[tls.CurveID]bool{}
+ for _, g := range groups {
+  declared[g] = true
+ }
+ hybrid := func(g tls.CurveID) bool { return g == tls.X25519MLKEM768 || g == tls.X25519Kyber768Draft00 }
+ shares := make([]tls.KeyShare, 0, 3)
+ shared := map[tls.CurveID]bool{}
+ for _, g := range groups {
+  if isGREASEU16(uint16(g)) || shared[g] || (hybrid(g) && !declared[tls.X25519]) {
+   continue
+  }
+  shares = append(shares, tls.KeyShare{Group: g})
+  shared[g] = true
+  if len(shares) >= 2 {
+   break
+  }
+ }
+ if declared[tls.X25519] && !shared[tls.X25519] {
+  shares = append(shares, tls.KeyShare{Group: tls.X25519})
+ }
+ if len(shares) == 0 { // no supported_groups (or only GREASE / hybrids): as before
+  shares = []tls.KeyShare{{Group: tls.X25519}}
+ }
+ return shares
 }
 
 func ensureSignatureAlgorithms(spec *tls.ClientHelloSpec, explicit []string) {
@@ -626,17 +681,9 @@ func ensureCurves(spec *tls.ClientHelloSpec) {
  }
 }
 
-func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (tls_client.HttpClient, string, bool, *src.TLSClientError) {
- if sessionId == "" { sessionId = fmt.Sprintf("%d", time.Now().UnixNano()) }
-
- patchedSessions.Lock()
- if existing, ok := patchedSessions.m[sessionId]; ok {
-  patchedSessions.Unlock()
-  if setter, ok := existing.(interface{ SetFollowRedirect(bool) }); ok { setter.SetFollowRedirect(in.FollowRedirects) }
-  return existing, sessionId, true, nil
- }
- patchedSessions.Unlock()
-
+// customJa3Profile: the ClientProfile of a ja3_string session and its spec
+// builder; the configured fingerprint (fingerprintFromConfig) uses the same.
+func customJa3Profile(in src.RequestInput, rawPayload []byte) (profiles.ClientProfile, func() (tls.ClientHelloSpec, error), *advancedTls, error) {
  ct := in.CustomTlsClient
  adv := decodeAdvancedTls(rawPayload)
 
@@ -649,8 +696,20 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
   echSuites = append(echSuites, tls_client.CandidateCipherSuites{KdfId: s.KdfId, AeadId: s.AeadId})
  }
 
- upstreamFactory, err := tls_client.GetSpecFactoryFromJa3String(ct.Ja3String, sigAlgs, delegAlgs, tlsVersions, keyShares, ct.ALPNProtocols, ct.ALPSProtocols, echSuites, ct.ECHCandidatePayloads, ct.CertCompressionAlgos, 0)
- if err != nil { return nil, sessionId, false, src.NewTLSClientError(fmt.Errorf("ja3 parse: %w", err)) }
+ var ref *chromeReference
+ if adv != nil { ref = newChromeReference(adv.chromeDefaults) }
+ // extensions whose contents upstream cannot leave empty: compress_certificate
+ // (upstream prints to stdout and rejects the ja3) and record_size_limit (0 is
+ // invalid, RFC 8449 needs >= 64). brotli is what Chrome and Safari send,
+ // 16385 what Firefox sends.
+ declaredExts := ja3Extensions(ct.Ja3String)
+ certAlgos := ct.CertCompressionAlgos
+ if len(certAlgos) == 0 && declaredExts[tls.ExtensionCompressCertificate] { certAlgos = []string{"brotli"} }
+ recordSizeLimit := ct.RecordSizeLimit
+ if recordSizeLimit == 0 && declaredExts[tls.ExtensionRecordSizeLimit] { recordSizeLimit = 0x4001 }
+
+ upstreamFactory, err := tls_client.GetSpecFactoryFromJa3String(ct.Ja3String, sigAlgs, delegAlgs, tlsVersions, keyShares, ct.ALPNProtocols, ct.ALPSProtocols, echSuites, ct.ECHCandidatePayloads, certAlgos, recordSizeLimit)
+ if err != nil { return profiles.ClientProfile{}, nil, nil, fmt.Errorf("ja3 parse: %w", err) }
 
  // buildSpec runs for EVERY handshake: utls mutates extension objects during
  // ApplyPreset (key share bytes, GREASE values), and a shared spec object would
@@ -659,6 +718,7 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
  buildSpec := func() (tls.ClientHelloSpec, error) {
   spec, err := upstreamFactory()
   if err != nil { return tls.ClientHelloSpec{}, err }
+  if ref != nil { ref.fillSpec(&spec) }
 
   // upstream leaves SupportedVersions nil when the ja3 lacks the versions field,
   // which utls then rejects; fill TLS 1.2+1.3 defaults when present but empty
@@ -689,13 +749,36 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
   SpecFactory: buildSpec,
  }
  h2Settings, h2Order := resolveH2Settings(ct)
- pseudoOrder := ct.PseudoHeaderOrder
- if len(pseudoOrder) == 0 {
-  pseudoOrder = []string{":method", ":authority", ":scheme", ":path"}
+ h2in := customH2Input{explicitSettings: len(ct.H2Settings) > 0, settings: h2Settings, order: h2Order,
+  pseudo: ct.PseudoHeaderOrder, flow: ct.ConnectionFlow}
+ // priority frames / HEADERS priority were dropped before 0.7.0
+ for _, pf := range ct.PriorityFrames {
+  h2in.priorities = append(h2in.priorities, http2.Priority{StreamID: pf.StreamID, PriorityParam: http2.PriorityParam{
+   StreamDep: pf.PriorityParam.StreamDep, Exclusive: pf.PriorityParam.Exclusive, Weight: pf.PriorityParam.Weight}})
  }
- connFlow := ct.ConnectionFlow
- if connFlow == 0 { connFlow = 15663105 }
- profile := profiles.NewClientProfile(helloID, h2Settings, h2Order, pseudoOrder, connFlow, nil, nil, 0, false, nil, nil, 0, nil, false)
+ if ct.HeaderPriority != nil {
+  h2in.headerPriority = &http2.PriorityParam{StreamDep: ct.HeaderPriority.StreamDep,
+   Exclusive: ct.HeaderPriority.Exclusive, Weight: ct.HeaderPriority.Weight}
+ }
+ h2 := resolveCustomH2(h2in, ref)
+ profile := profiles.NewClientProfile(helloID, h2.settings, h2.order, h2.pseudo, h2.flow, h2.priorities,
+  h2.headerPriority, 0, false, h2.h3Settings, h2.h3Order, h2.h3Priority, h2.h3Pseudo, h2.h3Grease)
+ return profile, buildSpec, adv, nil
+}
+
+func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (tls_client.HttpClient, string, bool, *src.TLSClientError) {
+ if sessionId == "" { sessionId = fmt.Sprintf("%d", time.Now().UnixNano()) }
+
+ patchedSessions.Lock()
+ if existing, ok := patchedSessions.m[sessionId]; ok {
+  patchedSessions.Unlock()
+  if setter, ok := existing.(interface{ SetFollowRedirect(bool) }); ok { setter.SetFollowRedirect(in.FollowRedirects) }
+  return existing, sessionId, true, nil
+ }
+ patchedSessions.Unlock()
+
+ profile, buildSpec, adv, perr := customJa3Profile(in, rawPayload)
+ if perr != nil { return nil, sessionId, false, src.NewTLSClientError(perr) }
 
  timeoutMs := in.TimeoutMilliseconds
  if timeoutMs == 0 && in.TimeoutSeconds != 0 { timeoutMs = in.TimeoutSeconds * 1000 }
@@ -719,7 +802,7 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
  if in.ForceHttp1 && !keepAlpn { options = append(options, tls_client.WithForceHttp1()) }
  if wantsNoSessionTickets(rawPayload) { options = append(options, tls_client.WithDisableSessionTickets()) }
  if in.DisableHttp3 { options = append(options, tls_client.WithDisableHttp3()) }
- if in.WithProtocolRacing && !hasMLKEMCurveForJa3(ct, sigAlgs, delegAlgs, tlsVersions, keyShares, echSuites, adv) {
+ if in.WithProtocolRacing && !specHasMLKEMCurve(buildSpec) {
   // quic-go rejects MLKEM-family keyshare preferences ("CurvePreferences includes
   // unsupported curve"); keep h2-only when the ja3 asks for 4588-family curves
   options = append(options, tls_client.WithProtocolRacing())
@@ -774,17 +857,14 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
  var strict *strictH1Config
  if keepAlpn {
   if sessionDialer == nil { return nil, sessionId, false, src.NewTLSClientError(fmt.Errorf("keep_alpn: no dialer for this proxy configuration")) }
-  strict = &strictH1Config{dialer: sessionDialer, helloID: helloID, shuffle: shuffle, disableHttp3: in.DisableHttp3,
+  strict = &strictH1Config{dialer: sessionDialer, helloID: profile.GetClientHelloId(), shuffle: shuffle, disableHttp3: in.DisableHttp3,
    insecure: in.InsecureSkipVerify, noTickets: wantsNoSessionTickets(rawPayload)}
   if in.ServerNameOverwrite != nil { strict.serverName = *in.ServerNameOverwrite }
  }
  if layerErr := applySessionLayer(client, extras.okhttp(), strict); layerErr != nil { return nil, sessionId, false, src.NewTLSClientError(layerErr) }
  if captured { helloSinks.Store(client, sink) }
 
- patchedSessions.Lock()
- patchedSessions.m[sessionId] = client
- patchedSessions.Unlock()
- return client, sessionId, true, nil
+ return storePatchedSession(sessionId, client), sessionId, true, nil
 }
 
 // resolveH2Settings: explicit h2Settings win; otherwise a Chrome-like default is
@@ -822,16 +902,10 @@ func resolveH2Settings(ct *src.CustomTlsClient) (map[http2.SettingID]uint32, []h
 
 // hasMLKEMCurve: true when the spec keyshares/curves include MLKEM-family groups
 // that quic-go's handshake cannot negotiate.
-func hasMLKEMCurveForJa3(ct *src.CustomTlsClient, sigAlgs, delegAlgs, tlsVersions, keyShares []string,
- echSuites []tls_client.CandidateCipherSuites, adv *advancedTls) bool {
- factory, err := tls_client.GetSpecFactoryFromJa3String(ct.Ja3String, sigAlgs, delegAlgs, tlsVersions,
-  keyShares, ct.ALPNProtocols, ct.ALPSProtocols, echSuites, ct.ECHCandidatePayloads, ct.CertCompressionAlgos, 0)
+// specHasMLKEMCurve: hasMLKEMCurve on the spec the session will send.
+func specHasMLKEMCurve(build func() (tls.ClientHelloSpec, error)) bool {
+ spec, err := build()
  if err != nil { return false }
- spec, err := factory()
- if err != nil { return false }
- ensureSupportedVersions(&spec)
- ensureKeyShare(&spec)
- ensureCurves(&spec)
  return hasMLKEMCurve(&spec)
 }
 
@@ -997,10 +1071,7 @@ func createPatchedClient(in src.RequestInput, rawPayload []byte) (tls_client.Htt
  if layerErr := applySessionLayer(tlsClient, extras.okhttp(), strict); layerErr != nil { return nil, sessionId, false, src.NewTLSClientError(layerErr) }
  if captured { helloSinks.Store(tlsClient, sink) }
 
- patchedSessions.Lock()
- patchedSessions.m[sessionId] = tlsClient
- patchedSessions.Unlock()
- return tlsClient, sessionId, true, nil
+ return storePatchedSession(sessionId, tlsClient), sessionId, true, nil
 }
 
 // insecureDialer: TLS+CONNECT dialer for https:// proxies; proxy certificate
@@ -1138,38 +1209,11 @@ func fingerprintFromConfig(in src.RequestInput, rawPayload []byte) map[string]an
  var flow uint32
 
  if in.CustomTlsClient != nil && in.CustomTlsClient.Ja3String != "" {
-  ct := in.CustomTlsClient
-  specFactory, err := tls_client.GetSpecFactoryFromJa3String(ct.Ja3String, ct.SupportedSignatureAlgorithms,
-   ct.SupportedDelegatedCredentialsAlgorithms, ct.SupportedVersions, ct.KeyShareCurves,
-   ct.ALPNProtocols, ct.ALPSProtocols, nil, ct.ECHCandidatePayloads, ct.CertCompressionAlgos, 0)
+  prof, build, _, err := customJa3Profile(in, rawPayload)
   if err != nil { return nil }
-  s, err := specFactory()
+  s, err := build()
   if err != nil { return nil }
-  spec = &s
-  ensureSupportedVersions(spec)
-  ensureKeyShare(spec)
-  ensureSignatureAlgorithms(spec, ct.SupportedSignatureAlgorithms)
-  ensureDelegatedCredentials(spec, ct.SupportedDelegatedCredentialsAlgorithms)
-  ensureCurves(spec)
-  // keep in sync with buildJa3Client: empty ALPN breaks servers and JA4 alpn tag
-  for _, e := range spec.Extensions {
-   if alpnExt, ok := e.(*tls.ALPNExtension); ok && len(alpnExt.AlpnProtocols) == 0 {
-    alpnExt.AlpnProtocols = []string{"h2", "http/1.1"}
-   }
-  }
-  if adv := decodeAdvancedTls(rawPayload); adv != nil {
-   applyExtensionOrder(spec, adv.extOrder)
-   if adv.grease != nil { applyGrease(spec, *adv.grease) }
-   if adv.pskMode != "" { applyPskMode(spec, adv.pskMode) }
-  }
-  settings, order = resolveH2Settings(ct)
-  pseudo = ct.PseudoHeaderOrder
-  if len(pseudo) == 0 {
-   pseudo = []string{":method", ":authority", ":scheme", ":path"}
-  }
-  flow = ct.ConnectionFlow
-  if flow == 0 { flow = 15663105 }
-  return fingerprintFromSpec(spec, settings, order, pseudo, flow)
+  return fingerprintFromSpec(&s, prof.GetSettings(), prof.GetSettingsOrder(), prof.GetPseudoHeaderOrder(), prof.GetConnectionFlow(), prof.GetPriorities())
  }
 
  // identifier-based: mapped or extra profile
@@ -1188,13 +1232,50 @@ func fingerprintFromConfig(in src.RequestInput, rawPayload []byte) map[string]an
  pseudo = prof.GetPseudoHeaderOrder()
  flow = prof.GetConnectionFlow()
  if spec == nil { return nil }
- return fingerprintFromSpec(spec, settings, order, pseudo, flow)
+ return fingerprintFromSpec(spec, settings, order, pseudo, flow, prof.GetPriorities())
 }
 
-func removePatchedSession(session string) {
+// storePatchedSession registers a new session client; when a concurrent call
+// registered one first, that one is used and this one released.
+func storePatchedSession(session string, client tls_client.HttpClient) tls_client.HttpClient {
  patchedSessions.Lock()
- if client, ok := patchedSessions.m[session]; ok {
-  client.CloseIdleConnections()
+ existing, ok := patchedSessions.m[session]
+ if !ok {
+  patchedSessions.m[session] = client
+ }
+ patchedSessions.Unlock()
+ if ok {
+  releaseClient(client)
+  return existing
+ }
+ return client
+}
+
+// removePatchedSession forgets the session (later calls build a new client) and
+// closes its client once the calls still using it are done. With only set, the
+// session is removed only while it still has that client: a request that failed
+// on a client already replaced must not close the replacement. The close runs
+// outside the sessions lock: it can wait for dials in progress.
+func removePatchedSession(session string, only ...tls_client.HttpClient) bool {
+ patchedSessions.Lock()
+ client, ok := patchedSessions.m[session]
+ if ok && len(only) > 0 && client != only[0] {
+  ok = false
+ }
+ if ok {
+  delete(patchedSessions.m, session)
+ }
+ patchedSessions.Unlock()
+ if ok {
+  releaseClient(client)
+ }
+ return ok
+}
+
+// releaseClient closes a session client and drops its per-session state once the
+// calls still using it are done.
+func releaseClient(client tls_client.HttpClient) {
+ closeClient(client, func() {
   helloSinks.Delete(client)
   sessionStyles.Delete(client)
   plainTransports.Range(func(k, v any) bool {
@@ -1204,9 +1285,7 @@ func removePatchedSession(session string) {
    }
    return true
   })
-  delete(patchedSessions.m, session)
- }
- patchedSessions.Unlock()
+ })
 }
 
 // schemeGuard isolates plain-http requests from the https transport state.

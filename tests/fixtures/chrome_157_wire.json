@@ -1,0 +1,88 @@
+{
+ "format": "yumeclient.browser-capture",
+ "version": 1,
+ "browser": "Google Chrome 157.0.8103.79 (Windows, headless=new, fresh profile)",
+ "captured": "2026-11-20",
+ "how": "local TLS/HTTP2 server (Go x/net/http2 framer) and HTTP/3 server (aioquic) recording what the browser sends; scripts are not part of the package",
+ "tls": {
+  "ja4": "t13d1518h2_8daaf6152771_e2d80978ab2e",
+  "ja4_r": "t13d1518h2_002f,0035,009c,009d,1301,1302,1303,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0012,0017,001b,0023,0029,002b,002d,0033,44cd,ca34,fe0d,ff01_0904,0905,0906,0403,0804,0401,0503,0805,0501,0806,0601",
+  "alpn_offered": [
+   "h2",
+   "http/1.1"
+  ],
+  "note": "this connection carried pre_shared_key (0029); otherwise equal to chrome_152_PSK"
+ },
+ "http2": {
+  "frames": [
+   "SETTINGS 1:65536;2:0;4:6291456;6:262144",
+   "WINDOW_UPDATE stream=0 inc=15663105",
+   "HEADERS stream=1 priority=true dep=0 excl=true weight=256"
+  ],
+  "header_order": [
+   ":method",
+   ":authority",
+   ":scheme",
+   ":path",
+   "sec-ch-ua",
+   "sec-ch-ua-mobile",
+   "sec-ch-ua-platform",
+   "upgrade-insecure-requests",
+   "user-agent",
+   "accept",
+   "sec-fetch-site",
+   "sec-fetch-mode",
+   "sec-fetch-user",
+   "sec-fetch-dest",
+   "accept-encoding",
+   "accept-language",
+   "priority"
+  ],
+  "priority_header": "u=0, i"
+ },
+ "http3": {
+  "settings": [
+   [
+    1,
+    65536
+   ],
+   [
+    6,
+    262144
+   ],
+   [
+    7,
+    100
+   ],
+   [
+    51,
+    1
+   ],
+   [
+    "GREASE",
+    "GREASE"
+   ]
+  ],
+  "control_stream_hex": "00041b018001000006800400000740643301c00000050bd9491c8a525ca7c0000003ff8f6b8302fb03800f07000700753d302c2069",
+  "header_order": [
+   ":method",
+   ":authority",
+   ":scheme",
+   ":path",
+   "sec-ch-ua",
+   "sec-ch-ua-mobile",
+   "sec-ch-ua-platform",
+   "upgrade-insecure-requests",
+   "user-agent",
+   "accept",
+   "sec-fetch-site",
+   "sec-fetch-mode",
+   "sec-fetch-user",
+   "sec-fetch-dest",
+   "accept-encoding",
+   "accept-language",
+   "priority"
+  ],
+  "priority_header": "u=0, i"
+ }
+}

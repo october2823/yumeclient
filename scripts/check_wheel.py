@@ -73,9 +73,16 @@ def expected_for(platform_tag: str) -> tuple[str, str, list[str], tuple[int, int
         return "yumeclient.dll", "PE", ["x86_64"], None
     if platform_tag == "win_arm64":
         return "yumeclient.dll", "PE", ["aarch64"], None
-    linux = re.fullmatch(r"(?:linux|manylinux\d+|manylinux_\d+_\d+|musllinux_\d+_\d+)_(x86_64|aarch64)", platform_tag)
+    linux = re.fullmatch(r"(?:linux|manylinux(\d+)|manylinux_(\d+)_(\d+)|musllinux_\d+_\d+)_(x86_64|aarch64)", platform_tag)
     if linux:
-        return "yumeclient.so", "ELF", [linux.group(1)], None
+        # the Go runtime needs Linux 3.2+: manylinux1/2010 (CentOS 5/6 kernels) would install
+        # where the library cannot start. CI runs the wheel on manylinux2014 (glibc 2.17).
+        legacy, major, minor, arch = linux.groups()
+        glibc = {"1": (2, 5), "2010": (2, 12), "2014": (2, 17)}.get(legacy, (0, 0)) if legacy else (
+            (int(major), int(minor)) if major else None)
+        if glibc is not None and glibc < (2, 17):
+            raise WheelError(f"{platform_tag}: claims glibc {glibc[0]}.{glibc[1]}, below manylinux2014 (glibc 2.17)")
+        return "yumeclient.so", "ELF", [arch], None
     mac = re.fullmatch(r"macosx_(\d+)_(\d+)_(universal2|arm64|x86_64)", platform_tag)
     if mac:
         arches = ["arm64", "x86_64"] if mac.group(3) == "universal2" else [mac.group(3)]

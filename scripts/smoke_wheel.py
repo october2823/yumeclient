@@ -21,6 +21,12 @@ class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     def do_GET(self) -> None:
+        if self.path.startswith("/redirect"):
+            self.send_response(302)
+            self.send_header("Location", "/s")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if self.path.startswith("/slow"):
             time.sleep(2)
         body = b"smoke-ok"
@@ -82,6 +88,8 @@ def main() -> int:
             assert list(clone.headers.items()) == list(session.headers.items())
             assert yumeclient.fingerprint_diff(session.export_profile(), clone.get(base + "/s")) == []
             clone.close()
+            redirected = session.get(base + "/redirect")
+            assert [h.status_code for h in redirected.history] == [302] and redirected.url.endswith("/s"), redirected
         asyncio.run(_async_checks(base))
     finally:
         server.shutdown()

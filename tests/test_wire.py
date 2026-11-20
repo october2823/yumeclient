@@ -111,7 +111,7 @@ def parse_hello(rec: bytes) -> dict:
     return {"rec_ver": rec[1:3].hex(), "rec_len": int.from_bytes(rec[3:5], "big"), "sid_len": b[34],
             "hs_len": hs_len, "ciphers": ciphers, "order": order, "groups": groups, "sig": sig,
             "key_share": key_share, "alpn": alpn, "ja3": ja3, "ja3_md5": hashlib.md5(ja3.encode()).hexdigest(),
-            "ja4": ja4, "ja4_r": ja4_r, "alpn_list": alpn_list}
+            "ja4": ja4, "ja4_r": ja4_r, "alpn_list": alpn_list, "exts": e, "versions": versions}
 
 
 # ---------------------------------------------------------------------------

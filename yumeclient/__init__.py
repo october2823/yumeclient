@@ -46,7 +46,7 @@ __all__ = ["Session", "AsyncSession", "Response", "CookieJar", "Headers", "Profi
            "ConnectionClosed", "Timeout", "ConnectTimeout", "ReadTimeout", "WriteTimeout", "ResponseTooLarge",
            "StreamClosed", "HTTPStatusError", "ProtocolError", "fingerprint_diff", "__version__"]
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 
 class TLSClientError(RuntimeError): pass
@@ -471,6 +471,10 @@ class Response:
         return "1.1" if protocol else ""
     @property
     def ok(self) -> bool: return 200 <= self.status_code < 400
+    @property
+    def is_redirect(self) -> bool:
+        """A 3xx with a Location header (followed ones are in :attr:`history`)."""
+        return 300 <= self.status_code < 400 and any(k.lower() == "location" for k in self.headers)
     def json(self) -> Any: return json.loads(self.text)
     def raise_for_status(self) -> None:
         if not self.ok:
@@ -639,6 +643,23 @@ def _checkProtocol(*, http_version: str, force_http1: bool, disable_http3: bool,
         raise SessionConfigurationError(f"http_version='2' with alpn_protocols={offer!r}: h2 is not offered")
 
 
+# profiles with browser HTTP/3 parameters (SETTINGS, pseudo-header order, priority, GREASE);
+# chrome_146..152 / brave_146 get chrome_144's in the native layer (see native/main.go
+# h3FromChrome144). "*chrome" = custom JA3 filled with Chrome defaults.
+_HTTP3_PROFILES = frozenset({
+    "chrome_144", "chrome_144_PSK", "chrome_146", "chrome_146_PSK", "chrome_150", "chrome_150_PSK",
+    "chrome_152", "chrome_152_PSK", "brave_146", "brave_146_PSK", "firefox_147", "firefox_147_PSK",
+    "firefox_148", "*chrome"})
+
+
+# Chromium sends "priority: u=0, i" (RFC 9218) with a navigation over HTTP/2 and HTTP/3,
+# not over HTTP/1.1 (Chrome 157 capture); HTTP/3 adds it from the profile's priority
+# parameter, HTTP/2 from the request (native h2Headers). Unless the request sets its own.
+_H2_PRIORITY_PROFILES = frozenset({
+    "chrome_144", "chrome_144_PSK", "chrome_146", "chrome_146_PSK", "chrome_150", "chrome_150_PSK",
+    "chrome_152", "chrome_152_PSK", "brave_146", "brave_146_PSK", "*chrome"})
+
+
 def _validateTransport(*, http_version: str, force_http1: bool, disable_http3: bool,
                        proxy: str | None, client_identifier: str, keep_alpn: bool = False,
                        udp_proxy: str | None = None, alpn: Sequence[str] | None = None) -> dict[str, bool]:
@@ -646,7 +667,7 @@ def _validateTransport(*, http_version: str, force_http1: bool, disable_http3: b
     _checkProtocol(http_version=httpVer, force_http1=force_http1, disable_http3=disable_http3, keep_alpn=keep_alpn,
                    udp_proxy=udp_proxy, proxy=proxy, alpn=alpn)
     racing = httpVer == "3"
-    if racing and client_identifier in {"chrome_152", "chrome_152_PSK", "chrome_150", "chrome_150_PSK"}:
+    if racing and client_identifier not in _HTTP3_PROFILES:
         _warn("this profile has no browser-specific HTTP/3 settings; using library defaults")
     if httpVer == "2" and client_identifier.startswith("chrome_133"):
         _warn("HTTP/2-only selection may alter this profile's ALPN fingerprint")
@@ -654,12 +675,18 @@ def _validateTransport(*, http_version: str, force_http1: bool, disable_http3: b
             "withProtocolRacing": racing}
 
 
+_NEVER_OMITTED = frozenset({"host", "content-length", "transfer-encoding", "cookie"})
+_TOKEN = re.compile(r"[!#$%&'*+\-.^_`|~0-9A-Za-z]+")  # RFC 9110 field name
+_BAD_FIELD_VALUE = re.compile(r"[\x00-\x08\x0a-\x1f\x7f]")  # control characters (HTAB allowed)
+
+
 def _encodeBody(*, data: Any, jsonBody: Any, files: Any, headers: dict[str, str],
-                okhttp: bool = False) -> tuple[str | None, bool]:
+                okhttp: bool = False, rawType: bool = True) -> tuple[str | None, bool]:
     """Returns (body, isByteRequest); mutates headers to add a matching Content-Type.
 
     okhttp style: raw bytes get no implicit Content-Type (an okhttp RequestBody
-    without a MediaType sends none); pass Content-Type to match the app."""
+    without a MediaType sends none); pass Content-Type to match the app. rawType=False
+    (Content-Type: None) drops the octet-stream default, which requests never adds."""
     if files is not None:
         bodyBytes, contentType = encode_multipart(data if isinstance(data, (dict, list, tuple)) else None, files)
         headers.setdefault("Content-Type", contentType)
@@ -669,7 +696,7 @@ def _encodeBody(*, data: Any, jsonBody: Any, files: Any, headers: dict[str, str]
         return json.dumps(jsonBody, separators=(",", ":")), False
     if data is not None:
         if isinstance(data, bytes):
-            if not okhttp: headers.setdefault("Content-Type", "application/octet-stream")
+            if not okhttp and rawType: headers.setdefault("Content-Type", "application/octet-stream")
             return base64.b64encode(data).decode(), True
         if isinstance(data, (dict, list, tuple)):
             headers.setdefault("Content-Type", "application/x-www-form-urlencoded")
@@ -722,29 +749,63 @@ def _buildPayload(sessionId: str, *, method: str, url: str, params: Any, headers
 def _parseResponse(result: dict[str, Any], requestUrl: str, elapsed: float) -> Response:
     encoded = result.get("body") or ""
     if encoded.startswith("data:") and ";base64," in encoded: encoded = encoded.split(";base64,", 1)[1]
+    history = [_historyResponse(item) for item in result.get("history") or ()]
     return Response(int(result.get("status", 0)), result.get("headers") or {},
                     result.get("cookies") or {}, base64.b64decode(encoded),
-                    result.get("target", requestUrl), result.get("usedProtocol", ""), [], elapsed)
+                    result.get("target", requestUrl), result.get("usedProtocol", ""), history, elapsed)
 
 
-# numeric curve ids -> upstream mapper names (mapper.go curves map)
-_CURVE_NAMES = {29: "X25519", 23: "P256", 24: "P384", 31: "P521", 4588: "X25519MLKEM768",
-    10794: "X25519MLKEM768", 4587: "X25519Kyber768", 4586: "X25519Kyber512D",
-    25497: "X25519MLKEM768", 0x0A0A: "GREASE"}
-# numeric TLS versions -> upstream mapper names
-_VERSION_NAMES = {772: "1.3", 771: "1.2", 770: "1.1", 769: "1.0", 0x0A0A: "GREASE"}
+def _historyResponse(item: dict[str, Any]) -> Response:
+    """One followed redirect: status, headers, its Set-Cookie values and body (``b""``
+    when the body was larger than 64 KiB)."""
+    body = item.get("body")
+    response = Response(int(item.get("status", 0)), item.get("headers") or {}, item.get("cookies") or {},
+                        base64.b64decode(body) if body else b"", item.get("url", ""),
+                        item.get("usedProtocol", ""), [], float(item.get("elapsed") or 0.0))
+    response._method = item.get("method")
+    return response
+
+
+# IANA ids -> upstream mapper names (tls-client mapper.go; utls u_common.go for the
+# Kyber drafts). The mapper silently skips names it does not know, so unknown values
+# are rejected here instead of disappearing from the hello.
+_CURVE_NAMES = {23: "P256", 24: "P384", 25: "P521", 29: "X25519", 4588: "X25519MLKEM768",
+    0x6399: "X25519Kyber768", 0xFE30: "X25519Kyber512D", 0xFE31: "X25519Kyber768Old",
+    0xFE32: "P256Kyber768"}
+_VERSION_NAMES = {772: "1.3", 771: "1.2", 770: "1.1", 769: "1.0"}
+_CERT_COMPRESSION_NAMES = {1: "zlib", 2: "brotli", 3: "zstd"}  # RFC 8879
+
+
+def _isGrease(value: int) -> bool:
+    return value & 0x0F0F == 0x0A0A and value >> 8 == value & 0xFF  # RFC 8701
+
+
+def _mapperName(option: str, value: Any, names: dict[int, str]) -> str:
+    """One value of a custom-JA3 list option as the upstream mapper name: the name
+    itself, or the numeric id (int, decimal or 0x-hex string); GREASE values -> GREASE."""
+    known = set(names.values())
+    if option != "cert_compression_algos": known.add("GREASE")
+    number = None
+    if isinstance(value, int) and not isinstance(value, bool):
+        number = value
+    elif isinstance(value, str):
+        if value in known: return value
+        text = value.strip()
+        try: number = int(text, 16) if text.lower().startswith("0x") else int(text) if text.isdigit() else None
+        except ValueError: number = None
+    if number is not None:
+        if option != "cert_compression_algos" and 0 <= number <= 0xFFFF and _isGrease(number): return "GREASE"
+        if number in names: return names[number]
+    raise SessionConfigurationError(
+        f"{option}: unsupported value {value!r}; use one of {', '.join(sorted(known))} or its numeric id")
+
 
 def _normalizeCurveName(value):
-    if isinstance(value, str): return value
-    if not isinstance(value, int): return str(value)
-    if value in _CURVE_NAMES: return _CURVE_NAMES[value]
-    return "%x" % value
+    return _mapperName("key_share_curves", value, _CURVE_NAMES)
+
 
 def _normalizeVersionName(value):
-    if isinstance(value, str): return value
-    if not isinstance(value, int): return str(value)
-    if value in _VERSION_NAMES: return _VERSION_NAMES[value]
-    return "%x" % value
+    return _mapperName("supported_versions", value, _VERSION_NAMES)
 
 def _normalizeHexU16(value):
     # upstream ja3.go: strconv.ParseUint(s, 16, 16) — hex WITHOUT 0x prefix.
@@ -884,14 +945,17 @@ class _Core:
         customData = {"ja3String": ja3_string, "supportedSignatureAlgorithms": sigAlgs,
             "keyShareCurves": keyShareCurves, "supportedVersions": supportedVersions,
             "alpnProtocols": alpn_protocols, "alpsProtocols": alps_protocols,
-            "certCompressionAlgos": cert_compression_algos, "trustAnchorsPayload": trust_anchors_payload,
+            "certCompressionAlgos": [_mapperName("cert_compression_algos", v, _CERT_COMPRESSION_NAMES)
+                                     for v in cert_compression_algos] if cert_compression_algos is not None else None,
+            "trustAnchorsPayload": trust_anchors_payload,
             "h2Settings": h2_settings, "h2SettingsOrder": h2_settings_order, "connectionFlow": connection_flow,
             "pseudoHeaderOrder": pseudo_header_order, "priorityFrames": priority_frames, "headerPriority": header_priority}
         customData = {key: value for key, value in customData.items() if value is not None and value != 0}
         if ja3_string:
             if client_identifier is not None: raise SessionConfigurationError("ja3_string cannot be combined with client_identifier")
-            # only add Chrome-default filler when explicitly asked; False = raw ja3 as-is
-            if fill_custom_with_chrome_defaults: customData["fillCustomWithChromeDefaults"] = True
+            # what the ja3 and the explicit options leave open (extension contents, HTTP/2,
+            # HTTP/3) comes from this Chrome profile; False = generic values only
+            if fill_custom_with_chrome_defaults: customData["chromeDefaultsProfile"] = Profiles.LATEST_CHROME
             if self.tls_extension_order: customData["tlsExtensionOrder"] = self.tls_extension_order
             if self.ech_config_list is not None:
                 customData["echConfigList"] = base64.b64encode(self.ech_config_list).decode("ascii")
@@ -963,8 +1027,22 @@ class _Core:
         requestProxy = proxy if proxy is not None else self.proxy
         merged = Headers(self.headers)
         if headers: merged.update(headers)
+        # None removes a header (requests semantics), also one the transport would add
+        removed = [key.lower() for key, value in merged.items() if value is None]
+        for key in removed: del merged[key]
+        for key, value in merged.items():
+            # rejected here rather than by the transport: a failed request would cost the
+            # session its connections and send a replayable request out again
+            if (isinstance(key, str) and not _TOKEN.fullmatch(key)) or (isinstance(value, str) and _BAD_FIELD_VALUE.search(value)):
+                raise InvalidRequestError(f"invalid header {key!r}: field names must be tokens "
+                                          "and values must not contain control characters",
+                                          kind="invalid_request", method=method.upper(), url=_safeUrl(url))
         body, byteRequest = _encodeBody(data=data, jsonBody=json, files=files, headers=merged,
-                                        okhttp=self.header_style == "okhttp")
+                                        okhttp=self.header_style == "okhttp",
+                                        rawType="content-type" not in removed)
+        # as in requests, the body still sets its Content-Type, the jar its cookies, and
+        # Host / Content-Length are always sent; invalid names were never sent anyway
+        omitted = [key for key in removed if key not in merged and key not in _NEVER_OMITTED and _TOKEN.fullmatch(key)]
         # explicit per-request cookies: sent to this URL in place of same-name jar cookies,
         # never stored unless the server sets them (jar cookies are selected natively per hop)
         explicitCookies: dict[str, str] = {}
@@ -986,6 +1064,9 @@ class _Core:
                                 header_style=self.header_style, keep_alpn=self.keep_alpn)
         payload["requestId"] = handle.id
         if _version(self.http_version) == "2": payload["requireProtocol"] = "h2"
+        if self._h3Identity() in _H2_PRIORITY_PROFILES and self.header_style != "okhttp" and "priority" not in omitted:
+            payload["h2Headers"] = [["priority", "u=0, i"]]
+        if omitted: payload["omitHeaders"] = omitted
         payload["jar"] = self.cookies._snapshot()
         if stream: payload["stream"] = True
         if limit is not None: payload["maxBodyBytes"] = int(limit)
@@ -1026,8 +1107,12 @@ class _Core:
         request moves to a worker) so that errors and warnings point at the caller."""
         return _validateTransport(http_version=self.http_version, force_http1=self.force_http1,
                                   disable_http3=self.disable_http3, proxy=self.proxy if proxy is None else proxy,
-                                  client_identifier=self.client_identifier, keep_alpn=self.keep_alpn,
+                                  client_identifier=self._h3Identity(), keep_alpn=self.keep_alpn,
                                   udp_proxy=self.udp_proxy, alpn=(self.custom or {}).get("alpnProtocols"))
+
+    def _h3Identity(self) -> str:
+        if self.custom is None: return self.client_identifier
+        return "*chrome" if self.custom.get("chromeDefaultsProfile") else ""
 
     def _syncRequest(self, method: str, url: str, **kwargs: Any) -> Response:
         kwargs["_flags"] = self._flags(kwargs.get("proxy"))

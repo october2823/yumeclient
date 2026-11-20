@@ -17,6 +17,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.24.x"
+      - name: patched upstream modules match upstream + native/third_party/patches
+        run: python scripts/third_party.py check
       - if: runner.os == 'Windows'
         shell: pwsh
         run: ./scripts/build-native.ps1

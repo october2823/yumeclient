@@ -1,0 +1,471 @@
+# github.com/bogdanfinn/fhttp v0.6.9
+diff --git a/http2/client_conn_pool.go b/http2/client_conn_pool.go
+--- a/http2/client_conn_pool.go
++++ b/http2/client_conn_pool.go
+@@ -7,6 +7,8 @@
+ package http2
+ 
+ import (
++	"context"
++	"errors"
+ 	"sync"
+ 
+ 	tls "github.com/bogdanfinn/utls"
+@@ -80,49 +82,74 @@
+ 		// It gets its own connection.
+ 		traceGetConn(req, addr)
+ 		const singleUse = true
+-		cc, err := p.t.dialClientConn(addr, singleUse)
++		cc, err := p.t.dialClientConn(req.Context(), addr, singleUse)
+ 		if err != nil {
+ 			return nil, err
+ 		}
+ 		return cc, nil
+ 	}
+-	p.mu.Lock()
+-	for _, cc := range p.conns[addr] {
+-		if st := cc.idleState(); st.canTakeNewRequest {
+-			if p.shouldTraceGetConn(st) {
+-				traceGetConn(req, addr)
++	for {
++		p.mu.Lock()
++		for _, cc := range p.conns[addr] {
++			if st := cc.idleState(); st.canTakeNewRequest {
++				if p.shouldTraceGetConn(st) {
++					traceGetConn(req, addr)
++				}
++				p.mu.Unlock()
++				return cc, nil
+ 			}
++		}
++		if !dialOnMiss {
+ 			p.mu.Unlock()
+-			return cc, nil
+-		}
+-	}
+-	if !dialOnMiss {
++			return nil, ErrNoCachedConn
++		}
++		traceGetConn(req, addr)
++		// yumeclient: the dial runs with the context of the request that started it
++		// (as in current x/net); requests that joined it retry when it failed only
++		// because that request was cancelled, and stop waiting when they are
++		call := p.getStartDialLocked(req.Context(), addr)
+ 		p.mu.Unlock()
+-		return nil, ErrNoCachedConn
+-	}
+-	traceGetConn(req, addr)
+-	call := p.getStartDialLocked(addr)
+-	p.mu.Unlock()
+-	<-call.done
+-	return call.res, call.err
++		select {
++		case <-call.done:
++		case <-req.Context().Done():
++			return nil, req.Context().Err()
++		}
++		if shouldRetryDial(call, req) {
++			continue
++		}
++		return call.res, call.err
++	}
++}
++
++// shouldRetryDial reports whether req should dial again after joining a dial
++// that failed because the request that started it was cancelled.
++func shouldRetryDial(call *dialCall, req *http.Request) bool {
++	if call.err == nil || call.ctx == req.Context() {
++		return false
++	}
++	if !errors.Is(call.err, context.Canceled) && !errors.Is(call.err, context.DeadlineExceeded) {
++		return false
++	}
++	return call.ctx.Err() != nil && req.Context().Err() == nil
+ }
+ 
+ // dialCall is an in-flight Transport dial call to a host.
+ type dialCall struct {
+ 	_    incomparable
+ 	p    *clientConnPool
+-	done chan struct{} // closed when done
+-	res  *ClientConn   // valid after done is closed
+-	err  error         // valid after done is closed
++	ctx  context.Context // context of the request that started the dial
++	done chan struct{}   // closed when done
++	res  *ClientConn     // valid after done is closed
++	err  error           // valid after done is closed
+ }
+ 
+ // requires p.mu is held.
+-func (p *clientConnPool) getStartDialLocked(addr string) *dialCall {
++func (p *clientConnPool) getStartDialLocked(ctx context.Context, addr string) *dialCall {
+ 	if call, ok := p.dialing[addr]; ok {
+ 		// A dial is already in-flight. Don't start another.
+ 		return call
+ 	}
+-	call := &dialCall{p: p, done: make(chan struct{})}
++	call := &dialCall{p: p, ctx: ctx, done: make(chan struct{})}
+ 	if p.dialing == nil {
+ 		p.dialing = make(map[string]*dialCall)
+ 	}
+@@ -134,8 +161,7 @@
+ // run in its own goroutine.
+ func (c *dialCall) dial(addr string) {
+ 	const singleUse = false // shared conn
+-	c.res, c.err = c.p.t.dialClientConn(addr, singleUse)
+-	close(c.done)
++	c.res, c.err = c.p.t.dialClientConn(c.ctx, addr, singleUse)
+ 
+ 	c.p.mu.Lock()
+ 	delete(c.p.dialing, addr)
+@@ -143,6 +169,9 @@
+ 		c.p.addConnLocked(addr, c.res)
+ 	}
+ 	c.p.mu.Unlock()
++	// yumeclient: after the delete (as x/net), so a waiter that retries starts a
++	// new dial instead of joining this finished one again
++	close(c.done)
+ }
+ 
+ // addConnIfNeeded makes a NewClientConn out of c if a connection for key doesn't
+diff --git a/http2/transport.go b/http2/transport.go
+--- a/http2/transport.go
++++ b/http2/transport.go
+@@ -81,6 +81,11 @@
+ 	// it will be used to set http.Response.TLS.
+ 	DialTLS func(network, addr string, cfg *tls.Config) (net.Conn, error)
+ 
++	// DialTLSContext, when set, is used instead of DialTLS with the context of
++	// the request that caused the dial (yumeclient: cancellation, deadlines and
++	// request tracing reach connections dialed after the first one).
++	DialTLSContext func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error)
++
+ 	// DisableCompression, if true, prevents the Transport from
+ 	// requesting compression with an "Accept-Encoding: gzip"
+ 	// request header when the Request contains no existing
+@@ -677,12 +682,17 @@
+ 	return false
+ }
+ 
+-func (t *Transport) dialClientConn(addr string, singleUse bool) (*ClientConn, error) {
++func (t *Transport) dialClientConn(ctx context.Context, addr string, singleUse bool) (*ClientConn, error) {
+ 	host, _, err := net.SplitHostPort(addr)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	tconn, err := t.dialTLS()("tcp", addr, t.newTLSConfig(host))
++	var tconn net.Conn
++	if t.DialTLSContext != nil {
++		tconn, err = t.DialTLSContext(ctx, "tcp", addr, t.newTLSConfig(host))
++	} else {
++		tconn, err = t.dialTLS()("tcp", addr, t.newTLSConfig(host))
++	}
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -1163,18 +1173,28 @@
+ 	return 0
+ }
+ 
++// RequestHeaderError reports a request header HTTP/2 cannot carry. The request
++// was refused before anything was written: the connection stays usable.
++type RequestHeaderError struct{ msg string }
++
++func (e *RequestHeaderError) Error() string { return e.msg }
++
++func requestHeaderError(format string, args ...any) error {
++	return &RequestHeaderError{msg: fmt.Sprintf(format, args...)}
++}
++
+ // checkConnHeaders checks whether req has any invalid connection-level headers.
+ // per RFC 7540 section 8.1.2.2: Connection-Specific Header Fields.
+ // Certain headers are special-cased as okay but not transmitted later.
+ func checkConnHeaders(req *http.Request) error {
+ 	if v := req.Header.Get("Upgrade"); v != "" {
+-		return fmt.Errorf("http2: invalid Upgrade request header: %q", req.Header["Upgrade"])
++		return requestHeaderError("http2: invalid Upgrade request header: %q", req.Header["Upgrade"])
+ 	}
+ 	if vv := req.Header["Transfer-Encoding"]; len(vv) > 0 && (len(vv) > 1 || vv[0] != "" && vv[0] != "chunked") {
+-		return fmt.Errorf("http2: invalid Transfer-Encoding request header: %q", vv)
++		return requestHeaderError("http2: invalid Transfer-Encoding request header: %q", vv)
+ 	}
+ 	if vv := req.Header["Connection"]; len(vv) > 0 && (len(vv) > 1 || vv[0] != "" && !strings.EqualFold(vv[0], "close") && !strings.EqualFold(vv[0], "keep-alive")) {
+-		return fmt.Errorf("http2: invalid Connection request header: %q", vv)
++		return requestHeaderError("http2: invalid Connection request header: %q", vv)
+ 	}
+ 
+ 	return nil
+@@ -1468,7 +1488,10 @@
+ 
+ func (cc *ClientConn) requestGzip(req *http.Request) bool {
+ 	// TODO(bradfitz): this is a copy of the logic in net/http. Unify somewhere?
++	// yumeclient: an Accept-Encoding key without values means "omit", no default either
++	_, omitAE := req.Header["Accept-Encoding"]
+ 	if !cc.t.disableCompression() &&
++		!omitAE &&
+ 		req.Header.Get("Accept-Encoding") == "" &&
+ 		req.Header.Get("Range") == "" &&
+ 		req.Method != "HEAD" {
+@@ -1707,6 +1730,16 @@
+ }
+ 
+ // requires cc.mu be held.
++// extraHeadersKey: see WithExtraHeaders (yumeclient).
++type extraHeadersKey struct{}
++
++// WithExtraHeaders returns a context whose HTTP/2 requests also carry the given
++// lowercase header fields (after the request's own) unless the request sets them.
++// HTTP/1.1 and HTTP/3 ignore it. (yumeclient)
++func WithExtraHeaders(ctx context.Context, fields [][2]string) context.Context {
++	return context.WithValue(ctx, extraHeadersKey{}, fields)
++}
++
+ func (cc *ClientConn) encodeHeaders(req *http.Request, addGzipHeader bool, trailers string, contentLength int64) ([]byte, error) {
+ 	cc.hbuf.Reset()
+ 
+@@ -1746,11 +1779,11 @@
+ 				continue
+ 			}
+ 
+-			return nil, fmt.Errorf("invalid HTTP header name %q", k)
++			return nil, requestHeaderError("invalid HTTP header name %q", k)
+ 		}
+ 		for _, v := range vv {
+ 			if !httpguts.ValidHeaderFieldValue(v) {
+-				return nil, fmt.Errorf("invalid HTTP header value %q for header %q", v, k)
++				return nil, requestHeaderError("invalid HTTP header value %q for header %q", v, k)
+ 			}
+ 		}
+ 	}
+@@ -1843,6 +1876,11 @@
+ 				// for skip auto headers
+ 				// header["User-Agent"] = make([]string, 0)
+ 				// header["User-Agent"] = []string{}
++				if strings.EqualFold(kv.Key, "user-agent") {
++					// yumeclient: an empty User-Agent key means "send none", as in
++					// HTTP/1.1; without this the default below was still added
++					didUA = true
++				}
+ 				continue
+ 			} else if strings.EqualFold(kv.Key, "host") {
+ 				// Host is :authority, already sent.
+@@ -1899,6 +1937,23 @@
+ 			}
+ 		}
+ 
++		// yumeclient: headers a browser sends only over HTTP/2 (Chrome's
++		// "priority"), appended unless the request already has them
++		if extra, ok := req.Context().Value(extraHeadersKey{}).([][2]string); ok {
++			for _, kv := range extra {
++				present := false
++				for k := range hdrs {
++					if strings.EqualFold(k, kv[0]) {
++						present = true
++						break
++					}
++				}
++				if !present {
++					f(kv[0], kv[1])
++				}
++			}
++		}
++
+ 		if !didUA {
+ 			f("user-agent", defaultUserAgent)
+ 		}
+diff --git a/transport.go b/transport.go
+--- a/transport.go
++++ b/transport.go
+@@ -11,7 +11,6 @@
+ 
+ import (
+ 	"bufio"
+-	"bytes"
+ 	"compress/zlib"
+ 	"container/list"
+ 	"context"
+@@ -2547,7 +2546,10 @@
+ 	// requested it.
+ 
+ 	requestedGzip := false
++	// yumeclient: an Accept-Encoding key without values means "omit", no default either
++	_, omitAE := req.Header["Accept-Encoding"]
+ 	if !pc.t.DisableCompression &&
++		!omitAE &&
+ 		req.Header.Get("Accept-Encoding") == "" &&
+ 		req.Header.get("accept-encoding") == "" &&
+ 		req.Header.Get("Range") == "" &&
+@@ -2880,6 +2882,36 @@
+ 	return DecompressBodyByType(res.Body, ce)
+ }
+ 
++// ReplaceCompressedBody (yumeclient): if rc is a decompressing reader returned by
++// DecompressBodyByType and not read yet, it reads from f(body) instead of body, and
++// the result is true. A caller can then close the transport body itself, which is
++// safe during a Read (closing a zstd decoder during a Read is not).
++func ReplaceCompressedBody(rc io.ReadCloser, f func(io.ReadCloser) io.ReadCloser) bool {
++	switch r := rc.(type) {
++	case *gzipReader:
++		if r.zr == nil && r.zerr == nil {
++			r.body = f(r.body)
++			return true
++		}
++	case *brReader:
++		if r.zr == nil && r.zerr == nil {
++			r.body = f(r.body)
++			return true
++		}
++	case *zstdReader:
++		if r.zr == nil && r.zerr == nil {
++			r.body = f(r.body)
++			return true
++		}
++	case *deflateReader:
++		if r.r == nil && r.err == nil {
++			r.body = f(r.body)
++			return true
++		}
++	}
++	return false
++}
++
+ func DecompressBodyByType(body io.ReadCloser, contentType string) io.ReadCloser {
+ 	switch contentType {
+ 	case "gzip":
+@@ -2891,7 +2923,7 @@
+ 			body: body,
+ 		}
+ 	case "deflate":
+-		return identifyDeflate(body)
++		return &deflateReader{body: body}
+ 	case "zstd":
+ 		return &zstdReader{
+ 			body: body,
+@@ -2999,35 +3031,14 @@
+ 	return br.body.Close()
+ }
+ 
+-type zlibDeflateReader struct {
+-	_    incomparable
+-	body io.ReadCloser
+-	zr   io.ReadCloser
+-	err  error
+-}
+-
+-func (z *zlibDeflateReader) Read(p []byte) (n int, err error) {
+-	if z.err != nil {
+-		return 0, z.err
+-	}
+-	if z.zr == nil {
+-		z.zr, err = zlib.NewReader(z.body)
+-		if err != nil {
+-			z.err = err
+-			return 0, z.err
+-		}
+-	}
+-	return z.zr.Read(p)
+-}
+-
+-func (z *zlibDeflateReader) Close() error {
+-	return z.zr.Close()
+-}
+-
++// deflateReader (yumeclient): Content-Encoding deflate, zlib-wrapped (RFC 1950) or
++// raw (RFC 1951, sent by some servers), told apart on the first Read. Upstream read
++// the whole body as soon as the response arrived: inside the HTTP/1.1 read loop that
++// deadlocked (the body's EOF waits for that loop), and it bypassed size limits.
+ type deflateReader struct {
+ 	_    incomparable
+ 	body io.ReadCloser
+-	r    io.ReadCloser
++	r    io.Reader // zlib or flate reader, set on the first Read
+ 	err  error
+ }
+ 
+@@ -3036,13 +3047,30 @@
+ 		return 0, dr.err
+ 	}
+ 	if dr.r == nil {
+-		dr.r = flate.NewReader(dr.body)
++		br := bufio.NewReader(dr.body)
++		head, _ := br.Peek(2)
++		switch {
++		case len(head) < 2:
++			dr.r = br // empty or truncated: as received
++		case head[0]&0x0f == 8 && (uint16(head[0])<<8|uint16(head[1]))%31 == 0:
++			zr, err := zlib.NewReader(br)
++			if err != nil {
++				dr.err = err
++				return 0, err
++			}
++			dr.r = zr
++		default:
++			dr.r = flate.NewReader(br)
++		}
+ 	}
+ 	return dr.r.Read(p)
+ }
+ 
+ func (dr *deflateReader) Close() error {
+-	return dr.r.Close()
++	if c, ok := dr.r.(io.Closer); ok {
++		_ = c.Close() // the decompressor only; it does not close the body
++	}
++	return dr.body.Close()
+ }
+ 
+ // zstdReader wraps a response body so it can lazily
+@@ -3068,47 +3096,12 @@
+ }
+ 
+ func (zs *zstdReader) Close() error {
++	// yumeclient: the body first. The decoder's goroutine may be blocked reading it,
++	// and zstd.Decoder.Close waits for that goroutine (upstream closed it second: a
++	// close during a stalled body hung)
++	err := zs.body.Close()
+ 	if zs.zr != nil {
+ 		zs.zr.Close() // zs.zr.Close() does not return a value, hence it's not checked for an error
+ 	}
+-
+-	// Close body and return error
+-	return zs.body.Close()
+-}
+-
+-const (
+-	zlibMethodDeflate = 0x78
+-	zlibLevelDefault  = 0x9C
+-	zlibLevelLow      = 0x01
+-	zlibLevelMedium   = 0x5E
+-	zlibLevelBest     = 0xDA
+-)
+-
+-func identifyDeflate(body io.ReadCloser) io.ReadCloser {
+-	var header [2]byte
+-	_, err := io.ReadFull(body, header[:])
+-	if err != nil {
+-		return body
+-	}
+-
+-	if header[0] == zlibMethodDeflate &&
+-		(header[1] == zlibLevelDefault || header[1] == zlibLevelLow || header[1] == zlibLevelMedium || header[1] == zlibLevelBest) {
+-		return &zlibDeflateReader{
+-			body: prependBytesToReadCloser(header[:], body),
+-		}
+-	} else if header[0] == zlibMethodDeflate {
+-		return &deflateReader{
+-			body: prependBytesToReadCloser(header[:], body),
+-		}
+-	}
+-	return body
+-}
+-
+-func prependBytesToReadCloser(b []byte, r io.ReadCloser) io.ReadCloser {
+-	w := new(bytes.Buffer)
+-	w.Write(b)
+-	io.Copy(w, r)
+-	defer r.Close()
+-
+-	return io.NopCloser(w)
+-}
++	return err
++}
