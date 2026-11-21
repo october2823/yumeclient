@@ -16,7 +16,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 REPO_URL = re.compile(r"https://github\.com/october2823/yumeclient/(?:blob|tree)/main/(.*)")
 CYRILLIC = re.compile(r"[А-Яа-яЁё]")
-ROOT_PAGES = ("README", "USAGE", "CHANGELOG", "CONTRIBUTING", "SECURITY")
+ROOT_PAGES = ("README", "USAGE", "CHANGELOG", "CONTRIBUTING", "SECURITY", "CODE_OF_CONDUCT", "ACCESSIBILITY")
 
 
 def _pairs() -> list[tuple[Path, Path]]:

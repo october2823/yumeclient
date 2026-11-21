@@ -3,7 +3,8 @@
 **English** | [Русский](CONTRIBUTING.ru.md)
 
 Bug reports, fingerprint captures and pull requests are welcome. Write in English or Russian.
-Vulnerabilities are reported privately, see [SECURITY.md](SECURITY.md).
+Vulnerabilities are reported privately, see [SECURITY.md](SECURITY.md). Everyone taking part
+follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Reporting a bug
 
