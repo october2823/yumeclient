@@ -45,7 +45,7 @@ profile = session.export_profile(include_fingerprint=True, include_secrets=False
 {
     "format": "yumeclient.profile",
     "version": 1,
-    "yumeclient": "0.8.2",
+    "yumeclient": "0.8.3",
     "transport": {                       # параметры, определяющие отпечаток
         "client_identifier": "chrome_146",
         "client_os": "windows",
@@ -160,7 +160,7 @@ trace = response.trace(redact=(), values=True, redact_query=True)
 
 ```python
 {
-    "format": "yumeclient.trace", "version": 1, "yumeclient": "0.8.2",
+    "format": "yumeclient.trace", "version": 1, "yumeclient": "0.8.3",
     "request_id": "16a39d51...", "elapsed": 0.058,
     "request": {
         "method": "GET",

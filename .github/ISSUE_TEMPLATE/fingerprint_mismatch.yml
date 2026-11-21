@@ -27,7 +27,7 @@ body:
     id: version
     attributes:
       label: yumeclient version / версия
-      placeholder: 0.8.2
+      placeholder: 0.8.3
     validations:
       required: true
   - type: textarea

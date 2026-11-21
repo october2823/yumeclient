@@ -52,7 +52,7 @@ __all__ = ["Session", "AsyncSession", "Response", "CookieJar", "Headers", "Profi
            "StreamClosed", "HTTPStatusError", "ProtocolError", "TooManyRedirects", "fingerprint_diff",
            "__version__"]
 
-__version__ = "0.8.2"
+__version__ = "0.8.3"
 
 
 class TLSClientError(RuntimeError): pass

@@ -6,7 +6,7 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.8.3] — 2026-11-21
 
 ### Added
 - `CODE_OF_CONDUCT.md`: the Contributor Covenant 2.1 (the Russian version is its official
@@ -856,7 +856,7 @@ and versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html
   a cgo c-shared adapter, upstream profiles, CookieJar, multipart encoder, CI (tests on
   three OSes + release wheels for py3.11–3.14).
 
-[Unreleased]: https://github.com/october2823/yumeclient/compare/v0.8.2...HEAD
+[0.8.3]: https://github.com/october2823/yumeclient/releases/tag/v0.8.3
 [0.8.2]: https://github.com/october2823/yumeclient/releases/tag/v0.8.2
 [0.8.1]: https://github.com/october2823/yumeclient/releases/tag/v0.8.1
 [0.8.0]: https://github.com/october2823/yumeclient/releases/tag/v0.8.0

@@ -6,7 +6,7 @@
 Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версионирование — [Semantic Versioning](https://semver.org/lang/ru/).
 
-## [Unreleased]
+## [0.8.3] — 2026-11-21
 
 ### Added
 - `CODE_OF_CONDUCT.md`: Contributor Covenant 2.1 (русская версия — его официальный перевод).
@@ -843,7 +843,7 @@
   профили upstream, CookieJar, multipart encoder, CI (тесты на
   трёх ОС + релизные wheels для py3.11–3.14).
 
-[Unreleased]: https://github.com/october2823/yumeclient/compare/v0.8.2...HEAD
+[0.8.3]: https://github.com/october2823/yumeclient/releases/tag/v0.8.3
 [0.8.2]: https://github.com/october2823/yumeclient/releases/tag/v0.8.2
 [0.8.1]: https://github.com/october2823/yumeclient/releases/tag/v0.8.1
 [0.8.0]: https://github.com/october2823/yumeclient/releases/tag/v0.8.0
