@@ -1,8 +1,10 @@
-# Сессии
+# Sessions
 
-Сессия — это профиль клиента (TLS, HTTP/2, HTTP/3, заголовки), пул соединений, cookie jar и
-набор параметров по умолчанию. Запросы одной сессии переиспользуют соединения и cookie, как
-вкладки одного браузера.
+**English** | [Русский](ru/sessions.md)
+
+A session is a client profile (TLS, HTTP/2, HTTP/3, headers), a connection pool, a cookie jar
+and a set of default parameters. Requests in one session reuse connections and cookies, like
+tabs of one browser.
 
 ```python
 from yumeclient import Session, AsyncSession
@@ -16,83 +18,84 @@ async def main():
         r = await s.get("https://httpbin.org/get")
 ```
 
-## Session и AsyncSession
+## Session and AsyncSession
 
 | | `Session` | `AsyncSession` |
 |---|---|---|
-| Вызов | `r = s.get(url)` | `r = await s.get(url)` |
-| Контекст | `with Session() as s:` | `async with AsyncSession() as s:` |
-| Параллельность | потоки (`concurrent.futures`) | `asyncio.gather`, `TaskGroup` |
-| Где выполняется | в вызывающем потоке | общий пул потоков, `AsyncSession.configure_executor(n)` |
-| Закрытие | `s.close(grace=5.0)` | `await s.close(grace=5.0)` |
-| Сброс соединений | `s.reset_connection()` | `await s.reset_connection()` |
+| Call | `r = s.get(url)` | `r = await s.get(url)` |
+| Context manager | `with Session() as s:` | `async with AsyncSession() as s:` |
+| Concurrency | threads (`concurrent.futures`) | `asyncio.gather`, `TaskGroup` |
+| Where it runs | in the calling thread | a shared thread pool, `AsyncSession.configure_executor(n)` |
+| Closing | `s.close(grace=5.0)` | `await s.close(grace=5.0)` |
+| Resetting connections | `s.reset_connection()` | `await s.reset_connection()` |
 
-Оба класса — фасады одного движка: параметры, заголовки, cookie и поведение транспорта
-одинаковы. В asyncio-коде используйте только `AsyncSession`: синхронный `Session`
-заблокирует event loop на время запроса.
+Both classes are facades over the same engine: parameters, headers, cookies and transport
+behavior are the same. In asyncio code use only `AsyncSession`: a sync `Session` blocks the
+event loop for the duration of the request.
 
-Методы обоих классов: `request(method, url, **kwargs)`, `get`, `head`, `post`, `put`, `patch`,
-`delete`, `options`. Параметры запроса — в [Запросы](requests.md).
+Methods of both classes: `request(method, url, **kwargs)`, `get`, `head`, `post`, `put`,
+`patch`, `delete`, `options`. Request parameters are in [Requests](requests.md).
 
-`Session` потокобезопасна: одну сессию можно использовать из нескольких потоков, запросы
-идут параллельно по общему пулу соединений.
+`Session` is thread-safe: one session can be used from several threads, and requests run in
+parallel over a shared connection pool.
 
-## Параметры конструктора
+## Constructor parameters
 
-Все параметры именованные. Значения по умолчанию подобраны так, чтобы сессия выглядела как
-актуальный Chrome на Windows.
+All parameters are keyword-only. The defaults are chosen so that the session looks like a
+current Chrome on Windows.
 
-### Профиль и заголовки
+### Profile and headers
 
-| Параметр | По умолчанию | Описание |
+| Parameter | Default | Description |
 |---|---|---|
-| `client_identifier` | `"chrome_152"` | профиль клиента: TLS ClientHello, HTTP/2, HTTP/3, базовые заголовки. Список — [Профили](profiles.md) |
-| `client_os` | из профиля | `"windows"`, `"macos"`, `"android"`, `"ios"`. Меняет только базовые заголовки (User-Agent, client hints), не TLS |
-| `header_style` | из профиля | `"okhttp"` — HTTP-слой okhttp 4.x (по умолчанию у `okhttp4_*` и Conscrypt-профилей), `"raw"` — заголовки ровно как переданы |
-| `headers` | `None` | заголовки сессии: добавляются к базовым заголовкам профиля (`update`); заменить набор целиком — `s.headers = {...}` после создания |
-| `header_order` | `None` | порядок заголовков на проводе; по умолчанию — порядок вставки в `session.headers` |
-| `cookies` | `None` | начальные cookie: `dict`, список словарей (экспорт браузера) или `CookieJar` |
-| `random_tls_extension_order` | `True` | перемешивать расширения ClientHello для каждого соединения, как Chromium. На профили не-Chromium не действует; на `ja3_string` действует — см. [Свой TLS-отпечаток](custom-tls.md) |
+| `client_identifier` | `"chrome_152"` | client profile: TLS ClientHello, HTTP/2, HTTP/3, default headers. List in [Profiles](profiles.md) |
+| `client_os` | from the profile | `"windows"`, `"macos"`, `"android"`, `"ios"`. Changes only the default headers (User-Agent, client hints), not TLS |
+| `header_style` | from the profile | `"okhttp"`: the okhttp 4.x HTTP layer (the default for `okhttp4_*` and Conscrypt profiles); `"raw"`: headers exactly as passed |
+| `headers` | `None` | session headers: added to the profile's default headers (`update`); to replace the whole set, assign `s.headers = {...}` after creation |
+| `header_order` | `None` | header order on the wire; by default, the insertion order of `session.headers` |
+| `cookies` | `None` | initial cookies: a `dict`, a list of dicts (a browser export) or a `CookieJar` |
+| `random_tls_extension_order` | `True` | shuffle ClientHello extensions for each connection, like Chromium. Has no effect on non-Chromium profiles; does affect `ja3_string`, see [Custom TLS fingerprint](custom-tls.md) |
 
-### Протокол
+### Protocol
 
-| Параметр | По умолчанию | Описание |
+| Parameter | Default | Description |
 |---|---|---|
-| `http_version` | `"auto"` | `"auto"`, `"1.1"`, `"2"`, `"3"` (также `1`, `2`, `3`, `"h2"`, `"h3"`, `"quic"`). См. [Протоколы](protocols.md) |
-| `force_http1` | `False` | то же, что `http_version="1.1"` |
-| `keep_alpn` | `False` | с `http_version="1.1"`: оставить ALPN профиля (`h2,http/1.1`) в ClientHello |
-| `disable_http3` | `False` | запретить HTTP/3 |
-| `disable_session_tickets` | `False` | не возобновлять TLS-сессии (каждое соединение — полное рукопожатие) |
+| `http_version` | `"auto"` | `"auto"`, `"1.1"`, `"2"`, `"3"` (also `1`, `2`, `3`, `"h2"`, `"h3"`, `"quic"`). See [Protocols](protocols.md) |
+| `force_http1` | `False` | same as `http_version="1.1"` |
+| `keep_alpn` | `False` | with `http_version="1.1"`: keep the profile's ALPN (`h2,http/1.1`) in the ClientHello |
+| `disable_http3` | `False` | disallow HTTP/3 |
+| `disable_session_tickets` | `False` | do not resume TLS sessions (every connection does a full handshake) |
 
-### Сеть
+### Network
 
-| Параметр | По умолчанию | Описание |
+| Parameter | Default | Description |
 |---|---|---|
-| `proxy` | `None` | `http://`, `https://`, `socks5://`, `socks5h://`, `socks4://`, `socks4a://`, с `user:pass@`. См. [Прокси и сеть](proxies.md) |
-| `udp_proxy` | `None` | отдельный прокси для QUIC: `socks5://` или `socks5h://` |
-| `timeout` | `30` | число (лимит на весь обмен), `(connect, read)`, `TimeoutConfig` или `None`. См. [Таймауты](timeouts-and-errors.md) |
-| `verify` | `True` | проверять сертификат сервера |
-| `server_name_overwrite` | `None` | имя в SNI вместо хоста из URL; сертификат проверяется для этого имени |
-| `local_address` | `None` | локальный адрес исходящих соединений, `"IP:порт"` (порт `0` — любой) |
-| `max_content_size` | `None` | максимальный размер распакованного тела ответа в байтах (`ResponseTooLarge`) |
+| `proxy` | `None` | `http://`, `https://`, `socks5://`, `socks5h://`, `socks4://`, `socks4a://`, with `user:pass@`. See [Proxies and network](proxies.md) |
+| `udp_proxy` | `None` | a separate proxy for QUIC: `socks5://` or `socks5h://` |
+| `timeout` | `30` | a number (limit for the whole exchange), `(connect, read)`, `TimeoutConfig` or `None`. See [Timeouts](timeouts-and-errors.md) |
+| `verify` | `True` | verify the server certificate |
+| `server_name_overwrite` | `None` | name to send in SNI instead of the host from the URL; the certificate is verified for this name |
+| `local_address` | `None` | local address for outgoing connections, `"IP:port"` (port `0` means any) |
+| `max_content_size` | `None` | maximum size of the decompressed response body in bytes (`ResponseTooLarge`) |
 
-### Свой TLS-отпечаток
+### Custom TLS fingerprint
 
-Только вместе с `ja3_string` (и без `client_identifier`): `ja3_string`,
+Only together with `ja3_string` (and without `client_identifier`): `ja3_string`,
 `supported_signature_algorithms`, `supported_versions`,
 `key_share_curves`, `key_share_data`, `alpn_protocols`, `alps_protocols`,
 `cert_compression_algos`, `trust_anchors_payload`, `tls_extension_order`, `ech_config_list`,
 `grease`, `psk_mode`, `h2_settings`, `h2_settings_order`, `connection_flow`,
-`pseudo_header_order`, `priority_frames`, `header_priority`. Без `ja3_string` они дают
-`SessionConfigurationError`. `fill_custom_with_chrome_defaults` (по умолчанию `True`) без
-`ja3_string` просто не используется. Описание — в [Свой TLS-отпечаток](custom-tls.md).
+`pseudo_header_order`, `priority_frames`, `header_priority`. Without `ja3_string` they raise
+`SessionConfigurationError`. `fill_custom_with_chrome_defaults` (default `True`) is simply not
+used without `ja3_string`. Details in [Custom TLS fingerprint](custom-tls.md).
 
-### Проверка параметров
+### Parameter validation
 
-Параметры проверяются в конструкторе, до сети. Неизвестный профиль или ОС, противоречивые
-настройки протокола (`force_http1=True` с `http_version="2"`, `http_version="3"` с HTTP-прокси
-и т. п.), параметры custom JA3 без `ja3_string`, неверные значения — `SessionConfigurationError`
-(подкласс `ValueError`) с объяснением:
+Parameters are validated in the constructor, before any network activity. An unknown profile
+or OS, conflicting protocol settings (`force_http1=True` with `http_version="2"`,
+`http_version="3"` with an HTTP proxy, and so on), custom JA3 parameters without `ja3_string`,
+invalid values: all raise `SessionConfigurationError` (a subclass of `ValueError`) with an
+explanation:
 
 ```python
 from yumeclient import Session, SessionConfigurationError
@@ -103,73 +106,74 @@ except SessionConfigurationError as e:
     print(e)    # unknown client_identifier 'chrome_999'; did you mean: chrome_109, chrome_152, chrome_150
 ```
 
-## Что можно менять у живой сессии
+## What you can change on a live session
 
-Транспорт сессии фиксирован: профиль, протокол, прокси, TLS-параметры, таймаут по умолчанию.
-Присваивание такого атрибута — `AttributeError`, а не тихое игнорирование:
+The session transport is fixed: profile, protocol, proxy, TLS parameters, default timeout.
+Assigning such an attribute raises `AttributeError` instead of being silently ignored:
 
 ```python
 s = Session()
 s.proxy = "socks5://127.0.0.1:1080"   # AttributeError: proxy is fixed for the lifetime of a session
 ```
 
-Меняются свободно:
+These can be changed freely:
 
-- `s.headers` — словарь заголовков (`s.headers.update(...)`, `s.headers["X"] = ...`,
+- `s.headers`, the header dict (`s.headers.update(...)`, `s.headers["X"] = ...`,
   `del s.headers["X"]`, `s.headers = {...}`);
-- содержимое `s.cookies` (`CookieJar`).
+- the contents of `s.cookies` (`CookieJar`).
 
-Для другой конфигурации создайте новую сессию. Перенести идентичность (профиль, заголовки,
-TLS-параметры) в сессию с другим прокси —
-`Session.from_profile(s.export_profile(), proxy=...)`, см. [Диагностика](diagnostics.md).
+For a different configuration, create a new session. To move the identity (profile, headers,
+TLS parameters) into a session with a different proxy, use
+`Session.from_profile(s.export_profile(), proxy=...)`; see [Diagnostics](diagnostics.md).
 
-Отдельному запросу можно задать `proxy=`, `timeout=`, `headers=`, `cookies=`, `header_order=`,
-`allow_redirects=`, `stream=`, `max_content_size=`, `host_override=`. Запрос с `proxy=` идёт
-через отдельный нативный клиент со своим пулом соединений; профиль, заголовки и cookie —
-от сессии.
+A single request can be given `proxy=`, `timeout=`, `headers=`, `cookies=`, `header_order=`,
+`allow_redirects=`, `stream=`, `max_content_size=`, `host_override=`. A request with `proxy=`
+goes through a separate native client with its own connection pool; the profile, headers and
+cookies come from the session.
 
-## Свойства
+## Properties
 
-| Свойство | Тип | |
+| Property | Type | |
 |---|---|---|
-| `s.client_identifier` | `str` | профиль (`""` для `ja3_string`) |
-| `s.client_os` | `str` | ОС базовых заголовков |
-| `s.header_style` | `str` | `"okhttp"` или `"raw"` |
-| `s.headers` | `Headers` | заголовки сессии, регистронезависимый словарь |
-| `s.cookies` | `CookieJar` | cookie jar сессии |
+| `s.client_identifier` | `str` | profile (`""` for `ja3_string`) |
+| `s.client_os` | `str` | OS of the default headers |
+| `s.header_style` | `str` | `"okhttp"` or `"raw"` |
+| `s.headers` | `Headers` | session headers, a case-insensitive dict |
+| `s.cookies` | `CookieJar` | the session cookie jar |
 
-## Жизненный цикл
+## Lifecycle
 
-### Закрытие
+### Closing
 
-`with`/`async with` закрывают сессию сами. Явно:
+`with`/`async with` close the session automatically. Explicitly:
 
 ```python
 s.close()               # sync
 await a.close()         # async
 ```
 
-`close(grace=5.0)` даёт запросам, которые ещё выполняются в других потоках или задачах,
-`grace` секунд на завершение, затем отменяет их (`RequestCancelled`); `grace=None` — ждать до
-конца. Открытые потоковые ответы закрываются, соединения освобождаются. После закрытия любой
-запрос — `SessionConfigurationError("session is closed")`. Повторный `close()` ничего не делает.
+`close(grace=5.0)` gives requests that are still running in other threads or tasks `grace`
+seconds to finish, then cancels them (`RequestCancelled`); `grace=None` waits until they
+finish. Open streaming responses are closed and connections are released. After closing, any
+request raises `SessionConfigurationError("session is closed")`. Calling `close()` again does
+nothing.
 
-Сессия, которую не закрыли, освобождает свои соединения, когда её соберёт сборщик мусора
-(с 0.8.1; раньше они оставались открытыми до конца процесса). Когда это произойдёт, заранее
-неизвестно, поэтому закрывайте сессию явно.
+A session that was not closed releases its connections when the garbage collector collects
+it (since 0.8.1; before that they stayed open until the process exited). When that happens is
+not known in advance, so close sessions explicitly.
 
-### Новые соединения
+### New connections
 
-`s.reset_connection()` (`await a.reset_connection()` у async) закрывает соединения сессии:
-следующий запрос откроет новое соединение с новым рукопожатием. Cookie и заголовки остаются.
-Полезно после смены сети или когда соединение «зависло» без RST
-(см. [Ограничения](limitations.md)).
+`s.reset_connection()` (`await a.reset_connection()` for async) closes the session's
+connections: the next request opens a new connection with a new handshake. Cookies and
+headers stay. This is useful after a network change or when a connection has "hung" without
+an RST (see [Limitations](limitations.md)).
 
-### Пул потоков AsyncSession
+### AsyncSession thread pool
 
-`AsyncSession` выполняет нативные вызовы в общем пуле на 64 потока: одновременно в полёте
-может быть до 64 запросов всех `AsyncSession` процесса, остальные ждут в очереди. Изменить
-размер — до первого запроса:
+`AsyncSession` runs native calls in a shared pool of 64 threads: up to 64 requests from all
+`AsyncSession`s in the process can be in flight at once, the rest wait in a queue. To change
+the size, do it before the first request:
 
 ```python
 from yumeclient import AsyncSession
@@ -177,20 +181,20 @@ from yumeclient import AsyncSession
 AsyncSession.configure_executor(256)
 ```
 
-После старта запросов вызов бросает `SessionConfigurationError`. `await yumeclient.close_runtime()`
-останавливает пул при завершении программы (необязательно).
+After requests have started, the call raises `SessionConfigurationError`.
+`await yumeclient.close_runtime()` stops the pool when the program exits (optional).
 
-### Отмена и Ctrl+C
+### Cancellation and Ctrl+C
 
-- Отмена asyncio-задачи (`task.cancel()`, `asyncio.wait_for`, `asyncio.timeout`, `TaskGroup`)
-  обрывает нативный запрос сразу — на любой стадии: DNS, соединение, TLS, ожидание ответа,
-  чтение тела.
-- Ctrl+C в главном потоке прерывает синхронный запрос и чтение потока сразу
-  (`KeyboardInterrupt`); нативный запрос отменяется, соединение закрывается.
+- Cancelling an asyncio task (`task.cancel()`, `asyncio.wait_for`, `asyncio.timeout`,
+  `TaskGroup`) aborts the native request immediately, at any stage: DNS, connecting, TLS,
+  waiting for the response, reading the body.
+- Ctrl+C in the main thread interrupts a sync request and stream reading immediately
+  (`KeyboardInterrupt`); the native request is cancelled and the connection is closed.
 
-## One-shot функции
+## One-shot functions
 
-Для единичных запросов без сессии:
+For single requests without a session:
 
 ```python
 import yumeclient
@@ -203,10 +207,10 @@ async def main():
     r = await yumeclient.aget("https://httpbin.org/get")
 ```
 
-Функции: `request`, `get`, `head`, `post`, `put`, `patch`, `delete`, `options` и async-варианты
-`arequest`, `aget`, `ahead`, `apost`, `aput`, `apatch`, `adelete`, `aoptions`. Они принимают
-и параметры сессии, и параметры запроса; каждая создаёт сессию и закрывает её после ответа.
-С `stream=True` сессия закрывается вместе с ответом.
+Functions: `request`, `get`, `head`, `post`, `put`, `patch`, `delete`, `options` and the async
+variants `arequest`, `aget`, `ahead`, `apost`, `aput`, `apatch`, `adelete`, `aoptions`. They
+accept both session parameters and request parameters; each one creates a session and closes
+it after the response. With `stream=True` the session is closed together with the response.
 
-Для серии запросов к одному сайту one-shot функции медленнее и заметнее: каждый вызов —
-новое соединение и полное TLS-рукопожатие, cookie не сохраняются.
+For a series of requests to one site, one-shot functions are slower and more noticeable: each
+call is a new connection and a full TLS handshake, and cookies are not kept.

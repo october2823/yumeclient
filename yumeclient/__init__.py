@@ -52,7 +52,7 @@ __all__ = ["Session", "AsyncSession", "Response", "CookieJar", "Headers", "Profi
            "StreamClosed", "HTTPStatusError", "ProtocolError", "TooManyRedirects", "fingerprint_diff",
            "__version__"]
 
-__version__ = "0.8.1"
+__version__ = "0.8.2"
 
 
 class TLSClientError(RuntimeError): pass
@@ -238,6 +238,11 @@ def _timeoutConfig(value: Any) -> TimeoutConfig:
         if len(value) != 2: raise SessionConfigurationError("timeout tuple must be (connect, read)")
         return TimeoutConfig(connect=value[0], read=value[1])
     return TimeoutConfig(total=value)
+
+
+# opening one connection (DNS, TCP, the proxy tunnel) never takes longer than this, even
+# with no timeouts; per-request limits are shorter and apply on top
+_DIAL_LIMIT_MS = 240_000
 
 
 def _ms(seconds: float | None) -> int:
@@ -756,8 +761,10 @@ def _buildPayload(sessionId: str, *, method: str, url: str, params: Any, headers
         "headerOrder": order, "requestBody": body,
         "requestCookies": [{"name": key, "value": value} for key, value in cookies.items()],
         # timeoutMilliseconds only caps the session's dialers (fixed when the Go session is
-        # built); the per-request limits below are enforced through the request context
-        "timeoutMilliseconds": max(30000, _ms(timeouts.connect)),
+        # built); the per-request limits below are enforced through the request context.
+        # A constant: derived from the first request's connect timeout, it cut later requests
+        # (and timeout=None) at 30 s while opening a connection
+        "timeoutMilliseconds": _DIAL_LIMIT_MS,
         "totalTimeoutMilliseconds": _ms(timeouts.total), "connectTimeoutMilliseconds": _ms(timeouts.connect),
         "readTimeoutMilliseconds": _ms(timeouts.read), "writeTimeoutMilliseconds": _ms(timeouts.write),
         "followRedirects": allow_redirects,

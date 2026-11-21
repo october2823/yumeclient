@@ -17,7 +17,9 @@ from socks5udp import Socks5
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES = sorted((ROOT / "examples").glob("*.py"))
-DOCS = sorted([*(ROOT / "docs").glob("*.md"), ROOT / "README.md", ROOT / "USAGE.md"])
+# every Markdown page in both languages: docs/ and docs/ru/, README/USAGE/... and their .ru.md
+DOCS = sorted([*(ROOT / "docs").rglob("*.md"), *ROOT.glob("*.md"), *(ROOT / "examples").glob("*.md"),
+               *(ROOT / ".github").rglob("*.md")])
 
 
 @pytest.fixture(scope="module")

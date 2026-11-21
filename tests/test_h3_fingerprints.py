@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+import time
 import warnings
 from pathlib import Path
 
@@ -47,13 +48,26 @@ def _capture(server, profile: str, decoder: bool = False, **options) -> dict:
             for path in ("", "favicon.ico"):  # a second request: QPACK decoder stream, PRIORITY_UPDATE
                 r = s.get(url + path)
                 assert r.used_protocol == "HTTP/3.0"
-    for _ in range(50):  # the last frames are still on their way
-        results = server.recorder.results()
-        if results and len(results[0]["h3"]["requests"]) >= 2 and (
-                not decoder or any(u["type"] == "qpack_decoder" for u in results[0]["h3"]["uni_streams"])):
-            break
-        import time
-        time.sleep(0.02)
+            # The last frames are still on their way; the connection stays open meanwhile
+            # (closing it drops what is still queued). Like Chromium, the client opens the
+            # QPACK decoder stream with its first acknowledgment, sent when a decoded
+            # response refers to the dynamic table or after entries arrived on the encoder
+            # stream. If the server's encoder stream came after both responses (under load),
+            # nothing is due yet: one more request triggers the Insert Count Increment.
+            def complete() -> bool:
+                found = server.recorder.results()
+                return bool(found) and len(found[0]["h3"]["requests"]) >= 2 and (
+                    not decoder or any(u["type"] == "qpack_decoder" for u in found[0]["h3"]["uni_streams"]))
+
+            for extra in (False, True):
+                if extra:
+                    assert s.get(url + "robots.txt").used_protocol == "HTTP/3.0"
+                deadline = time.monotonic() + 3
+                while not complete() and time.monotonic() < deadline:
+                    time.sleep(0.02)
+                if complete():
+                    break
+            results = server.recorder.results()
     assert len(results) == 1, "one QUIC connection"
     return results[0]
 
@@ -125,7 +139,9 @@ def test_profile_sends_the_captured_browser_handshake(server, profile):
     assert (kinds[1:2] == ["GREASE"]) == h3["grease_frame"]
     updates = [f for f in frames if f["type"] == "PRIORITY_UPDATE"]
     if h3["priority_updates"]:
-        assert [(f["element"], f["value"]) for f in updates] == [(0, h3["priority"]), (4, h3["priority"])]
+        # one PRIORITY_UPDATE per request: streams 0, 4 (and 8 after an extra request)
+        assert len(updates) >= 2
+        assert [(f["element"], f["value"]) for f in updates] == [(4 * i, h3["priority"]) for i in range(len(updates))]
     else:
         assert not updates
     req = conn["h3"]["requests"][0]["headers"]

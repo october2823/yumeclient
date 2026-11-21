@@ -1,111 +1,118 @@
 # Cookies
 
-Все cookie сессии хранятся в `s.cookies` — объекте `CookieJar`. Это единственное хранилище:
-каждый запрос получает его снимок. На каждом хопе, включая редиректы, нативная часть выбирает
-cookie по правилам RFC 6265 и возвращает только изменения. Изменения сразу видны в
-`s.cookies`.
+**English** | [Русский](ru/cookies.md)
+
+All session cookies are stored in `s.cookies`, a `CookieJar` object. It is the only store: each
+request gets a snapshot of it. On every hop, including redirects, the native part selects
+cookies according to RFC 6265 and returns only the changes. The changes are visible in
+`s.cookies` right away.
 
 ```python
 from yumeclient import Session
 
 with Session() as s:
-    s.get("https://httpbin.org/cookies/set?session=abc")   # Set-Cookie на редиректе → в jar
+    s.get("https://httpbin.org/cookies/set?session=abc")   # Set-Cookie on a redirect → into the jar
     print(s.cookies["session"])                            # 'abc'
     print(s.get("https://httpbin.org/cookies").json())     # {'cookies': {'session': 'abc'}}
 ```
 
-## Какие cookie уходят в запрос
+## Which cookies are sent with a request
 
-Cookie уходит на URL, если выполнены все условия:
+A cookie is sent to a URL if all of these conditions hold:
 
-- **домен.** Cookie без атрибута `Domain` (host-only) уходит только на тот хост, который её
-  выставил. Cookie с `Domain=example.com` уходит на `example.com` и все его поддомены;
-- **путь.** Путь запроса начинается с `Path` cookie (по сегментам: `/a` подходит к `/a/b`, но
-  не к `/ab`);
-- **Secure.** Cookie с `Secure` уходит только по `https://`. Если её выставили по `http://`,
-  она сохраняется, но по `http://` не отправляется;
-- **срок.** Cookie не истекла. Cookie без `Expires`/`Max-Age` живёт до конца сессии.
+- **domain.** A cookie without a `Domain` attribute (host-only) is sent only to the host that
+  set it. A cookie with `Domain=example.com` is sent to `example.com` and all its subdomains;
+- **path.** The request path starts with the cookie's `Path` (by segments: `/a` matches `/a/b`,
+  but not `/ab`);
+- **Secure.** A cookie with `Secure` is sent only over `https://`. If it was set over
+  `http://`, it is stored but not sent over `http://`;
+- **expiry.** The cookie has not expired. A cookie without `Expires`/`Max-Age` lives until the
+  end of the session.
 
-Порядок в заголовке `Cookie` — как у браузеров: сначала cookie с более длинным путём, при
-равных путях — более старые.
+The order in the `Cookie` header is the same as in browsers: cookies with a longer path first,
+and for equal paths, older ones first.
 
-Сервер не может выставить cookie:
+A server cannot set a cookie:
 
-- чужому домену: ответ `a.com` с `Domain=b.com` отбрасывается;
-- публичному суффиксу (`Domain=com`, `co.uk`, `github.io` — по списку Mozilla Public Suffix
-  List, как в браузерах): такая cookie отбрасывается. Исключение — сам хост-суффикс, для него
-  cookie становится host-only;
-- с `Domain=` на IP-адресе: cookie становится host-only.
+- for someone else's domain: a response from `a.com` with `Domain=b.com` is dropped;
+- for a public suffix (`Domain=com`, `co.uk`, `github.io`, per the Mozilla Public Suffix List,
+  as in browsers): such a cookie is dropped. The exception is the suffix host itself, for which
+  the cookie becomes host-only;
+- with `Domain=` on an IP address: the cookie becomes host-only.
 
-Удаление сервером (`Max-Age=0` или `Expires` в прошлом) убирает cookie из jar.
+Deletion by the server (`Max-Age=0` or `Expires` in the past) removes the cookie from the jar.
 
-## Cookie, заданные вручную
+## Manually set cookies
 
 ```python
-s.cookies["token"] = "x"                           # без домена: уходит на любой хост
-s.cookies.set("sid", "1", domain="example.com")    # example.com и поддомены
-s.cookies.set("sid", "1", domain="example.com", host_only=True)   # только example.com
+s.cookies["token"] = "x"                           # no domain: sent to any host
+s.cookies.set("sid", "1", domain="example.com")    # example.com and subdomains
+s.cookies.set("sid", "1", domain="example.com", host_only=True)   # example.com only
 s.cookies.set("pref", "dark", domain="example.com", path="/app",
               secure=True, http_only=True, same_site="Lax",
-              expires=1767225600)                  # Unix-время в секундах
+              expires=1767225600)                  # Unix time in seconds
 ```
 
-Cookie без домена ведёт себя как в `requests`: уходит на любой хост. Если для хоста есть
-одноимённая cookie с доменом, уходит она, а не cookie без домена.
+A cookie without a domain behaves as in `requests`: it is sent to any host. If there is a
+cookie with the same name and a domain for the host, that one is sent instead of the cookie
+without a domain.
 
-`s.cookies[name] = value` меняет значение существующей cookie с этим именем и путём `/`.
-Если таких несколько, меняется та, у которой самый длинный домен. Если такой нет, создаётся
-cookie без домена. Чтобы задать cookie для конкретного домена, используйте `set(..., domain=...)`.
+`s.cookies[name] = value` changes the value of an existing cookie with this name and path `/`.
+If there are several, the one with the longest domain is changed. If there is none, a cookie
+without a domain is created. To set a cookie for a specific domain, use `set(..., domain=...)`.
 
-Cookie без домена — не то же самое, что cookie, которую выставил бы сервер. Сервер может её
-перекрыть своей cookie для хоста, но не может удалить через `Max-Age=0`: удаление касается
-cookie его хоста. Так же ведёт себя `requests`. Удаляйте такие cookie сами: `s.cookies.remove(name)`.
+A cookie without a domain is not the same as a cookie the server would have set. The server can
+override it with its own cookie for the host, but cannot delete it with `Max-Age=0`: deletion
+applies to its host's cookies. `requests` behaves the same way. Delete such cookies yourself:
+`s.cookies.remove(name)`.
 
-## Cookie одного запроса
+## Single-request cookies
 
 ```python
 s.get(url, cookies={"temp": "1"})
 ```
 
-Такие cookie уходят только в этот запрос и заменяют одноимённые cookie сессии. В jar они не
-попадают, если сервер не выставит их сам. Принимаются `dict`, `CookieJar` (берутся cookie для
-этого URL) и список словарей `{"name": ..., "value": ...}`.
+These cookies are sent only with this request and replace session cookies with the same name.
+They do not go into the jar unless the server sets them itself. Accepted values are a `dict`, a
+`CookieJar` (the cookies for this URL are taken) and a list of dicts
+`{"name": ..., "value": ...}`.
 
-Заголовок `Cookie`, заданный вручную (`headers={"Cookie": "a=1"}`), уходит как есть, а cookie из
-jar добавляются после него в тот же заголовок: `Cookie: a=1; sid=...`. При редиректе на
-другой хост ручной заголовок удаляется, а cookie из jar выбираются заново для нового хоста.
-Обычно удобнее `cookies=` или `s.cookies.set(...)`.
+A manually set `Cookie` header (`headers={"Cookie": "a=1"}`) is sent as is, and cookies from
+the jar are appended after it in the same header: `Cookie: a=1; sid=...`. On a redirect to
+another host the manual header is removed, and cookies from the jar are selected again for the
+new host. Usually `cookies=` or `s.cookies.set(...)` is more convenient.
 
-## API `CookieJar`
+## `CookieJar` API
 
-| Метод | Что делает |
+| Method | What it does |
 |---|---|
-| `CookieJar(initial=None)` | `initial`: `dict` имя → значение (cookie без домена) или список словарей в формате экспорта браузера |
-| `jar[name]`, `jar.get(name, default=None)` | значение; при нескольких одноимённых — с самым длинным доменом. Срок не проверяется (истёкшую cookie не отправят, но прочитать её можно). `jar[name]` без cookie — `KeyError` |
-| `name in jar` | есть ли cookie с таким именем |
-| `jar[name] = value` | см. [выше](#cookie-заданные-вручную) |
-| `jar.set(name, value, *, domain="", path="/", expires=None, secure=False, http_only=False, same_site=None, host_only=False)` | с `domain` — добавить или заменить cookie с тем же `(name, domain, path)`. Без `domain` — как `jar[name] = value`: меняется значение существующей cookie с этим именем и путём (с самым длинным доменом), остальные аргументы, кроме `expires`, при этом не применяются; если такой нет — создаётся cookie без домена |
-| `jar.update(values, *, domain="")` | несколько cookie: `dict` (каждая — как `set(name, value, domain=domain)`) или список словарей |
-| `jar.load("a=1; b=2", *, domain="")` | разобрать значение заголовка `Cookie` |
-| `jar.remove(name, *, domain=None, path=None)` | удалить; без `domain`/`path` — все cookie с этим именем |
-| `jar.clear_domain(domain)` | удалить cookie с этим доменом (cookie поддоменов не затрагиваются) |
-| `jar.for_url(url)` | `list[JarCookie]`, которые уйдут на `url`, в порядке заголовка |
-| `jar.to_dict(*, url=None, domain=None)` | имя → значение: для `url` — по всем правилам; для `domain` — только по хосту; без аргументов — все не истёкшие |
-| `jar.get_cookie(name)` | `http.cookiejar.Cookie` или `None` |
-| `jar.export()` | список словарей для сохранения |
-| `len(jar)`, `for c in jar` | число cookie; перебор `JarCookie` |
+| `CookieJar(initial=None)` | `initial`: a `dict` name → value (cookies without a domain) or a list of dicts in the browser export format |
+| `jar[name]`, `jar.get(name, default=None)` | the value; with several cookies of the same name, the one with the longest domain. Expiry is not checked (an expired cookie is not sent, but you can read it). `jar[name]` with no such cookie raises `KeyError` |
+| `name in jar` | whether there is a cookie with this name |
+| `jar[name] = value` | see [above](#manually-set-cookies) |
+| `jar.set(name, value, *, domain="", path="/", expires=None, secure=False, http_only=False, same_site=None, host_only=False)` | with `domain`: add or replace the cookie with the same `(name, domain, path)`. Without `domain`: like `jar[name] = value`, the value of an existing cookie with this name and path (the one with the longest domain) is changed, and the other arguments except `expires` are not applied; if there is none, a cookie without a domain is created |
+| `jar.update(values, *, domain="")` | several cookies: a `dict` (each one like `set(name, value, domain=domain)`) or a list of dicts |
+| `jar.load("a=1; b=2", *, domain="")` | parse a `Cookie` header value |
+| `jar.remove(name, *, domain=None, path=None)` | delete; without `domain`/`path`, all cookies with this name |
+| `jar.clear_domain(domain)` | delete the cookies with this domain (subdomain cookies are not affected) |
+| `jar.for_url(url)` | the `list[JarCookie]` that will be sent to `url`, in header order |
+| `jar.to_dict(*, url=None, domain=None)` | name → value: for `url`, by all the rules; for `domain`, by host only; without arguments, all unexpired cookies |
+| `jar.get_cookie(name)` | `http.cookiejar.Cookie` or `None` |
+| `jar.export()` | a list of dicts for saving |
+| `len(jar)`, `for c in jar` | the number of cookies; iteration over `JarCookie` |
 
-`JarCookie` — dataclass с полями `name`, `value`, `domain`, `path`, `expires` (Unix-время или
-`None`), `secure`, `http_only`, `same_site`, `host_only`.
+`JarCookie` is a dataclass with the fields `name`, `value`, `domain`, `path`, `expires` (Unix
+time or `None`), `secure`, `http_only`, `same_site`, `host_only`.
 
-`CookieJar` можно использовать из нескольких потоков и из нескольких задач `AsyncSession` сразу.
-Он поддерживает `copy.deepcopy` и `pickle`.
+A `CookieJar` can be used from several threads and from several `AsyncSession` tasks at once.
+It supports `copy.deepcopy` and `pickle`.
 
-## Импорт и экспорт
+## Import and export
 
-`export()` отдаёт формат расширений браузера (Cookie-Editor, EditThisCookie): `name`, `value`,
-`domain`, `path`, `expirationDate`, `secure`, `httpOnly`, `sameSite`, `hostOnly`. Этот же формат
-принимают конструктор `CookieJar` и `update()`. Вместо `expirationDate` можно указать `expires`.
+`export()` produces the format of browser extensions (Cookie-Editor, EditThisCookie): `name`,
+`value`, `domain`, `path`, `expirationDate`, `secure`, `httpOnly`, `sameSite`, `hostOnly`. The
+`CookieJar` constructor and `update()` accept the same format. Instead of `expirationDate` you
+can give `expires`.
 
 ```python
 import json
@@ -120,12 +127,12 @@ with Session(cookies=jar) as s:
     print(s.get("https://httpbin.org/cookies").json())   # {'cookies': {'a': '1'}}
 ```
 
-Cookie, выгруженные из браузера, переносятся так же: экспортируйте их расширением в JSON и
-передайте список в `CookieJar(...)`.
+Cookies exported from a browser are moved the same way: export them to JSON with an extension
+and pass the list to `CookieJar(...)`.
 
-## Где ещё видны cookie
+## Where else cookies show up
 
-- `r.cookies` — `dict` cookie для конечного URL после обмена: подходящие cookie сессии и
-  запроса плюс выставленные ответами, без удалённых.
-- `r.history[i].cookies` — только `Set-Cookie` этого хопа.
-- `r.headers["Set-Cookie"]` — сырые заголовки последнего ответа.
+- `r.cookies`: a `dict` of cookies for the final URL after the exchange: the matching session
+  and request cookies plus the ones set by responses, minus deleted ones.
+- `r.history[i].cookies`: only the `Set-Cookie` of that hop.
+- `r.headers["Set-Cookie"]`: the raw headers of the last response.

@@ -142,7 +142,9 @@ func sinkFor(client tls_client.HttpClient) *helloSink {
 // ClientHello capture installed. The underlying dialer is the same one the
 // session used before 0.4.5:
 //   - https:// proxy  -> insecureDialer (TLS to proxy, CONNECT, no proxy-leg verify)
-//   - http/socks proxy -> upstream's own dialer, obtained from a probe client
+//   - http:// proxy   -> insecureDialer as well (CONNECT bounded by the request
+//     context; upstream's dialer held a silent proxy for the whole session limit)
+//   - socks proxy     -> upstream's own dialer, obtained from a probe client
 //   - direct           -> net.Dialer with the session timeout/local address
 // keepUpstreamProxy=true (HTTP/3 racing or a udp proxy through a plain proxy URL)
 // leaves upstream WithProxyUrl in charge, because the h3 transport reads the
@@ -163,7 +165,7 @@ func transportDialOptions(proxyUrl string, timeoutMs int, localAddr *net.TCPAddr
 	lower := strings.ToLower(proxyUrl)
 	switch {
 	case strings.HasPrefix(lower, "https://"):
-		dialer, err := newInsecureHttpsConnectDialer(proxyUrl, timeout, true)
+		dialer, err := newInsecureHttpsConnectDialer(proxyUrl, timeout, true, localAddr)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -171,6 +173,13 @@ func transportDialOptions(proxyUrl string, timeoutMs int, localAddr *net.TCPAddr
 		return []tls_client.HttpClientOption{opt}, cd, nil
 	case proxyUrl != "" && keepUpstreamProxy:
 		return []tls_client.HttpClientOption{tls_client.WithProxyUrl(proxyUrl)}, nil, nil
+	case strings.HasPrefix(lower, "http://"):
+		dialer, err := newInsecureHttpsConnectDialer(proxyUrl, timeout, true, localAddr)
+		if err != nil {
+			return nil, nil, err
+		}
+		opt := factory(dialer)
+		return []tls_client.HttpClientOption{opt}, cd, nil
 	case proxyUrl != "":
 		probeOpts := []tls_client.HttpClientOption{
 			tls_client.WithProxyUrl(proxyUrl),

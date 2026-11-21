@@ -1,0 +1,61 @@
+name: Bug report / Ошибка
+description: Something does not work as documented. / Что-то работает не так, как описано.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Write in English or Russian. / Можно писать на русском или английском.
+        Vulnerabilities: do not report them here, see [SECURITY.md](https://github.com/october2823/yumeclient/blob/main/SECURITY.md). /
+        Об уязвимостях сообщайте не здесь, см. [SECURITY.ru.md](https://github.com/october2823/yumeclient/blob/main/SECURITY.ru.md).
+  - type: input
+    id: version
+    attributes:
+      label: yumeclient version / версия
+      description: '`python -c "import yumeclient; print(yumeclient.__version__)"`'
+      placeholder: 0.8.2
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Python and OS / Python и ОС
+      placeholder: Python 3.12, Windows 11 x64
+    validations:
+      required: true
+  - type: input
+    id: profile
+    attributes:
+      label: Profile and session options / Профиль и параметры сессии
+      placeholder: client_identifier="chrome_152", http_version="3", proxy=socks5://...
+  - type: textarea
+    id: code
+    attributes:
+      label: Code / Код
+      description: The smallest code that shows the problem. / Минимальный код, на котором видна проблема.
+      render: python
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior / Что ожидали и что получили
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: Exception / Исключение
+      description: |
+        Traceback, and the `kind`, `stage`, `retryable` attributes of the exception. /
+        Traceback и атрибуты исключения `kind`, `stage`, `retryable`.
+      render: text
+  - type: textarea
+    id: trace
+    attributes:
+      label: r.trace()
+      description: |
+        For a wrong request or response. Secrets are redacted, but read it before posting. /
+        Для неправильного запроса или ответа. Секреты скрыты, но прочитайте перед публикацией.
+        [docs](https://github.com/october2823/yumeclient/blob/main/docs/diagnostics.md#responsetrace)
+      render: json

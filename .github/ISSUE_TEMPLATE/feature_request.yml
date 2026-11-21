@@ -1,0 +1,23 @@
+name: Feature request / Предложение
+description: A new profile, option or behavior. / Новый профиль, параметр или поведение.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: Write in English or Russian. / Можно писать на русском или английском.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What do you need and why / Что нужно и зачем
+      description: The task you are solving, not only the solution. / Задача, которую вы решаете, а не только решение.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal / Предложение
+      description: API, behavior, how a real browser or requests does it. / API, поведение, как это делает браузер или requests.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried / Что пробовали

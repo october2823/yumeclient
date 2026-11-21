@@ -924,7 +924,7 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
   if in.ServerNameOverwrite != nil { strict.serverName = *in.ServerNameOverwrite }
   if adv != nil { strict.ech = adv.echConfigList }
  }
- if layerErr := applySessionLayer(client, extras.okhttp(), strict, plainConfig{proxyUrl: proxyUrl, localAddr: localAddr}); layerErr != nil { return nil, sessionId, false, src.NewTLSClientError(layerErr) }
+ if layerErr := applySessionLayer(client, extras.okhttp(), strict, plainConfig{proxyUrl: proxyUrl, localAddr: localAddr, dialTimeout: time.Duration(timeoutMs) * time.Millisecond}); layerErr != nil { return nil, sessionId, false, src.NewTLSClientError(layerErr) }
  if captured { helloSinks.Store(client, sink) }
 
  return storePatchedSession(sessionId, client), sessionId, true, nil
@@ -1039,7 +1039,10 @@ func upstreamClient(in src.RequestInput, proxyUrl string) (tls_client.HttpClient
   if err != nil { return nil, sessionId, false, src.NewTLSClientError(err) }
   localAddr = la
  }
- if err := applySessionLayer(client, false, nil, plainConfig{proxyUrl: proxyUrl, localAddr: localAddr}); err != nil {
+ timeoutMs := in.TimeoutMilliseconds
+ if timeoutMs == 0 && in.TimeoutSeconds != 0 { timeoutMs = in.TimeoutSeconds * 1000 }
+ if timeoutMs == 0 { timeoutMs = 30000 }
+ if err := applySessionLayer(client, false, nil, plainConfig{proxyUrl: proxyUrl, localAddr: localAddr, dialTimeout: time.Duration(timeoutMs) * time.Millisecond}); err != nil {
   return nil, sessionId, false, src.NewTLSClientError(err)
  }
  return client, sessionId, withSession, nil
@@ -1132,26 +1135,34 @@ func createPatchedClient(in src.RequestInput, rawPayload []byte) (tls_client.Htt
    insecure: in.InsecureSkipVerify, noTickets: wantsNoSessionTickets(rawPayload)}
   if in.ServerNameOverwrite != nil { strict.serverName = *in.ServerNameOverwrite }
  }
- if layerErr := applySessionLayer(tlsClient, extras.okhttp(), strict, plainConfig{proxyUrl: proxyUrl, localAddr: localAddr}); layerErr != nil { return nil, sessionId, false, src.NewTLSClientError(layerErr) }
+ if layerErr := applySessionLayer(tlsClient, extras.okhttp(), strict, plainConfig{proxyUrl: proxyUrl, localAddr: localAddr, dialTimeout: time.Duration(timeoutMs) * time.Millisecond}); layerErr != nil { return nil, sessionId, false, src.NewTLSClientError(layerErr) }
  if captured { helloSinks.Store(tlsClient, sink) }
 
  return storePatchedSession(sessionId, tlsClient), sessionId, true, nil
 }
 
-// insecureDialer: TLS+CONNECT dialer for https:// proxies; proxy certificate
-// verification follows skipVerify, target TLS stays with the uTLS client.
+// insecureDialer: CONNECT dialer for http:// and https:// proxies (TLS to the
+// proxy for https://); proxy certificate verification follows skipVerify, target
+// TLS stays with the uTLS client.
 type insecureDialer struct {
  proxyUrl   *url.URL
  skipVerify bool
  timeout    time.Duration
+ localAddr  *net.TCPAddr
 }
 
-func newInsecureHttpsConnectDialer(proxyUrlStr string, timeout time.Duration, skipVerify bool) (*insecureDialer, error) {
+// localAddr: local_address binds the connection to the proxy (it was ignored for
+// https:// proxies before 0.8.2)
+func newInsecureHttpsConnectDialer(proxyUrlStr string, timeout time.Duration, skipVerify bool, localAddr *net.TCPAddr) (*insecureDialer, error) {
  parsed, err := url.Parse(proxyUrlStr)
  if err != nil { return nil, err }
  if parsed.Host == "" { return nil, fmt.Errorf("invalid proxy url %q", proxyUrlStr) }
- if parsed.Port() == "" { parsed.Host = net.JoinHostPort(parsed.Host, "443") }
- return &insecureDialer{proxyUrl: parsed, skipVerify: skipVerify, timeout: timeout}, nil
+ if parsed.Port() == "" {
+  port := "443"
+  if strings.EqualFold(parsed.Scheme, "http") { port = "80" }
+  parsed.Host = net.JoinHostPort(parsed.Hostname(), port)
+ }
+ return &insecureDialer{proxyUrl: parsed, skipVerify: skipVerify, timeout: timeout, localAddr: localAddr}, nil
 }
 
 // tunneledConn serves bytes buffered during the CONNECT handshake first.
@@ -1164,21 +1175,26 @@ func (t *tunneledConn) Read(p []byte) (int, error) { return t.r.Read(p) }
 
 func (d *insecureDialer) connect(ctx context.Context, address string) (net.Conn, error) {
  rawDialer := &net.Dialer{Timeout: d.timeout}
+ if d.localAddr != nil { rawDialer.LocalAddr = d.localAddr }
  rawConn, err := rawDialer.DialContext(ctx, "tcp", d.proxyUrl.Host)
  if err != nil { return nil, err }
+ // the TLS handshake and the CONNECT exchange: bounded by the session limit and
+ // by the request context (a proxy that never answers CONNECT used to hold the
+ // connection and its goroutine with no deadline after the request gave up)
+ if d.timeout > 0 { _ = rawConn.SetDeadline(time.Now().Add(d.timeout)) }
+ stop := context.AfterFunc(ctx, func() { _ = rawConn.SetDeadline(time.Now()) })
+ defer stop()
  var conn net.Conn = rawConn
- if d.proxyUrl.Scheme == "https" {
+ if strings.EqualFold(d.proxyUrl.Scheme, "https") {
   tlsConn := crandtls.Client(rawConn, &crandtls.Config{
    NextProtos:         []string{"http/1.1"},
    ServerName:         d.proxyUrl.Hostname(),
    InsecureSkipVerify: d.skipVerify,
   })
-  tlsConn.SetDeadline(time.Now().Add(d.timeout))
   if err := tlsConn.HandshakeContext(ctx); err != nil {
    _ = rawConn.Close()
    return nil, err
   }
-  tlsConn.SetDeadline(time.Time{})
   conn = tlsConn
  }
  req := &http.Request{Method: "CONNECT", URL: &url.URL{Host: address}, Header: make(http.Header), Host: address}
@@ -1190,9 +1206,16 @@ func (d *insecureDialer) connect(ctx context.Context, address string) (net.Conn,
  if err := req.Write(conn); err != nil { _ = conn.Close(); return nil, err }
  resp, err := http.ReadResponse(reader, req)
  if err != nil { _ = conn.Close(); return nil, err }
+ if resp.StatusCode == http.StatusOK && !stop() {
+  // the request gave up while the tunnel was opening
+  _ = conn.Close()
+  return nil, context.Cause(ctx)
+ }
+ _ = rawConn.SetDeadline(time.Time{})
  if resp.StatusCode != http.StatusOK {
   _ = conn.Close()
-  return nil, fmt.Errorf("https proxy responded with non 200 code: %s", resp.Status)
+  // the same text as upstream's CONNECT dialer (docs/proxies.md quotes it)
+  return nil, fmt.Errorf("Proxy responded with non 200 code: %s", resp.Status)
  }
  return &tunneledConn{Conn: conn, r: reader}, nil
 }

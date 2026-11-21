@@ -25,11 +25,12 @@ import (
 //   - HTTP/2 with prior knowledge (h2c) for http_version="2": the tls-client round
 //     tripper's HTTP/2 fingerprint over its dialer (third_party tls-client h2c.go)
 type plainRoutes struct {
-	proxyUrl  string
-	localAddr *net.TCPAddr
-	okhttp    bool
-	jar       http.CookieJar
-	h2cOf     func() http.RoundTripper // nil: the session cannot speak h2c
+	proxyUrl    string
+	localAddr   *net.TCPAddr
+	dialTimeout time.Duration
+	okhttp      bool
+	jar         http.CookieJar
+	h2cOf       func() http.RoundTripper // nil: the session cannot speak h2c
 	// dial: the session's own dialer (proxy, local address); SOCKS proxies go
 	// through it (the plain transport would send socks5h:// / socks4:// requests
 	// to the proxy as plaintext HTTP-proxy requests)
@@ -43,10 +44,16 @@ type plainRoutes struct {
 type plainConfig struct {
 	proxyUrl  string
 	localAddr *net.TCPAddr
+	// dialTimeout: the session's limit on opening a connection (timeoutMilliseconds);
+	// a fixed 30 s before 0.8.2
+	dialTimeout time.Duration
 }
 
 func newPlainRoutes(client interface{ GetCookieJar() http.CookieJar }, cfg plainConfig, okhttp bool, inner http.RoundTripper) *plainRoutes {
-	p := &plainRoutes{proxyUrl: cfg.proxyUrl, localAddr: cfg.localAddr, okhttp: okhttp, jar: client.GetCookieJar()}
+	p := &plainRoutes{proxyUrl: cfg.proxyUrl, localAddr: cfg.localAddr, dialTimeout: cfg.dialTimeout, okhttp: okhttp, jar: client.GetCookieJar()}
+	if p.dialTimeout <= 0 {
+		p.dialTimeout = 30 * time.Second
+	}
 	if h, ok := unwrapBridge(inner).(interface{ H2C() http.RoundTripper }); ok {
 		p.h2cOf = h.H2C
 	}
@@ -93,7 +100,7 @@ func (p *plainRoutes) transport(h2c bool) (http.RoundTripper, error) {
 		// requests (newInsecureHttpsConnectDialer); before 0.8.1 http:// requests through
 		// an https:// proxy verified it and failed where https:// ones worked
 		t.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-		d := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
+		d := &net.Dialer{Timeout: p.dialTimeout, KeepAlive: 30 * time.Second}
 		if p.localAddr != nil {
 			d.LocalAddr = p.localAddr
 		}

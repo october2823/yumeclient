@@ -1,27 +1,29 @@
-# Установка
+# Installation
+
+**English** | [Русский](ru/installation.md)
 
 ```sh
 python -m pip install yumeclient
 ```
 
-Нужен Python 3.11 или новее. Зависимостей на Python нет: wheel содержит готовую нативную
-библиотеку.
+Python 3.11 or newer is required. There are no Python dependencies: the wheel contains a
+prebuilt native library.
 
-## Платформы
+## Platforms
 
-| Платформа | Wheel | Примечание |
+| Platform | Wheel | Notes |
 |---|---|---|
 | Windows x64 | `win_amd64` | Windows 10+ |
-| Linux x86_64 | `manylinux2014_x86_64` | glibc ≥ 2.17; CI запускает wheel в образе manylinux2014 |
+| Linux x86_64 | `manylinux2014_x86_64` | glibc ≥ 2.17; CI runs the wheel in a manylinux2014 image |
 | Linux aarch64 | `manylinux2014_aarch64` | glibc ≥ 2.17 |
-| macOS | `macosx_11_0_universal2` | macOS 11+, Apple Silicon и Intel в одной библиотеке |
+| macOS | `macosx_11_0_universal2` | macOS 11+, Apple Silicon and Intel in one library |
 
-Wheels помечены `py3-none-<платформа>`: нативная часть загружается через `ctypes` и не
-зависит от версии CPython, поэтому один wheel подходит для 3.11, 3.12, 3.13, 3.14 и будущих
-3.x. Для musl (Alpine), Windows ARM, 32-битных систем и FreeBSD wheel нет — соберите
-библиотеку сами (ниже).
+Wheels are tagged `py3-none-<platform>`: the native part is loaded through `ctypes` and does not
+depend on the CPython version, so one wheel works for 3.11, 3.12, 3.13, 3.14 and future 3.x
+releases. There are no wheels for musl (Alpine), Windows ARM, 32-bit systems or FreeBSD; build
+the library yourself (see below).
 
-Проверка после установки:
+Check after installing:
 
 ```python
 import yumeclient
@@ -30,65 +32,66 @@ r = yumeclient.get("https://httpbin.org/get")
 print(yumeclient.__version__, r.status_code, r.http_version)
 ```
 
-## Сборка из исходников
+## Building from source
 
-Нужны Go 1.24+ (cgo), C-компилятор и исходники из репозитория.
+You need Go 1.24.1+ (cgo), a C compiler and the sources from the repository.
 
 ```sh
 git clone https://github.com/october2823/yumeclient
 cd yumeclient
 ```
 
-**Windows** (MinGW-w64, например из MSYS2):
+**Windows** (MinGW-w64, for example from MSYS2):
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-native.ps1
 python -m pip install -e .
 ```
 
-Скрипт собирает `yumeclient/yumeclient.dll` (`go build -trimpath -buildmode=c-shared`).
+The script builds `yumeclient/yumeclient.dll` (`go build -trimpath -buildmode=c-shared`).
 
-**Linux и macOS:**
+**Linux and macOS:**
 
 ```sh
-sh scripts/build-native.sh        # yumeclient/yumeclient.so или .dylib
+sh scripts/build-native.sh        # yumeclient/yumeclient.so or .dylib
 python -m pip install -e .
 ```
 
-На macOS скрипт собирает arm64 и amd64 и склеивает их `lipo`; набор архитектур задаёт
-`YUMECLIENT_MAC_ARCHS` (по умолчанию `"arm64 amd64"`), минимальную версию —
-`MACOSX_DEPLOYMENT_TARGET` (по умолчанию `11.0`).
+On macOS the script builds arm64 and amd64 and merges them with `lipo`; the set of
+architectures is set by `YUMECLIENT_MAC_ARCHS` (default `"arm64 amd64"`), the minimum version
+by `MACOSX_DEPLOYMENT_TARGET` (default `11.0`).
 
-Wheel для Linux, совместимый с manylinux2014, собирается в Docker:
+A manylinux2014-compatible Linux wheel is built in Docker:
 
 ```sh
-sh scripts/build-linux-wheel.sh x86_64     # или aarch64; wheel появится в dist/
+sh scripts/build-linux-wheel.sh x86_64     # or aarch64; the wheel appears in dist/
 python scripts/check_wheel.py dist/*.whl
 ```
 
-`scripts/check_wheel.py` проверяет, что в wheel ровно одна нативная библиотека нужного
-формата и архитектуры (PE, ELF, Mach-O) и что тег платформы ей соответствует.
+`scripts/check_wheel.py` checks that the wheel contains exactly one native library of the
+right format and architecture (PE, ELF, Mach-O) and that the platform tag matches it.
 
-## Своя нативная библиотека
+## Custom native library
 
-Переменная окружения `YUMECLIENT_LIBRARY` задаёт путь к библиотеке вместо той, что лежит в
-пакете. Это удобно, если вы собрали библиотеку с изменениями или под другую платформу:
+The `YUMECLIENT_LIBRARY` environment variable sets a path to a library to use instead of the
+one bundled in the package. This is useful if you built the library with changes or for
+another platform:
 
 ```sh
 YUMECLIENT_LIBRARY=/opt/yumeclient/yumeclient.so python app.py
 ```
 
-Библиотека загружается при первом запросе. Если файла нет, запрос бросает `TLSClientError`
-с путём, который пытались открыть; если файл есть, но не загружается (другая архитектура,
-нет нужной libc), — `OSError` от `ctypes`.
+The library is loaded on the first request. If the file does not exist, the request raises
+`TLSClientError` with the path it tried to open; if the file exists but does not load (a
+different architecture, a missing libc), you get `OSError` from `ctypes`.
 
-## Тестовые зависимости
+## Test dependencies
 
 ```sh
 python -m pip install -e ".[test]"     # pytest, pytest-asyncio, aioquic
 python -m pytest -q
 ```
 
-Тесты не ходят в интернет: серверы TLS, HTTP/2, HTTP/3 и прокси поднимаются локально.
-`--run-online` добавляет несколько проверок против httpbin.org. Подробнее —
-[Разработка](development.md).
+The tests do not go to the internet: TLS, HTTP/2, HTTP/3 and proxy servers run locally.
+`--run-online` adds a few checks against httpbin.org. More in
+[Development](development.md).

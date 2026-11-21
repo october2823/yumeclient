@@ -3,4 +3,4 @@ recursive-include scripts *.py *.ps1 *.sh
 recursive-include yumeclient *.py *.typed *.so *.dylib *.dll
 recursive-include docs *.md
 recursive-include examples *.py *.md
-include README.md USAGE.md CHANGELOG.md LICENSE UPSTREAM-LICENSE THIRD_PARTY_NOTICES.md
+include *.md LICENSE UPSTREAM-LICENSE

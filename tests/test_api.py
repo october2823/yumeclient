@@ -578,6 +578,64 @@ def test_plain_http_through_an_https_proxy_with_a_self_signed_certificate(server
         os.unlink(pem)
 
 
+@pytest.mark.parametrize("scheme,target", [("http", "https"), ("http", "http"), ("https", "https"),
+                                           ("https", "http"), ("socks5", "https"), (None, "http")])
+def test_local_address_binds_the_connection_to_every_proxy_kind(native, scheme, target):
+    """local_address binds the connection to the proxy; before 0.8.2 it was ignored for
+    https:// targets through an https:// proxy."""
+    import os
+    import socket
+    import ssl
+    import tempfile
+    from test_wire import _PEM
+
+    try:
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.2", 0))
+    except OSError:
+        pytest.skip("127.0.0.2 is not a local address here (macOS)")
+    ctx = None
+    if scheme == "https":
+        fd, pem = tempfile.mkstemp(suffix=".pem")
+        os.write(fd, _PEM.encode() if isinstance(_PEM, str) else _PEM)
+        os.close(fd)
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(pem)
+        os.unlink(pem)
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(4)
+    peers = []
+
+    def serve():
+        conn, addr = listener.accept()
+        peers.append(addr[0])
+        try:
+            if ctx is not None:
+                conn = ctx.wrap_socket(conn, server_side=True)
+            conn.recv(4096)
+            # SOCKS5: no acceptable method; HTTP: a refusal
+            conn.sendall(b"\x05\xff" if scheme == "socks5" else b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n")
+        except (OSError, ssl.SSLError):
+            pass
+        finally:
+            conn.close()
+
+    threading.Thread(target=serve, daemon=True).start()
+    port = listener.getsockname()[1]
+    kwargs = {"proxy": f"{scheme}://127.0.0.1:{port}"} if scheme else {}
+    url = f"{target}://example.test/" if scheme else f"http://127.0.0.1:{port}/"
+    try:
+        with Session(local_address="127.0.0.2:0", timeout=5, **kwargs) as s:
+            try:
+                s.get(url)
+            except yumeclient.RequestError:
+                pass
+        assert peers == ["127.0.0.2"]
+    finally:
+        listener.close()
+
+
 @pytest.mark.parametrize("url", ["ftp://example.com/x", "http:///x", "not a url", "//example.com/x",
                                  "http://example.com:99999/", "https://[::1/", "http://exa\nmple.com/"])
 def test_invalid_urls_fail_before_sending(native, url):

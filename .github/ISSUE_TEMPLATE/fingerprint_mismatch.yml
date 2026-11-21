@@ -1,0 +1,53 @@
+name: Fingerprint mismatch / Отпечаток не совпадает
+description: A profile does not look like the real browser or app. / Профиль не похож на настоящий браузер или приложение.
+labels: ["fingerprint"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Write in English or Russian. / Можно писать на русском или английском.
+        Captures from real devices help the most, especially Safari (macOS, iOS, iPadOS) and mobile apps. /
+        Больше всего помогают записи с настоящих устройств, особенно Safari (macOS, iOS, iPadOS) и мобильных приложений.
+  - type: input
+    id: profile
+    attributes:
+      label: Profile / Профиль
+      placeholder: chrome_152
+    validations:
+      required: true
+  - type: input
+    id: real-client
+    attributes:
+      label: Real client / Настоящий клиент
+      description: Browser or app version, its OS, proxy or VPN if any. / Версия браузера или приложения, его ОС, прокси или VPN.
+      placeholder: Chrome 152, Windows 11 x64, no proxy
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: yumeclient version / версия
+      placeholder: 0.8.2
+    validations:
+      required: true
+  - type: textarea
+    id: difference
+    attributes:
+      label: What differs / Что отличается
+      description: JA3, JA4, Akamai, ALPN, HTTP/2 SETTINGS, QUIC, header order... / порядок заголовков...
+    validations:
+      required: true
+  - type: textarea
+    id: real-capture
+    attributes:
+      label: Capture from the real client / Запись настоящего клиента
+      description: |
+        For example the JSON of https://tls.peet.ws/api/all opened in the browser. /
+        Например, JSON https://tls.peet.ws/api/all, открытый в браузере.
+      render: json
+  - type: textarea
+    id: yumeclient-capture
+    attributes:
+      label: The same from yumeclient / То же из yumeclient
+      description: '`r.fingerprint` for the same URL / для того же URL'
+      render: json

@@ -1,57 +1,59 @@
-# Документация yumeclient
+# yumeclient documentation
 
-yumeclient — HTTP-клиент для Python с API в стиле `requests`, который отправляет запросы так,
-как их отправляют настоящие браузеры и мобильные приложения: тот же TLS ClientHello, те же
-параметры HTTP/2 и HTTP/3/QUIC, те же заголовки в том же порядке. Под капотом — Go-библиотека
-на основе [bogdanfinn/tls-client](https://github.com/bogdanfinn/tls-client) и
-[uTLS](https://github.com/refraction-networking/utls), подключённая через `ctypes`.
+**English** | [Русский](ru/index.md)
 
-Начать проще всего с [руководства с примерами](../USAGE.md). Этот раздел — справочник:
-каждая страница описывает одну тему полностью.
+yumeclient is a Python HTTP client with a `requests`-style API that sends requests the way real
+browsers and mobile apps send them: the same TLS ClientHello, the same HTTP/2 and HTTP/3/QUIC
+parameters, the same headers in the same order. Under the hood it is a Go library based on
+[bogdanfinn/tls-client](https://github.com/bogdanfinn/tls-client) and
+[uTLS](https://github.com/refraction-networking/utls), loaded through `ctypes`.
 
-## Разделы
+The easiest place to start is the [guide with examples](../USAGE.md). This section is a
+reference: each page covers one topic completely.
 
-| Страница | О чём |
+## Sections
+
+| Page | Contents |
 |---|---|
-| [Установка](installation.md) | wheels, платформы, сборка из исходников, `YUMECLIENT_LIBRARY` |
-| [Сессии](sessions.md) | `Session` и `AsyncSession`, все параметры конструктора, жизненный цикл, one-shot функции |
-| [Запросы](requests.md) | параметры запроса, тело (form, JSON, файлы), заголовки и их порядок, редиректы |
-| [Ответы и стриминг](responses.md) | `Response`, история редиректов, `connection_info`, `fingerprint`, потоковое чтение |
-| [Профили](profiles.md) | список профилей, `client_os`, базовые заголовки, HTTP-слой okhttp |
-| [Протоколы](protocols.md) | `http_version`, HTTP/2, h2c, HTTP/3 и QUIC, ALPN, гонка протоколов |
-| [Свой TLS-отпечаток](custom-tls.md) | `ja3_string` и низкоуровневые параметры TLS, HTTP/2, HTTP/3 |
-| [Таймауты, ошибки, отмена](timeouts-and-errors.md) | `TimeoutConfig`, иерархия исключений, повторы, отмена и Ctrl+C |
-| [Cookies](cookies.md) | `CookieJar`, правила RFC 6265, импорт и экспорт |
-| [Прокси и сеть](proxies.md) | HTTP(S) и SOCKS прокси, `udp_proxy`, `local_address`, `verify` |
-| [Диагностика](diagnostics.md) | `export_profile`/`from_profile`, `fingerprint_diff`, `Response.trace()` |
-| [Ограничения](limitations.md) | что сознательно не поддерживается и чем это видно |
-| [Разработка](development.md) | сборка, тесты, патчи upstream-модулей, запись отпечатков браузеров, релиз |
+| [Installation](installation.md) | wheels, platforms, building from source, `YUMECLIENT_LIBRARY` |
+| [Sessions](sessions.md) | `Session` and `AsyncSession`, all constructor parameters, lifecycle, one-shot functions |
+| [Requests](requests.md) | request parameters, body (form, JSON, files), headers and their order, redirects |
+| [Responses and streaming](responses.md) | `Response`, redirect history, `connection_info`, `fingerprint`, streaming |
+| [Profiles](profiles.md) | profile list, `client_os`, default headers, okhttp HTTP layer |
+| [Protocols](protocols.md) | `http_version`, HTTP/2, h2c, HTTP/3 and QUIC, ALPN, protocol racing |
+| [Custom TLS fingerprint](custom-tls.md) | `ja3_string` and low-level TLS, HTTP/2 and HTTP/3 parameters |
+| [Timeouts, errors and cancellation](timeouts-and-errors.md) | `TimeoutConfig`, exception hierarchy, retries, cancellation and Ctrl+C |
+| [Cookies](cookies.md) | `CookieJar`, RFC 6265 rules, import and export |
+| [Proxies and network](proxies.md) | HTTP(S) and SOCKS proxies, `udp_proxy`, `local_address`, the HTTPS proxy certificate |
+| [Diagnostics](diagnostics.md) | `export_profile`/`from_profile`, `fingerprint_diff`, `Response.trace()` |
+| [Limitations](limitations.md) | what is deliberately not supported and how that shows |
+| [Development](development.md) | building, tests, patches to upstream modules, capturing browser fingerprints, releases |
 
-## Как это устроено
+## How it works
 
 ```
-Python (yumeclient/)                       Go (native/, c-shared библиотека)
+Python (yumeclient/)                       Go (native/, c-shared library)
 ──────────────────────                     ──────────────────────────────────────────
-Session / AsyncSession                      yumeclient_call(json) ─► профиль: uTLS ClientHello,
-  заголовки, cookies (CookieJar),                                    HTTP/2 SETTINGS, QUIC/HTTP3
-  проверка параметров, исключения  ──ctypes──► redirect-хопы, cookie по RFC 6265 на каждом хопе
-Response (буфер или поток)        ◄─────────  тело, история, тайминги, отпечаток с провода
+Session / AsyncSession                      yumeclient_call(json) ─► profile: uTLS ClientHello,
+  headers, cookies (CookieJar),                                      HTTP/2 SETTINGS, QUIC/HTTP3
+  parameter validation, exceptions ──ctypes──► redirect hops, RFC 6265 cookies on every hop
+Response (buffer or stream)       ◄─────────  body, history, timings, fingerprint on the wire
 ```
 
-- **Python** хранит состояние сессии: заголовки, cookie jar, параметры. Каждый запрос получает
-  снимок jar'а; Go выбирает cookie для каждого хопа редиректа и возвращает только изменения.
-- **Go** держит соединения (пулы по сессиям), строит ClientHello профиля через uTLS, говорит
-  HTTP/1.1, HTTP/2 и HTTP/3, ходит через прокси и считает отпечаток (JA3, JA4, Akamai) того,
-  что реально ушло в сеть.
-- Upstream-модули (`fhttp`, `tls-client`, `utls`, `quic-go-utls`, `qpack`) лежат в
-  `native/third_party` с патчами — см. [Разработка](development.md).
+- **Python** holds the session state: headers, cookie jar, parameters. Each request gets a
+  snapshot of the jar; Go picks the cookies for each redirect hop and returns only the changes.
+- **Go** holds the connections (pooled per session), builds the profile's ClientHello with
+  uTLS, speaks HTTP/1.1, HTTP/2 and HTTP/3, goes through proxies and computes the fingerprint
+  (JA3, JA4, Akamai) of what actually went out on the wire.
+- Upstream modules (`fhttp`, `tls-client`, `utls`, `quic-go-utls`, `qpack`) live in
+  `native/third_party` with patches; see [Development](development.md).
 
-## Соглашения
+## Conventions
 
-- Время — в секундах (`float`), размеры — в байтах.
-- Неверная конфигурация — `SessionConfigurationError` при создании сессии, до сети.
-  Неверный запрос — `InvalidRequestError` до отправки.
-- «Профиль» — значение `client_identifier` (`"chrome_152"`, `"firefox_148"`, ...).
-- Примеры используют `https://httpbin.org`. Без интернета — локальная замена из репозитория:
-  `python tests/httpbin_local.py 8080`, затем `HTTPBIN=http://127.0.0.1:8080` для
-  скриптов из [`examples/`](../examples/).
+- Times are in seconds (`float`), sizes in bytes.
+- Invalid configuration raises `SessionConfigurationError` when the session is created, before
+  any network activity. An invalid request raises `InvalidRequestError` before it is sent.
+- "Profile" means a `client_identifier` value (`"chrome_152"`, `"firefox_148"`, ...).
+- Examples use `https://httpbin.org`. Without internet access, use the local replacement from
+  the repository: `python tests/httpbin_local.py 8080`, then `HTTPBIN=http://127.0.0.1:8080`
+  for the scripts in [`examples/`](../examples/).

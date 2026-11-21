@@ -1,19 +1,21 @@
-# Протоколы
+# Protocols
 
-`http_version` задаёт, какие версии HTTP сессия может использовать. Протокол после
-рукопожатия выбирает сервер из списка ALPN, который клиент предложил в ClientHello
-(RFC 7301). Если сервер выбрал версию, которую сессия не разрешает, библиотека не понижает
-её молча, а закрывает соединение до отправки запроса и бросает `ProtocolError`.
+**English** | [Русский](ru/protocols.md)
 
-| Значение | ALPN в ClientHello | Что происходит |
+`http_version` sets which HTTP versions the session may use. After the handshake the server
+picks the protocol from the ALPN list that the client offered in the ClientHello (RFC 7301).
+If the server picks a version that the session does not allow, the library does not silently
+downgrade. It closes the connection before sending the request and raises `ProtocolError`.
+
+| Value | ALPN in ClientHello | What happens |
 |---|---|---|
-| `"auto"` (по умолчанию) | как у профиля, обычно `h2, http/1.1` | HTTP/2 или HTTP/1.1 — что выбрал сервер, как браузер |
-| `"2"` | как у профиля | только HTTP/2. Сервер выбрал `http/1.1` или не прислал ALPN — `ProtocolError`, запрос не отправлен. По `http://` — h2c ([ниже](#http-без-tls)) |
-| `"1.1"` или `force_http1=True` | переписан на `http/1.1` | HTTP/1.1; ClientHello уже не как у браузера (другой JA4) |
-| `"1.1"` и `keep_alpn=True` | как у профиля | HTTP/1.1 с ClientHello браузера. Сервер выбрал `h2` — `ProtocolError`, ни одного байта HTTP не отправлено |
-| `"3"` | как у профиля + QUIC | гонка HTTP/3 и TCP, как в Chrome ([ниже](#http3-и-quic)) |
+| `"auto"` (default) | as in the profile, usually `h2, http/1.1` | HTTP/2 or HTTP/1.1, whichever the server picked, like a browser |
+| `"2"` | as in the profile | HTTP/2 only. If the server picked `http/1.1` or sent no ALPN: `ProtocolError`, the request is not sent. Over `http://`: h2c ([below](#http-without-tls)) |
+| `"1.1"` or `force_http1=True` | rewritten to `http/1.1` | HTTP/1.1; the ClientHello no longer matches the browser (a different JA4) |
+| `"1.1"` and `keep_alpn=True` | as in the profile | HTTP/1.1 with the browser's ClientHello. If the server picked `h2`: `ProtocolError`, not a single HTTP byte is sent |
+| `"3"` | as in the profile + QUIC | HTTP/3 and TCP racing, like in Chrome ([below](#http3-and-quic)) |
 
-Также принимаются `1`, `2`, `3`, `"h1"`, `"h2"`, `"h3"`, `"quic"`, `None` (= `"auto"`).
+`1`, `2`, `3`, `"h1"`, `"h2"`, `"h3"`, `"quic"` and `None` (= `"auto"`) are accepted too.
 
 ```python
 from yumeclient import Session, ProtocolError
@@ -23,130 +25,134 @@ with Session(http_version="2") as s:
     print(r.http_version)                                  # '2'
     print(r.connection_info["alpn_negotiated"])            # 'h2'
 
-with Session(http_version="1.1", keep_alpn=True) as s:   # HTTP/1.1, но JA4 браузера
+with Session(http_version="1.1", keep_alpn=True) as s:   # HTTP/1.1, but the browser's JA4
     try:
         s.get("https://www.google.com/")
     except ProtocolError:
-        pass                                               # сервер выбрал h2
+        pass                                               # the server picked h2
 ```
 
-`r.used_protocol` и `r.connection_info["http_protocol"]` всегда совпадают;
-`connection_info["alpn_negotiated"]` — что выбрал сервер.
+`r.used_protocol` and `r.connection_info["http_protocol"]` always match;
+`connection_info["alpn_negotiated"]` is what the server picked.
 
-## Противоречивые настройки
+## Conflicting settings
 
-Отклоняются в конструкторе `SessionConfigurationError`, до сети:
+The constructor rejects these with `SessionConfigurationError`, before any network access:
 
-- `force_http1=True` вместе с `http_version="2"` или `"3"`; `disable_http3=True` с `"3"`;
-- `keep_alpn=True` без `http_version="1.1"`, вместе с `udp_proxy` или с `alpn_protocols` без
-  `http/1.1`;
-- `alpn_protocols` (свой JA3) с принудительным HTTP/1.1, если список не `["http/1.1"]`
-  (ClientHello предложил бы другое; сохранить список — `keep_alpn=True`);
-- `http_version="2"` с `alpn_protocols` без `h2`; пустой `alpn_protocols`;
-- `http_version="3"` с прокси, который не `socks5://`;
-- `http_version="3"` с клиентом без HTTP/3 (`profiles.NO_HTTP3`).
+- `force_http1=True` together with `http_version="2"` or `"3"`; `disable_http3=True` with `"3"`;
+- `keep_alpn=True` without `http_version="1.1"`, together with `udp_proxy`, or with
+  `alpn_protocols` that lack `http/1.1`;
+- `alpn_protocols` (a custom JA3) with forced HTTP/1.1, if the list is not `["http/1.1"]`
+  (the ClientHello would offer something else; to keep the list, use `keep_alpn=True`);
+- `http_version="2"` with `alpn_protocols` that lack `h2`; an empty `alpn_protocols`;
+- `http_version="3"` with a proxy that is not `socks5://`;
+- `http_version="3"` with a client that has no HTTP/3 (`profiles.NO_HTTP3`).
 
-## HTTP без TLS
+## HTTP without TLS
 
-По `http://` ALPN нет. При `"auto"`, `"1.1"` и `"3"` запросы идут по HTTP/1.1 — браузеры по
-открытому HTTP используют только его. При `http_version="2"` — HTTP/2 с prior knowledge (h2c,
-RFC 9113 §3.3, как `Protocol.H2_PRIOR_KNOWLEDGE` в OkHttp или gRPC): клиент сразу шлёт
-preface HTTP/2. Сервер, который не говорит h2c, — `ProtocolError`.
+Over `http://` there is no ALPN. With `"auto"`, `"1.1"` and `"3"` requests go over HTTP/1.1,
+because browsers use only HTTP/1.1 over plain HTTP. With `http_version="2"` it is HTTP/2 with
+prior knowledge (h2c, RFC 9113 §3.3, like `Protocol.H2_PRIOR_KNOWLEDGE` in OkHttp or gRPC):
+the client sends the HTTP/2 preface right away. A server that does not speak h2c gives
+`ProtocolError`.
 
-Запросы по `http://` идут через тот же транспорт сессии, что и `https://`: тот же прокси,
-`local_address`, cookie. Редиректы между `http://` и `https://` остаются в сессии, и каждый
-`https://`-хоп — с TLS профиля.
+Requests over `http://` go through the same session transport as `https://`: the same proxy,
+`local_address`, cookies. Redirects between `http://` and `https://` stay in the session, and
+every `https://` hop uses the profile's TLS.
 
 ## HTTP/2
 
-HTTP/2-параметры берутся из профиля: SETTINGS и их порядок, WINDOW_UPDATE соединения,
-PRIORITY-фреймы, приоритет в HEADERS, порядок псевдозаголовков. Вместе они дают Akamai-отпечаток
-(`r.fingerprint["akamai_fingerprint"]`). Для Chrome:
+HTTP/2 parameters come from the profile: SETTINGS and their order, the connection
+WINDOW_UPDATE, PRIORITY frames, the priority in HEADERS, the pseudo-header order. Together they
+make the Akamai fingerprint (`r.fingerprint["akamai_fingerprint"]`). For Chrome:
 
 ```
 1:65536;2:0;4:6291456;6:262144|15663105|0|m,a,s,p
 ```
 
-Переопределить их можно только для своего TLS-отпечатка (`ja3_string` + `h2_settings` и
-т. д., [Свой TLS-отпечаток](custom-tls.md)).
+You can override them only for a custom TLS fingerprint (`ja3_string` + `h2_settings` and so
+on, [Custom TLS fingerprint](custom-tls.md)).
 
-## HTTP/3 и QUIC
+## HTTP/3 and QUIC
 
 ```python
 with Session(client_identifier="chrome_152", http_version="3") as s:
     r = s.get("https://cloudflare-quic.com/")
-    print(r.http_version)          # '3', если сервер поддерживает HTTP/3
+    print(r.http_version)          # '3' if the server supports HTTP/3
 ```
 
-### Гонка соединений
+### Connection racing
 
-С `http_version="3"` сессия делает то же, что Chrome при известном Alt-Svc:
+With `http_version="3"` the session does what Chrome does when it knows the Alt-Svc:
 
-1. Запускает QUIC-рукопожатие; через 300 мс (или сразу, если QUIC упал) — параллельно TCP.
-2. Запрос уходит **один раз** — по протоколу, который первым установил соединение (или по
-   уже открытому соединению). Выигравший протокол запоминается для хоста.
-3. После ошибки запомненного протокола следующие запросы снова устраивают гонку на новых
-   соединениях. У HTTP/3 это относится и к таймауту или отмене (молчащий UDP), у HTTP/1.1 и
-   HTTP/2 таймаут или отмена протокол и пул не сбрасывают.
-4. Упавший запрос повторяется гонкой, если он идемпотентный (GET, HEAD, OPTIONS, TRACE или с
-   заголовком `Idempotency-Key`) и время ещё есть, или если он точно не был отправлен.
+1. It starts the QUIC handshake; after 300 ms (or right away if QUIC failed) it starts TCP in
+   parallel.
+2. The request goes out **once**, over the protocol that set up a connection first (or over an
+   already open connection). The winning protocol is remembered for the host.
+3. After an error of the remembered protocol, the next requests race again on new connections.
+   For HTTP/3 this also applies to a timeout or a cancellation (silent UDP); for HTTP/1.1 and
+   HTTP/2 a timeout or a cancellation does not reset the protocol and the pool.
+4. A failed request is retried with racing if it is idempotent (GET, HEAD, OPTIONS, TRACE or
+   with an `Idempotency-Key` header) and there is time left, or if it was definitely not sent.
 
-### Сломанный HTTP/3
+### Broken HTTP/3
 
-Если HTTP/3-соединение закрылось с кодом ошибки HTTP/3, QPACK или QUIC (сервером или из-за
-нарушения протокола), HTTP/3 для этого адреса помечается сломанным, как в Chrome: на 5 минут,
-при повторах вдвое дольше, до 48 часов. Запрос повторяется по TCP, следующие идут по TCP
-сразу.
+If an HTTP/3 connection was closed with an HTTP/3, QPACK or QUIC error code (by the server or
+because of a protocol violation), HTTP/3 is marked broken for that address, as in Chrome: for 5
+minutes, twice as long on each repeat, up to 48 hours. The request is retried over TCP, and the
+next requests go over TCP right away.
 
-Не считаются поломкой: закрытие без ошибки (`NO_ERROR`, `H3_NO_ERROR`, неизвестные коды),
-сброс сервером одного запроса, слишком большой ответ, таймауты, соединение, которое сервер
-забыл (idle timeout, stateless reset). Следующий запрос просто идёт по новому
-QUIC-соединению.
+These do not count as broken: a close without an error (`NO_ERROR`, `H3_NO_ERROR`, unknown
+codes), the server resetting a single request, a response that is too large, timeouts, a
+connection that the server forgot (idle timeout, stateless reset). The next request simply goes
+over a new QUIC connection.
 
-### Отпечаток QUIC и HTTP/3
+### QUIC and HTTP/3 fingerprint
 
-У 53 профилей (`profiles.HTTP3_FINGERPRINTS`) QUIC и HTTP/3 воспроизводят записи самих
-браузеров — Chrome 103–152, Opera 89–91, Firefox 102–148; Edge и Brave — Chromium той же
-версии:
+For 53 profiles (`profiles.HTTP3_FINGERPRINTS`) QUIC and HTTP/3 reproduce captures of the
+browsers themselves: Chrome 103–152, Opera 89–91, Firefox 102–148; Edge and Brave use Chromium
+of the same version:
 
-- **ClientHello внутри QUIC.** Он отличается от TCP-шного: только TLS 1.3, у Chromium без
-  GREASE. Перемешивание расширений и ECH GREASE — как у браузера.
-- **Transport parameters**: набор, значения, порядок, GREASE-параметр, `version_information`,
-  `google_connection_options`, `google_initial_rtt` на повторных соединениях.
-- **Initial-пакеты**: длины Connection ID, номер первого пакета, размер датаграммы, способ
-  заполнения (PADDING-фреймы или нули после пакета у Firefox), раскладка ClientHello по
-  пакетам (chaos protection Chromium, SNI slicing Firefox 146+).
-- **HTTP/3**: SETTINGS и их порядок, GREASE-фрейм, порядок и типы QPACK-потоков,
-  PRIORITY_UPDATE, заголовок `priority`, порядок псевдозаголовков.
-- **QPACK**: динамическая таблица декодера, как у браузеров (без неё запросы к серверам,
-  которые сжимают заголовки через таблицу, падали — например, google.com).
+- **ClientHello inside QUIC.** It differs from the TCP one: TLS 1.3 only, and no GREASE in
+  Chromium. Extension shuffling and ECH GREASE follow the browser.
+- **Transport parameters**: the set, values, order, the GREASE parameter,
+  `version_information`, `google_connection_options`, `google_initial_rtt` on repeat
+  connections.
+- **Initial packets**: Connection ID lengths, the first packet number, the datagram size, the
+  padding method (PADDING frames, or zeros after the packet in Firefox), the layout of the
+  ClientHello across packets (Chromium chaos protection, Firefox 146+ SNI slicing).
+- **HTTP/3**: SETTINGS and their order, the GREASE frame, the order and types of QPACK streams,
+  PRIORITY_UPDATE, the `priority` header, the pseudo-header order.
+- **QPACK**: a decoder dynamic table, as in browsers (without it, requests to servers that
+  compress headers through the table failed, google.com for example).
 
-У профилей без записи (Safari, iOS- и Android-приложения) `http_version="3"` работает, но с
-предупреждением: QUIC и HTTP/3 у них — значения библиотеки, а не устройства. Свой JA3 с
-Chrome-заполнением берёт QUIC и HTTP/3 того Chrome.
+For profiles without a capture (Safari, iOS and Android apps) `http_version="3"` works, but
+with a warning: their QUIC and HTTP/3 use the library's values, not the device's. A custom JA3
+with Chrome padding takes the QUIC and HTTP/3 of that Chrome.
 
-Как записать браузер и добавить запись — [Разработка](development.md#отпечатки-http3).
+How to capture a browser and add the capture: [Development](development.md#http3-and-quic).
 
-### Прокси и HTTP/3
+### Proxies and HTTP/3
 
-QUIC идёт поверх UDP, поэтому HTTP/3 возможен только через SOCKS5 (UDP ASSOCIATE):
-`proxy="socks5://..."` или отдельный `udp_proxy=` (`socks5://` или `socks5h://`). С
-HTTP-прокси без `udp_proxy` `http_version="3"` — `SessionConfigurationError`. У ответов по
-HTTP/3 (с прокси и без) `r.fingerprint["source"]` равен `"config"`: QUIC ClientHello не
-записывается, значения посчитаны из конфигурации.
+QUIC runs over UDP, so HTTP/3 is possible only through SOCKS5 (UDP ASSOCIATE):
+`proxy="socks5://..."` or a separate `udp_proxy=` (`socks5://` or `socks5h://`). With an HTTP
+proxy and no `udp_proxy`, `http_version="3"` raises `SessionConfigurationError`. For responses
+over HTTP/3 (with or without a proxy) `r.fingerprint["source"]` is `"config"`: the QUIC
+ClientHello is not recorded, and the values are computed from the configuration.
 
-## Таймауты по протоколам
+## Timeouts by protocol
 
-Стадии таймаутов одинаковы для HTTP/1.1, HTTP/2 и HTTP/3; у HTTP/3 `connect` — это
-QUIC-рукопожатие. В гонке TCP стартует через 300 мс, поэтому `connect` меньше 300 мс
-кончается раньше, чем TCP успеет начать. Подробнее — [Таймауты](timeouts-and-errors.md).
+Timeout stages are the same for HTTP/1.1, HTTP/2 and HTTP/3; for HTTP/3, `connect` is the QUIC
+handshake. In racing, TCP starts after 300 ms, so a `connect` below 300 ms runs out before TCP
+can start. See [Timeouts](timeouts-and-errors.md) for details.
 
-## Если сервер выбирает не тот протокол
+## If the server picks the wrong protocol
 
-Если приложению сервер отдаёт `http/1.1`, а вам — `h2` с тем же ClientHello, значит, сервер
-смотрит на что-то ещё: клиентская настройка этого не исправит. Сравните
-`r.fingerprint["alpn_offered"]` и `connection_info["alpn_negotiated"]` с эталоном. ALPN
-ответа сервера в TLS 1.3 зашифрован; в записи tshark он виден только с keylog:
+If the server gives the app `http/1.1` but gives you `h2` with the same ClientHello, the server
+is looking at something else, and no client setting will fix that. Compare
+`r.fingerprint["alpn_offered"]` and `connection_info["alpn_negotiated"]` with the reference.
+In TLS 1.3 the server's ALPN reply is encrypted; in a tshark capture it is visible only with a
+keylog:
 
 ```sh
 tshark -o tls.keylog_file:keys.log -Y "tls.handshake.type==8" -T fields -e tls.handshake.extensions_alpn_str

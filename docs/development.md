@@ -1,157 +1,180 @@
-# Разработка
+# Development
 
-Как устроен репозиторий, как собрать нативную библиотеку, запустить тесты, обновить
-upstream-модули, снять новые отпечатки и выпустить релиз.
+**English** | [Русский](ru/development.md)
 
-## Структура
+How the repository is organized, how to build the native library, run the tests, update the
+upstream modules, capture new fingerprints and make a release.
+
+## Structure
 
 ```text
-yumeclient/            Python-пакет
-  __init__.py          Session, AsyncSession, Response, исключения, сборка запроса
-  _headers.py          Headers — регистронезависимый упорядоченный dict
+yumeclient/            Python package
+  __init__.py          Session, AsyncSession, Response, exceptions, request building
+  _headers.py          Headers, a case-insensitive ordered dict
   cookies.py           CookieJar (RFC 6265, PSL), JarCookie
-  profiles.py          идентификаторы профилей, базовые заголовки, HTTP3_FINGERPRINTS, NO_HTTP3
+  profiles.py          profile identifiers, default headers, HTTP3_FINGERPRINTS, NO_HTTP3
   diagnostics.py       export_profile / from_profile, fingerprint_diff, trace
   multipart.py         encode_multipart
-native/                Go c-shared библиотека (yumeclient.dll / .so / .dylib)
-  main.go              создание клиентов, профили, custom JA3, сессии
-  call.go              yumeclient_call: запрос, чтение тела, стриминг, ответ в JSON
-  control.go           отмена, стадийные таймауты, редиректы, классификация ошибок
-  cookiejar.go         RFC 6265 jar одного запроса (снимок из Python + изменения)
-  plain.go             http://: HTTP/1.1 и h2c через транспорт сессии
-  okhttp.go            HTTP-слой okhttp4 (header_style="okhttp")
-  wire.go              запись ClientHello для r.fingerprint, JA3/JA4/Akamai
-  h3profiles.go/.json  отпечатки HTTP/3, снятые с браузеров
-  third_party/         копии upstream-модулей с правками (см. ниже)
-scripts/               сборка, проверка wheel, инструменты записи отпечатков
-tests/                 pytest-тесты (локальные серверы; сеть не нужна)
-docs/                  документация
+native/                Go c-shared library (yumeclient.dll / .so / .dylib)
+  main.go              client creation, profiles, custom JA3, sessions
+  call.go              yumeclient_call: request, body reading, streaming, response as JSON
+  control.go           cancellation, stage timeouts, redirects, error classification
+  cookiejar.go         RFC 6265 jar for one request (snapshot from Python + changes)
+  plain.go             http://: HTTP/1.1 and h2c through the session transport
+  okhttp.go            okhttp4 HTTP layer (header_style="okhttp")
+  wire.go              ClientHello recording for r.fingerprint, JA3/JA4/Akamai
+  h3profiles.go/.json  HTTP/3 fingerprints captured from browsers
+  third_party/         copies of upstream modules with patches (see below)
+scripts/               build, wheel checks, fingerprint capture tools
+tests/                 pytest tests (local servers; no network needed)
+docs/                  reference in English; docs/ru/ in Russian
 ```
 
-Python вызывает нативную библиотеку через `ctypes`. Запрос — JSON-строка, ответ — JSON
-(тело в base64). Функции библиотеки: `yumeclient_call`, `yumeclient_cancel`,
+Python calls the native library through `ctypes`. A request is a JSON string, and the response
+is JSON (with the body in base64). Library functions: `yumeclient_call`, `yumeclient_cancel`,
 `yumeclient_stream_read`, `yumeclient_stream_close`, `yumeclient_close`, `yumeclient_free`,
 `yumeclient_debug_stats`.
 
-## Сборка
+## Building
 
-Нужны Go 1.24.1+ (CI собирает на Go 1.24.x) и C-компилятор для cgo: на Windows —
-MinGW-w64 (`gcc` в `PATH`), на Linux — gcc, на macOS — Xcode Command Line Tools.
+You need Go 1.24.1+ (CI builds with Go 1.24.x) and a C compiler for cgo: on Windows,
+MinGW-w64 (`gcc` in `PATH`); on Linux, gcc; on macOS, the Xcode Command Line Tools.
 
 ```bash
 # Windows (PowerShell)
 ./scripts/build-native.ps1            # → yumeclient/yumeclient.dll
 
 # Linux / macOS
-sh ./scripts/build-native.sh          # → yumeclient/yumeclient.so или .dylib
+sh ./scripts/build-native.sh          # → yumeclient/yumeclient.so or .dylib
 ```
 
-На macOS по умолчанию собирается universal2 (`YUMECLIENT_MAC_ARCHS="arm64 amd64"`) с
-`MACOSX_DEPLOYMENT_TARGET=11.0`. Для разработки быстрее одна архитектура:
+On macOS, universal2 is built by default (`YUMECLIENT_MAC_ARCHS="arm64 amd64"`) with
+`MACOSX_DEPLOYMENT_TARGET=11.0`. For development, a single architecture is faster:
 `YUMECLIENT_MAC_ARCHS=arm64 sh ./scripts/build-native.sh`.
 
-После сборки пакет можно использовать прямо из репозитория (`pip install -e ".[test]"`) или
-указать библиотеку явно: `YUMECLIENT_LIBRARY=/path/to/yumeclient.so`.
+After building, you can use the package straight from the repository (`pip install -e ".[test]"`)
+or point to the library explicitly: `YUMECLIENT_LIBRARY=/path/to/yumeclient.so`.
 
-Wheel:
+Wheels:
 
 ```bash
-python setup.py bdist_wheel                 # wheel с текущей нативной библиотекой
-python scripts/check_wheel.py dist/*.whl    # тег py3-none-<платформа>, одна библиотека нужного формата
-sh scripts/build-linux-wheel.sh x86_64      # manylinux2014 в Docker; архитектура = архитектура хоста
+python setup.py bdist_wheel                 # wheel with the current native library
+python scripts/check_wheel.py dist/*.whl    # tag py3-none-<platform>, one library of the right format
+sh scripts/build-linux-wheel.sh x86_64      # manylinux2014 in Docker; architecture = host architecture
 ```
 
-## Тесты
+## Tests
 
 ```bash
 pip install -e ".[test]"        # pytest, pytest-asyncio, aioquic
-python -m pytest -q             # ~580 тестов, локальные серверы
-python -m pytest -q --run-online   # + тесты против httpbin.org
-(cd native && go test ./...)    # Go-тесты: QPACK, отпечатки HTTP/3, ECH
+python -m pytest -q             # ~700 tests, local servers
+python -m pytest -q --run-online   # + tests against httpbin.org
+(cd native && go test ./...)    # Go tests: QPACK, HTTP/3 fingerprints, ECH
 ```
 
-Тесты поднимают свои серверы на `127.0.0.1`: HTTP/1.1, TLS-сниффер ClientHello, HTTP/2 на
-сырых кадрах (`tests/test_protocol.py::H2Server`), HTTP/3 на aioquic (`tests/h3raw.py`,
-`tests/test_http3.py::H3Server`), прокси (HTTP CONNECT, SOCKS5 с UDP ASSOCIATE —
-`tests/socks5udp.py`). Тесты HTTP/3 пропускаются, если aioquic не установлен.
+The tests start their own servers on `127.0.0.1`: HTTP/1.1, a TLS ClientHello sniffer, HTTP/2 on
+raw frames (`tests/test_protocol.py::H2Server`), HTTP/3 on aioquic (`tests/h3raw.py`,
+`tests/test_http3.py::H3Server`), proxies (HTTP CONNECT, SOCKS5 with UDP ASSOCIATE:
+`tests/socks5udp.py`). The HTTP/3 tests are skipped if aioquic is not installed.
 
-Регрессионный тест должен падать на старой версии и проходить на новой. Проверка: соберите
-DLL прошлого релиза (`git worktree add ../old vX.Y.Z`, сборка там) и запустите тест с
-`YUMECLIENT_LIBRARY=../old/yumeclient/yumeclient.dll`.
+A regression test must fail on the old version and pass on the new one. To check this, build
+the DLL of the previous release (`git worktree add ../old vX.Y.Z`, then build there) and run the
+test with `YUMECLIENT_LIBRARY=../old/yumeclient/yumeclient.dll`.
 
-## Upstream-модули (`native/third_party`)
+## Documentation
 
-`native/go.mod` заменяет `fhttp`, `tls-client`, `utls`, `quic-go-utls` и `qpack` локальными
-копиями (`replace ... => ./third_party/<имя>`). Каждая копия — upstream-модуль той версии,
-что указана в `go.mod`, без тестов и примеров, плюс правки из
-`native/third_party/patches/<имя>.patch`. Патч — unified diff; это одновременно и запись для
-ревью.
+The documentation is in English and Russian. English pages are at the usual paths (`README.md`,
+`USAGE.md`, `CHANGELOG.md`, `docs/*.md`, `examples/README.md`), Russian ones next to them
+(`*.ru.md`, `docs/ru/*.md`). A change goes into both versions.
 
 ```bash
-python scripts/third_party.py check   # копии == upstream + патч, лишних файлов нет (CI)
-python scripts/third_party.py diff    # пересобрать патчи из отредактированных копий
-python scripts/third_party.py sync    # свежие копии из upstream + git apply патчей
-                                      # (после смены версии в go.mod)
+python -m pytest -q tests/test_docs_i18n.py tests/test_examples.py
 ```
 
-Правка upstream-кода: отредактируйте файл в `native/third_party/<имя>/`, выполните `diff`,
-закоммитьте и копию, и патч. Изменения в upstream-коде помечайте комментарием
-`// yumeclient: ...` с причиной.
+- `tests/test_docs_i18n.py` checks that the two versions of a page have the same structure:
+  heading levels, code blocks (the same code apart from comments and Russian strings), table
+  rows, list items and links. It also checks the language switcher under the title, that
+  English pages contain no Cyrillic and that every `#anchor` in links exists.
+- `tests/test_examples.py` runs the scripts from `examples/` against a local httpbin, compiles
+  every `python` block in the documentation and checks relative links.
+- `README.md` is also the project description on PyPI, so its links are absolute
+  (`https://github.com/october2823/yumeclient/blob/main/...`).
 
-## Отпечатки профилей
+## Upstream modules (`native/third_party`)
 
-### TLS / HTTP/2 / заголовки
-
-`tests/fixtures/profiles.json` — эталонный ClientHello и HTTP/2 каждого профиля;
-`tests/fixtures/browser_headers.json` — заголовки, снятые с браузеров.
+`native/go.mod` replaces `fhttp`, `tls-client`, `utls`, `quic-go-utls` and `qpack` with local
+copies (`replace ... => ./third_party/<name>`). Each copy is the upstream module at the version
+given in `go.mod`, without tests and examples, plus the patches from
+`native/third_party/patches/<name>.patch`. A patch is a unified diff; it also serves as the
+record for review.
 
 ```bash
-python scripts/profile_fixtures.py            # отличия текущей сборки от эталона
-python scripts/profile_fixtures.py --update   # перезаписать эталон
+python scripts/third_party.py check   # copies == upstream + patch, no extra files (CI)
+python scripts/third_party.py diff    # rebuild the patches from the edited copies
+python scripts/third_party.py sync    # fresh copies from upstream + git apply of the patches
+                                      # (after changing the version in go.mod)
 ```
 
-### HTTP/3 и QUIC
+To patch upstream code: edit the file in `native/third_party/<name>/`, run `diff`, and commit
+both the copy and the patch. Mark changes in upstream code with a `// yumeclient: ...` comment
+that gives the reason.
 
-Отпечатки HTTP/3 снимаются с настоящих браузеров (Windows x64):
+## Profile fingerprints
+
+### TLS / HTTP/2 / headers
+
+`tests/fixtures/profiles.json` is the reference ClientHello and HTTP/2 of each profile;
+`tests/fixtures/browser_headers.json` holds headers captured from browsers.
+
+```bash
+python scripts/profile_fixtures.py            # differences between the current build and the reference
+python scripts/profile_fixtures.py --update   # overwrite the reference
+```
+
+### HTTP/3 and QUIC
+
+HTTP/3 fingerprints are captured from real browsers (Windows x64):
 
 ```bash
 pip install aioquic
-# скачать сборки и записать рукопожатие (по 2 прогона, чтобы отделить случайные поля)
+# download the builds and capture the handshake (2 runs each, to separate out the random fields)
 python scripts/h3_browsers.py chrome 133 144 --repeat 2 --out captures
 python scripts/h3_browsers.py firefox 147.0 --repeat 2 --out captures
 python scripts/h3_browsers.py opera 91.0.4516.77 --repeat 2 --out captures
 python scripts/h3_browsers.py chrome 116 --tag pq --chrome-flag=--enable-features=PostQuantumKyber --out captures
 
-# собрать native/h3profiles.json и список profiles.HTTP3_FINGERPRINTS
+# build native/h3profiles.json and the profiles.HTTP3_FINGERPRINTS list
 python scripts/h3_profiles.py captures --out native/h3profiles.json
 ```
 
-- Chrome 113+ скачивается из Chrome for Testing, более старые — снапшоты Chromium на позиции
-  ветки релиза; Firefox — с archive.mozilla.org; Opera — с get.geo.opera.com. Кэш —
-  `--cache` или переменная `YC_BROWSER_CACHE`.
-- `scripts/h3_capture.py` — сервер-регистратор на aioquic: расшифровывает Initial-пакеты
-  клиента и записывает ClientHello, транспортные параметры, раскладку пакетов, кадры
-  HTTP/3 и QPACK-потоки. Отдельно: `python scripts/h3_capture.py serve --port 4433` —
-  направьте на него устройство (Safari, приложение) и получите запись при Ctrl+C.
-- Соответствие записей профилям — `PROFILE_SOURCES` в `scripts/h3_profiles.py`.
-- `tests/test_h3_fingerprints.py` проверяет каждый профиль с записью против
+- Chrome 113+ is downloaded from Chrome for Testing, older versions are Chromium snapshots at
+  the release branch position; Firefox comes from archive.mozilla.org; Opera from
+  get.geo.opera.com. Cache: `--cache` or the `YC_BROWSER_CACHE` variable.
+- `scripts/h3_capture.py` is a recording server on aioquic: it decrypts the client's Initial
+  packets and records the ClientHello, transport parameters, packet layout, HTTP/3 frames and
+  QPACK streams. Standalone: `python scripts/h3_capture.py serve --port 4433`; point a device
+  (Safari, an app) at it and get the capture on Ctrl+C.
+- The mapping of captures to profiles is `PROFILE_SOURCES` in `scripts/h3_profiles.py`.
+- `tests/test_h3_fingerprints.py` checks each profile that has a capture against
   `native/h3profiles.json`.
 
-## CI и релиз
+## CI and releases
 
-- `.github/workflows/test.yml` — на каждый push и PR: `third_party.py check`, сборка, Go-тесты,
-  pytest на Windows, Linux и macOS.
-- `.github/workflows/release.yml` — сборка 4 wheel (Windows x64, manylinux2014 x86_64 и
-  aarch64, macOS universal2), `check_wheel.py`, smoke-тест каждого wheel на 5 раннерах ×
-  Python 3.11–3.14 и на образе с glibc 2.17, публикация на PyPI через Trusted Publishing.
-  Пробный прогон без публикации: `gh workflow run release.yml --ref <ветка> -f publish=false`.
+- `.github/workflows/test.yml`: on every push and PR, `third_party.py check`, build, Go tests,
+  pytest on Windows, Linux and macOS.
+- `.github/workflows/release.yml`: builds 4 wheels (Windows x64, manylinux2014 x86_64 and
+  aarch64, macOS universal2), runs `check_wheel.py`, smoke-tests each wheel on 5 runners ×
+  Python 3.11–3.14 and on an image with glibc 2.17, and publishes to PyPI through Trusted
+  Publishing. A dry run without publishing: `gh workflow run release.yml --ref <branch> -f publish=false`.
 
-Выпуск версии:
+Releasing a version:
 
-1. Версия — в `pyproject.toml` и `yumeclient/__init__.py` (`__version__`; тест проверяет
-   совпадение). Раздел в `CHANGELOG.md`.
-2. Зелёные `test.yml` и пробный `release.yml` на ветке.
-3. Слить в `main`, поставить тег `vX.Y.Z`, создать GitHub Release (текст — раздел CHANGELOG).
-   Публикация на PyPI запускается релизом.
-4. Проверить: `pip install yumeclient==X.Y.Z` в чистом окружении и
+1. The version goes in `pyproject.toml` and `yumeclient/__init__.py` (`__version__`; a test
+   checks that they match). In `CHANGELOG.md` and `CHANGELOG.ru.md`, `[Unreleased]` becomes
+   `[X.Y.Z] — date` (the PyPI upload date, UTC), and the link definitions at the end of the
+   file get the new version.
+2. Green `test.yml` and a dry run of `release.yml` on the branch.
+3. Merge into `main`, tag `vX.Y.Z`, create a GitHub Release (the text is the `CHANGELOG.md`
+   section). The release triggers publishing to PyPI.
+4. Check: `pip install yumeclient==X.Y.Z` in a clean environment and
    `python scripts/smoke_wheel.py`.

@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://github.com/october2823/yumeclient/blob/main/docs/index.md
+    about: Reference, guide (USAGE.md) and examples.
+  - name: Документация
+    url: https://github.com/october2823/yumeclient/blob/main/docs/ru/index.md
+    about: Справочник, руководство (USAGE.ru.md) и примеры.
+  - name: Security vulnerability / Уязвимость
+    url: https://github.com/october2823/yumeclient/security/advisories/new
+    about: Report privately, not in an issue. / Сообщите закрыто, не через issue.

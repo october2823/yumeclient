@@ -1,4 +1,6 @@
-# Запросы
+# Requests
+
+**English** | [Русский](ru/requests.md)
 
 ```python
 r = s.request("GET", "https://httpbin.org/get", params={"q": "yume"}, timeout=10)
@@ -6,64 +8,64 @@ r = s.get(url)
 r = s.post(url, json={"name": "yume"})
 ```
 
-`request(method, url, **kwargs)` и методы-обёртки `get`, `head`, `post`, `put`, `patch`,
-`delete`, `options` есть у `Session`, `AsyncSession` (с `await`) и на уровне модуля
-(`yumeclient.get(...)`, `await yumeclient.aget(...)`). Метод может быть любым токеном
-(`"PROPFIND"`, `"PURGE"`), он передаётся в верхнем регистре.
+`request(method, url, **kwargs)` and the wrapper methods `get`, `head`, `post`, `put`, `patch`,
+`delete`, `options` exist on `Session`, on `AsyncSession` (with `await`) and at module level
+(`yumeclient.get(...)`, `await yumeclient.aget(...)`). The method can be any token
+(`"PROPFIND"`, `"PURGE"`); it is sent in upper case.
 
-## Параметры запроса
+## Request parameters
 
-| Параметр | Тип | Описание |
+| Parameter | Type | Description |
 |---|---|---|
-| `params` | `dict`, список пар | query string; списки значений раскрываются (`{"a": [1, 2]}` → `a=1&a=2`), добавляются к уже имеющемуся `?` |
-| `data` | `dict`, список пар, `bytes`, `str` | тело: форма, сырые байты или текст ([ниже](#тело-запроса)) |
-| `json` | любой JSON-сериализуемый объект | тело JSON, `Content-Type: application/json` |
-| `files` | `dict` или список пар | multipart/form-data ([ниже](#файлы-multipart)) |
-| `headers` | `dict` | заголовки этого запроса поверх заголовков сессии; `None` удаляет |
-| `cookies` | `dict`, список словарей, `CookieJar` | cookie только для этого запроса, в jar сессии не попадают |
-| `timeout` | число, кортеж, `TimeoutConfig`, `None` | вместо таймаута сессии ([Таймауты](timeouts-and-errors.md)) |
-| `proxy` | `str` | прокси только для этого запроса ([Прокси](proxies.md)) |
-| `allow_redirects` | `bool`, по умолчанию `True` | следовать редиректам |
-| `header_order` | список имён | порядок заголовков этого запроса |
-| `host_override` | `str` | значение заголовка `Host` (`:authority` у HTTP/2 и HTTP/3); соединение, SNI и проверка сертификата — по хосту из URL |
-| `stream` | `bool`, по умолчанию `False` | не читать тело сразу ([Стриминг](responses.md#потоковое-чтение)) |
-| `max_content_size` | `int` | лимит распакованного тела для этого запроса |
+| `params` | `dict`, list of pairs | query string; lists of values are expanded (`{"a": [1, 2]}` → `a=1&a=2`) and appended to an existing `?` |
+| `data` | `dict`, list of pairs, `bytes`, `str` | body: a form, raw bytes or text ([below](#request-body)) |
+| `json` | any JSON-serializable object | JSON body, `Content-Type: application/json` |
+| `files` | `dict` or list of pairs | multipart/form-data ([below](#files-multipart)) |
+| `headers` | `dict` | headers for this request on top of the session headers; `None` removes a header |
+| `cookies` | `dict`, list of dicts, `CookieJar` | cookies for this request only; they do not go into the session jar |
+| `timeout` | number, tuple, `TimeoutConfig`, `None` | replaces the session timeout ([Timeouts](timeouts-and-errors.md)) |
+| `proxy` | `str` | a proxy for this request only ([Proxies](proxies.md)) |
+| `allow_redirects` | `bool`, default `True` | follow redirects |
+| `header_order` | list of names | header order for this request |
+| `host_override` | `str` | value of the `Host` header (`:authority` for HTTP/2 and HTTP/3); the connection, SNI and certificate verification use the host from the URL |
+| `stream` | `bool`, default `False` | do not read the body right away ([Streaming](responses.md#streaming)) |
+| `max_content_size` | `int` | limit on the decompressed body for this request |
 
-Неизвестный параметр — `TypeError`, как у обычной функции. Неверный URL (не `http://` или
-`https://`, без хоста, с неверным портом или управляющими символами), метод или заголовок —
-`InvalidRequestError` (`kind="invalid_request"`, `stage="request"`) до обращения к сети. До 0.8.1
-неверный URL давал `ConnectError` с `retryable=True`.
+An unknown parameter raises `TypeError`, as with any function. An invalid URL (not `http://` or
+`https://`, no host, an invalid port or control characters), method or header raises
+`InvalidRequestError` (`kind="invalid_request"`, `stage="request"`) before any network access.
+Before 0.8.1, an invalid URL raised `ConnectError` with `retryable=True`.
 
-## Тело запроса
+## Request body
 
 ```python
 s.post(url, data={"login": "yume", "remember": "1"})   # application/x-www-form-urlencoded
-s.post(url, data=[("tag", "a"), ("tag", "b")])        # форма с повторяющимися полями
-s.post(url, json={"items": [1, 2, 3]})                # application/json, компактно: {"items":[1,2,3]}
+s.post(url, data=[("tag", "a"), ("tag", "b")])        # form with repeated fields
+s.post(url, json={"items": [1, 2, 3]})                # application/json, compact: {"items":[1,2,3]}
 s.post(url, data=b"\x00\x01binary")                   # application/octet-stream
-s.post(url, data="plain text")                        # UTF-8, без Content-Type
+s.post(url, data="plain text")                        # UTF-8, no Content-Type
 s.post(url, data=b"...", headers={"Content-Type": "image/png"})
 ```
 
-| `data` / `json` | `Content-Type` по умолчанию | Кодирование |
+| `data` / `json` | Default `Content-Type` | Encoding |
 |---|---|---|
-| `json=` | `application/json` | `json.dumps` без пробелов (как `JSON.stringify`) |
-| `data=dict` или список пар | `application/x-www-form-urlencoded` | `urlencode(doseq=True)` |
-| `data=bytes` | `application/octet-stream` (у okhttp-стиля — нет) | как есть |
-| `data=str` | нет | UTF-8 |
+| `json=` | `application/json` | `json.dumps` without spaces (like `JSON.stringify`) |
+| `data=dict` or list of pairs | `application/x-www-form-urlencoded` | `urlencode(doseq=True)` |
+| `data=bytes` | `application/octet-stream` (none in okhttp style) | as is |
+| `data=str` | none | UTF-8 |
 
-`Content-Type`, заданный вами, всегда важнее умолчания. `headers={"Content-Type": None}`
-убирает умолчание для `bytes`; для формы, JSON и multipart тип всё равно ставится — без него
-сервер не разберёт тело (так же ведёт себя `requests`).
+A `Content-Type` you set always wins over the default. `headers={"Content-Type": None}`
+removes the default for `bytes`; for a form, JSON and multipart the type is set anyway,
+because without it the server cannot parse the body (`requests` behaves the same way).
 
-`Content-Length` считает транспорт. Тело отправляется целиком: потоковой отправки
-(генераторы, файлы по кускам) нет — передавайте `bytes`.
+The transport computes `Content-Length`. The body is sent in one piece: there is no streaming
+upload (generators, files in chunks); pass `bytes`.
 
-## Файлы (multipart)
+## Files (multipart)
 
 ```python
 with open("report.pdf", "rb") as f:
-    r = s.post(url, data={"title": "Отчёт"}, files={"file": f})
+    r = s.post(url, data={"title": "Report"}, files={"file": f})
 
 r = s.post(url, files=[
     ("photos", ("a.jpg", jpg_bytes, "image/jpeg")),
@@ -72,21 +74,21 @@ r = s.post(url, files=[
 ])
 ```
 
-Спецификация файла — как в `requests`:
+The file spec is the same as in `requests`:
 
-| Значение | Имя файла | Content-Type части |
+| Value | File name | Part Content-Type |
 |---|---|---|
-| `bytes`, `str` или открытый файл | `name` открытого файла; у `bytes` и `str` — имя поля | по расширению (`mimetypes`) |
-| `(имя, содержимое)` | указанное | по расширению |
-| `(имя, содержимое, тип)` | указанное | указанный |
-| `(имя, содержимое, тип, {заголовки})` | указанное | указанный + доп. заголовки части |
+| `bytes`, `str` or an open file | `name` of the open file; for `bytes` and `str`, the field name | by extension (`mimetypes`) |
+| `(name, content)` | as given | by extension |
+| `(name, content, type)` | as given | as given |
+| `(name, content, type, {headers})` | as given | as given, plus extra part headers |
 
-- `files` и `data` можно передавать вместе: поля `data` идут первыми.
-- Списки пар сохраняют порядок частей и позволяют повторять имена.
-- `str` кодируется в UTF-8; кавычки, CR и LF в именах экранируются, как у браузеров.
-- Граница — как у Chrome: `----WebKitFormBoundary` и 16 hex-символов.
+- `files` and `data` can be passed together: the `data` fields come first.
+- Lists of pairs keep the order of parts and allow repeated names.
+- `str` is encoded as UTF-8; quotes, CR and LF in names are escaped, as browsers do.
+- The boundary is the same as Chrome's: `----WebKitFormBoundary` and 16 hex characters.
 
-Кодировщик доступен отдельно:
+The encoder is available separately:
 
 ```python
 from yumeclient import encode_multipart, choose_boundary
@@ -94,109 +96,110 @@ from yumeclient import encode_multipart, choose_boundary
 body, content_type = encode_multipart({"a": "1"}, {"file": ("x.txt", b"hi")})
 ```
 
-## Заголовки
+## Headers
 
-У сессии с первого запроса есть базовые заголовки профиля: `User-Agent`, `sec-ch-ua`,
-`Accept`, `Sec-Fetch-*`, `Accept-Encoding`, `Accept-Language` — те, что шлёт браузер при
-переходе на страницу, в его порядке ([Профили](profiles.md#базовые-заголовки)).
+From the first request, a session has the profile's default headers: `User-Agent`,
+`sec-ch-ua`, `Accept`, `Sec-Fetch-*`, `Accept-Encoding`, `Accept-Language`, the ones the
+browser sends when navigating to a page, in its order
+([Profiles](profiles.md#default-headers)).
 
 ```python
-s.headers                                  # Headers: регистронезависимый словарь
-s.headers["Accept"] = "application/json"   # заменить значение (порядок не меняется)
-s.headers.update({"X-Token": "abc"})       # добавить в конец
+s.headers                                  # Headers: a case-insensitive dict
+s.headers["Accept"] = "application/json"   # replace the value (the order does not change)
+s.headers.update({"X-Token": "abc"})       # append at the end
 del s.headers["Upgrade-Insecure-Requests"]
-s.headers = {"User-Agent": "my-app/1.0"}   # заменить набор целиком
+s.headers = {"User-Agent": "my-app/1.0"}   # replace the whole set
 
-s.get(url, headers={"Accept": "text/css"})         # только для этого запроса
-s.get(url, headers={"User-Agent": None})           # без User-Agent в этом запросе
+s.get(url, headers={"Accept": "text/css"})         # for this request only
+s.get(url, headers={"User-Agent": None})           # no User-Agent in this request
 ```
 
-### Регистр и `Headers`
+### Case and `Headers`
 
-`s.headers` и результат `default_headers()` (для любого профиля) — `Headers`, подкласс `dict`, в котором все
-операции (`[]`, `get`, `in`, `del`, `pop`, `setdefault`, `update`, `|`) не зависят от регистра.
-Имя хранится в том написании, в каком его добавили первым: `h["user-agent"] = ...` заменит
-значение `User-Agent`, не меняя написания.
+`s.headers` and the result of `default_headers()` (for any profile) are `Headers`, a subclass
+of `dict` in which all operations (`[]`, `get`, `in`, `del`, `pop`, `setdefault`, `update`,
+`|`) are case-insensitive. A name is stored in the spelling it was first added with:
+`h["user-agent"] = ...` replaces the value of `User-Agent` without changing its spelling.
 
-По HTTP/1.1 имена уходят в том написании, в каком они в словаре (браузер пишет
-`User-Agent`, но `sec-ch-ua`). HTTP/2 и HTTP/3 переводят имена в нижний регистр — этого
-требует протокол.
+Over HTTP/1.1, names go out spelled as they are in the dict (the browser writes `User-Agent`,
+but `sec-ch-ua`). HTTP/2 and HTTP/3 lower-case the names, because the protocol requires it.
 
-### Удаление: `None`
+### Removing: `None`
 
-`None` в заголовках запроса (или сессии) убирает заголовок совсем, в том числе те, что иначе
-добавил бы транспорт:
+`None` in request (or session) headers removes the header entirely, including headers the
+transport would otherwise add:
 
-- `Accept-Encoding` и `priority`, которые добавляет сетевой слой;
-- умолчания okhttp-стиля: `User-Agent: okhttp/4.12.0`, `Connection`, `Accept-Encoding`.
+- `Accept-Encoding` and `priority`, which the network layer adds;
+- okhttp-style defaults: `User-Agent: okhttp/4.12.0`, `Connection`, `Accept-Encoding`.
 
-Исключения, как в `requests`: `Content-Type` для формы, JSON и multipart остаётся,
-`{"Cookie": None}` убирает только ваш заголовок (cookie из jar уходят), `Host` и
-`Content-Length` уходят всегда.
+Exceptions, as in `requests`: `Content-Type` for a form, JSON and multipart stays,
+`{"Cookie": None}` removes only your header (cookies from the jar are still sent), and `Host`
+and `Content-Length` are always sent.
 
-### Проверка
+### Validation
 
-Имя заголовка должно быть токеном RFC 9110, значение — без управляющих символов (табуляция
-и не-ASCII разрешены). Иначе `InvalidRequestError` до отправки. По HTTP/2 и HTTP/3 нельзя
-передать `Connection` (кроме `keep-alive` и `close`, их транспорт просто не отправляет),
-`Upgrade`, `Transfer-Encoding` (кроме `chunked`) — тоже `InvalidRequestError`, соединение при
-этом остаётся рабочим.
+A header name must be an RFC 9110 token, and a value must not contain control characters (tab
+and non-ASCII are allowed). Otherwise you get `InvalidRequestError` before sending. Over HTTP/2
+and HTTP/3 you cannot send `Connection` (except `keep-alive` and `close`, which the transport
+simply does not send), `Upgrade`, or `Transfer-Encoding` (except `chunked`); these also raise
+`InvalidRequestError`, and the connection stays usable.
 
-### Порядок
+### Order
 
-- Без `header_order` заголовки уходят в порядке словаря: сначала заголовки сессии, затем
-  новые из запроса.
-- `header_order=[...]` у сессии или запроса задаёт порядок явно; заголовки, которых нет в
-  списке, идут после перечисленных в порядке словаря.
-- По HTTP/1.1 `Host` идёт первым, как у всех браузеров, если только вы не поставили его в
-  `header_order` в другое место.
-- Транспорт добавляет свои поля на места, где их ставит браузер: `Content-Length`,
-  `Cookie`, `priority` у Chromium (последним по HTTP/2 и HTTP/3), `te: trailers` у Firefox по
+- Without `header_order`, headers go out in dict order: session headers first, then new ones
+  from the request.
+- `header_order=[...]` on the session or the request sets the order explicitly; headers not in
+  the list come after the listed ones, in dict order.
+- Over HTTP/1.1, `Host` goes first, as in all browsers, unless you put it elsewhere in
+  `header_order`.
+- The transport adds its own fields where the browser puts them: `Content-Length`, `Cookie`,
+  `priority` for Chromium (last over HTTP/2 and HTTP/3), `te: trailers` for Firefox over
   HTTP/2.
-- Если `Accept-Encoding` нет ни в сессии, ни в запросе, транспорт добавляет в конец
-  `Accept-Encoding: gzip, deflate, br` (у okhttp-стиля — `gzip`). Чтобы его не было,
-  передайте `{"Accept-Encoding": None}`. `User-Agent` транспорт сам не добавляет (кроме
-  okhttp-стиля).
+- If `Accept-Encoding` is in neither the session nor the request, the transport appends
+  `Accept-Encoding: gzip, deflate, br` (`gzip` in okhttp style). To leave it out, pass
+  `{"Accept-Encoding": None}`. The transport does not add `User-Agent` by itself (except in
+  okhttp style).
 
-Что ушло на самом деле, видно в `r.fingerprint["request_headers"]` — список пар в порядке и
-регистре провода ([Ответы](responses.md#fingerprint)).
+What actually went out is in `r.fingerprint["request_headers"]`, a list of pairs in wire order
+and wire case ([Responses](responses.md#fingerprint)).
 
-## Редиректы
+## Redirects
 
-Запрос следует не более чем 20 редиректам, как браузер (стандарт Fetch); на 21-м —
-`TooManyRedirects`. До 0.8.1 предел был как в Go: на 10-м редиректе ошибка, то есть
-выполнялось 9.
-`allow_redirects=False` возвращает сам ответ 3xx.
+A request follows at most 20 redirects, like a browser (the Fetch standard); on the 21st it
+raises `TooManyRedirects`. Before 0.8.1, the limit was Go's: an error on the 10th redirect,
+so 9 were followed.
+`allow_redirects=False` returns the 3xx response itself.
 
-Метод следующего запроса выбирается как в браузерах (стандарт Fetch):
+The method of the next request is chosen as in browsers (the Fetch standard):
 
-| Код | Метод и тело следующего запроса |
+| Code | Method and body of the next request |
 |---|---|
-| 301, 302 | `POST` становится `GET` без тела; остальные методы сохраняются вместе с телом |
-| 303 | всё, кроме `GET` и `HEAD`, становится `GET` без тела |
-| 307, 308 | метод и тело сохраняются |
+| 301, 302 | `POST` becomes `GET` without a body; other methods are kept together with the body |
+| 303 | everything except `GET` and `HEAD` becomes `GET` without a body |
+| 307, 308 | the method and body are kept |
 
-- Когда метод меняется, вместе с телом уходят `Content-Type`, `Content-Encoding`,
-  `Content-Language`, `Content-Location`, `Content-Length` и `Origin` (как в Chromium).
-- До 0.8.1 при 301/302 любой метод (в том числе `PUT`, `PATCH`, `DELETE`) становился `GET`
-  без тела, как в Go.
-- `Referer` на хопах сам не добавляется (браузер сохраняет исходный referrer, `requests`
-  тоже); ваш `Referer` переносится как есть.
-- При переходе на другой хост или порт (кроме поддомена исходного хоста с тем же портом)
-  отбрасываются `Authorization` и ваш заголовок `Cookie`. Порт сравнивается с учётом
-  умолчаний, поэтому переход `http://host/` → `https://host/` (80 → 443) их тоже отбрасывает.
-  Cookie из jar выбираются для нового адреса заново.
-- Каждый хоп — с TLS и HTTP/2-параметрами профиля, в том числе переходы между `http://` и
-  `https://`.
-- Cookie, выставленные на любом хопе, попадают в jar.
-- Пройденные редиректы — в `r.history` ([Ответы](responses.md#история-редиректов)).
+- When the method changes, `Content-Type`, `Content-Encoding`, `Content-Language`,
+  `Content-Location`, `Content-Length` and `Origin` are dropped together with the body (as in
+  Chromium).
+- Before 0.8.1, on 301/302 any method (including `PUT`, `PATCH`, `DELETE`) became `GET`
+  without a body, as in Go.
+- `Referer` is not added on hops automatically (the browser keeps the original referrer, and so
+  does `requests`); your `Referer` is carried over as is.
+- On a move to another host or port (except a subdomain of the original host with the same
+  port), `Authorization` and your `Cookie` header are dropped. Ports are compared with defaults
+  taken into account, so a move from `http://host/` to `https://host/` (80 → 443) drops them
+  too. Cookies from the jar are selected again for the new address.
+- Every hop uses the profile's TLS and HTTP/2 parameters, including moves between `http://`
+  and `https://`.
+- Cookies set on any hop go into the jar.
+- Followed redirects are in `r.history` ([Responses](responses.md#redirect-history)).
 
-## Cookie запроса
+## Request cookies
 
 ```python
 s.get(url, cookies={"ab_test": "b"})
 ```
 
-Cookie запроса добавляются к cookie из jar сессии (при совпадении имени побеждают они) и не
-сохраняются в jar. То, что сервер выставит в ответ, в jar попадёт как обычно. Подробнее —
-[Cookies](cookies.md).
+Request cookies are added to the cookies from the session jar (on a name clash they win) and
+are not saved in the jar. Whatever the server sets in the response goes into the jar as usual.
+More in [Cookies](cookies.md).

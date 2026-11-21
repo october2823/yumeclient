@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "yumeclient"
-version = "0.8.1"
+version = "0.8.2"
 description = "HTTP client that sends requests like real browsers and apps: TLS, HTTP/2, HTTP/3/QUIC fingerprints and headers, with sync and asyncio APIs"
 requires-python = ">=3.11"
 license = "MIT"

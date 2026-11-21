@@ -95,10 +95,11 @@ def server():
 
 class _RawServer:
     """TCP listener with a scripted behaviour per connection: 'silent' (accept, never
-    answer), 'close' (accept, read the request, close) or 'proxy' (minimal forward proxy)."""
+    answer), 'close' (accept, read the request, close), 'proxy' (minimal forward proxy) or
+    'slow-403' (read the request, answer 403 after ``delay`` seconds)."""
 
-    def __init__(self, mode: str) -> None:
-        self.mode = mode
+    def __init__(self, mode: str, delay: float = 0.0) -> None:
+        self.mode, self.delay = mode, delay
         self.seen: list[bytes] = []
         self.sock = socket.socket()
         self.sock.bind(("127.0.0.1", 0))
@@ -129,6 +130,9 @@ class _RawServer:
             self.seen.append(data)
             if self.mode == "proxy":
                 conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 9\r\nConnection: close\r\n\r\nvia-proxy")
+            if self.mode == "slow-403":
+                time.sleep(self.delay)
+                conn.sendall(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n")
             conn.close()
         except OSError:
             pass
@@ -146,8 +150,8 @@ class _RawServer:
 def raw():
     servers: list[_RawServer] = []
 
-    def make(mode: str) -> _RawServer:
-        servers.append(_RawServer(mode))
+    def make(mode: str, delay: float = 0.0) -> _RawServer:
+        servers.append(_RawServer(mode, delay))
         return servers[-1]
 
     yield make
@@ -260,6 +264,34 @@ def test_connect_timeout_on_silent_proxy(raw):
     assert time.monotonic() - started < 1.5
     assert info.value.stage == "connect"
     assert isinstance(info.value, ConnectError) and isinstance(info.value, TimeoutError)
+
+
+@pytest.mark.parametrize("scheme", ["http", "https"])
+def test_silent_proxy_connection_is_closed_when_the_request_gives_up(raw, scheme):
+    """The CONNECT exchange follows the request: before 0.8.2 an http:// proxy that never
+    answered kept the connection (and a goroutine) open for 30 s after the timeout."""
+    silent = raw("silent")
+    with Session(timeout=TimeoutConfig(total=10, connect=0.4), proxy=f"{scheme}://127.0.0.1:{silent.port}") as session:
+        with pytest.raises(ConnectTimeout):
+            session.get("https://example.test/")
+    assert _settle(lambda: len(silent.conns) == 1)
+    conn = silent.conns[0]
+    conn.settimeout(3)
+    received = b""
+    while piece := conn.recv(65536):  # the CONNECT request or ClientHello, then EOF
+        received += piece
+    assert received
+
+
+def test_opening_a_connection_is_not_cut_at_30_seconds(raw):
+    """timeout=None has no connect limit; before 0.8.2 the session's dialer (built with
+    max(30 s, connect of the first request)) cut the CONNECT exchange at 30 s."""
+    slow = raw("slow-403", delay=31)
+    with Session(timeout=None, proxy=f"http://127.0.0.1:{slow.port}") as session:
+        started = time.monotonic()
+        with pytest.raises(ProxyError, match="403"):
+            session.get("https://example.test/")
+    assert time.monotonic() - started >= 31
 
 
 def test_connect_timeout_on_stalled_tls_handshake(raw):

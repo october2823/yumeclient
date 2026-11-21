@@ -1,5 +1,7 @@
 # yumeclient
 
+**English** | [Русский](https://github.com/october2823/yumeclient/blob/main/README.ru.md)
+
 [![PyPI](https://img.shields.io/pypi/v/yumeclient)](https://pypi.org/project/yumeclient/)
 [![Python](https://img.shields.io/pypi/pyversions/yumeclient)](https://pypi.org/project/yumeclient/)
 [![test](https://github.com/october2823/yumeclient/actions/workflows/test.yml/badge.svg)](https://github.com/october2823/yumeclient/actions/workflows/test.yml)
@@ -94,7 +96,7 @@ with Session(proxy="socks5://user:pass@127.0.0.1:1080",
 
 ## Documentation
 
-The full documentation is in Russian:
+The documentation is in English and Russian; every page links to its translation at the top.
 
 - **[USAGE.md](https://github.com/october2823/yumeclient/blob/main/USAGE.md)**: a guide with examples for common tasks.
 - **[docs/](https://github.com/october2823/yumeclient/blob/main/docs/index.md)**: the reference, one page per topic:
@@ -108,6 +110,12 @@ The full documentation is in Russian:
 - **[CHANGELOG.md](https://github.com/october2823/yumeclient/blob/main/CHANGELOG.md)**: release notes.
 
 The API itself has docstrings and type hints (`py.typed`).
+
+## Contributing
+
+Bug reports, fingerprint captures and pull requests are welcome, in English or Russian. See
+[CONTRIBUTING.md](https://github.com/october2823/yumeclient/blob/main/CONTRIBUTING.md). Report vulnerabilities privately, as described in
+[SECURITY.md](https://github.com/october2823/yumeclient/blob/main/SECURITY.md).
 
 ## How it works
 
@@ -132,7 +140,7 @@ pip install -e ".[test]"
 python -m pytest -q               # offline: local HTTP/1.1, HTTP/2, HTTP/3 and proxy servers
 ```
 
-Building needs Go 1.24+ and a C compiler. See [development](https://github.com/october2823/yumeclient/blob/main/docs/development.md) for
+Building needs Go 1.24.1+ and a C compiler. See [development](https://github.com/october2823/yumeclient/blob/main/docs/development.md) for
 patching upstream modules, recording browser fingerprints, and releases.
 
 ## License

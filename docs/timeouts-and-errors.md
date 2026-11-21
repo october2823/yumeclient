@@ -1,21 +1,23 @@
-# Таймауты, ошибки, отмена
+# Timeouts, errors and cancellation
 
-## Таймауты
+**English** | [Русский](ru/timeouts-and-errors.md)
 
-Таймаут задаётся для сессии (`Session(timeout=...)`) и переопределяется для одного запроса
-(`s.get(url, timeout=...)`). Он не входит в отпечаток сессии, поэтому смена таймаута в запросе
-не создаёт новых соединений.
+## Timeouts
 
-| Значение | Что значит |
+The timeout is set for the session (`Session(timeout=...)`) and can be overridden for a single
+request (`s.get(url, timeout=...)`). It is not part of the session's transport settings, so
+changing the timeout in a request does not create new connections.
+
+| Value | Meaning |
 |---|---|
-| `30` (по умолчанию) | `total` = 30 с на весь обмен |
-| число `x` | `total` = `x` |
-| `(connect, read)` | лимиты стадий без общего лимита; `None` в кортеже — без лимита для этой стадии |
-| `TimeoutConfig(total=..., connect=..., read=..., write=...)` | любые сочетания |
-| `None` | без лимитов |
+| `30` (default) | `total` = 30 s for the whole exchange |
+| a number `x` | `total` = `x` |
+| `(connect, read)` | stage limits without an overall limit; `None` in the tuple means no limit for that stage |
+| `TimeoutConfig(total=..., connect=..., read=..., write=...)` | any combination |
+| `None` | no limits |
 
-Значения — положительные числа в секундах. `0`, отрицательные числа, строки и кортеж
-другой длины дают `SessionConfigurationError`, например
+Values are positive numbers in seconds. `0`, negative numbers, strings and a tuple of another
+length raise `SessionConfigurationError`, for example
 `timeout total must be a positive number or None, got 0`.
 
 ```python
@@ -23,103 +25,105 @@ from yumeclient import Session, TimeoutConfig
 
 with Session(timeout=TimeoutConfig(connect=5, read=30, total=120)) as s:
     s.get("https://httpbin.org/get")
-    s.get("https://httpbin.org/delay/2", timeout=3)               # только для этого запроса
-    s.get("https://httpbin.org/drip?duration=20", timeout=(5, 2))  # пауза в теле > 2 с — ошибка
+    s.get("https://httpbin.org/delay/2", timeout=3)               # only for this request
+    s.get("https://httpbin.org/drip?duration=20", timeout=(5, 2))  # a pause in the body > 2 s is an error
 ```
 
-### Стадии
+### Stages
 
-| Стадия | Что ограничивает |
+| Stage | What it limits |
 |---|---|
-| `connect` | DNS, соединение с прокси и CONNECT или SOCKS-рукопожатие, TCP, TLS. Отдельно для каждого нового соединения, в том числе на хопах редиректа |
-| `write` | отправку заголовков и тела запроса |
-| `read` | ожидание заголовков ответа и **паузу** между кусками тела. Медленный, но живой ответ не обрывается |
-| `total` | весь обмен, включая редиректы и чтение тела |
+| `connect` | DNS, the proxy connection and CONNECT or the SOCKS handshake, TCP, TLS. Counted separately for each new connection, including on redirect hops |
+| `write` | sending the request headers and body |
+| `read` | waiting for the response headers and the **pause** between body chunks. A slow but live response is not cut off |
+| `total` | the whole exchange, including redirects and reading the body |
 
-- `stream=True`: `total` действует до получения заголовков. Дальше тело ограничено паузой
-  `read`, а если `read` не задан — паузой длиной `total`. Общая длительность скачивания не
-  ограничена.
-- Стадии одинаковы для HTTP/1.1, HTTP/2 и HTTP/3. У HTTP/3 `connect` — это QUIC-рукопожатие.
-  В гонке HTTP/3 с TCP (`http_version="3"`) TCP-соединение стартует через 300 мс, поэтому
-  `connect` меньше 300 мс истекает раньше, чем TCP успеет начаться.
-- Переиспользованное соединение не проходит `connect`: таймаут стадии считается только
-  при открытии нового соединения.
+- `stream=True`: `total` applies until the headers arrive. After that, the body is limited by
+  the `read` pause, or, if `read` is not set, by a pause as long as `total`. The total download
+  time is not limited.
+- The stages are the same for HTTP/1.1, HTTP/2 and HTTP/3. For HTTP/3, `connect` is the QUIC
+  handshake. In HTTP/3 and TCP racing (`http_version="3"`) the TCP connection starts after
+  300 ms, so a `connect` below 300 ms expires before TCP can start.
+- A reused connection does not go through `connect`: the stage timeout counts only when a new
+  connection is opened.
+- Even without timeouts, opening a TCP connection (with DNS) and the CONNECT exchange with an
+  HTTP(S) proxy take at most 240 s each; a `connect` above 240 s does not extend these steps.
 
-Какая стадия истекла, видно по исключению: `ConnectTimeout`, `WriteTimeout`, `ReadTimeout`
-(атрибут `stage`: `read` — ждали заголовки, `body` — ждали следующий кусок тела) или `Timeout`
-для `total`.
+The exception tells you which stage expired: `ConnectTimeout`, `WriteTimeout`, `ReadTimeout`
+(attribute `stage`: `read` means it waited for the headers, `body` means it waited for the next
+body chunk) or `Timeout` for `total`.
 
-## Иерархия исключений
+## Exception hierarchy
 
 ```
 RuntimeError
-└── TLSClientError                         ошибки библиотеки, базовый класс
-    ├── SessionConfigurationError (+ ValueError)   неверные параметры сессии, до сети
-    └── RequestError                       ошибка конкретного запроса
-        ├── InvalidRequestError (+ ValueError)     запрос отклонён до сети
-        ├── ConnectError (+ ConnectionError)       соединение не установлено
+└── TLSClientError                         library errors, base class
+    ├── SessionConfigurationError (+ ValueError)   invalid session parameters, before the network
+    └── RequestError                       error of a specific request
+        ├── InvalidRequestError (+ ValueError)     request rejected before the network
+        ├── ConnectError (+ ConnectionError)       connection not established
         │   ├── ProxyError
         │   ├── TLSError
         │   ├── ProtocolError
         │   └── ConnectTimeout (+ Timeout)
-        ├── ConnectionClosed (+ ConnectionError)   соединение оборвалось после установки
+        ├── ConnectionClosed (+ ConnectionError)   connection dropped after it was established
         ├── Timeout (+ TimeoutError)
         │   ├── ConnectTimeout
         │   ├── ReadTimeout
         │   └── WriteTimeout
-        ├── RequestCancelled                       запрос отменён
-        ├── ResponseTooLarge                       тело больше max_content_size
-        ├── TooManyRedirects                       больше 20 редиректов
-        ├── StreamClosed                           поток уже прочитан или закрыт
+        ├── RequestCancelled                       request cancelled
+        ├── ResponseTooLarge                       body larger than max_content_size
+        ├── TooManyRedirects                       more than 20 redirects
+        ├── StreamClosed                           stream already read or closed
         └── HTTPStatusError                        Response.raise_for_status()
 ```
 
-Благодаря встроенным базовым классам код, написанный под стандартные исключения, тоже
-работает: `except TimeoutError`, `except ConnectionError`, `except ValueError`.
+Thanks to the built-in base classes, code written for the standard exceptions works too:
+`except TimeoutError`, `except ConnectionError`, `except ValueError`.
 
-### `kind` и когда возникает
+### `kind` and when it is raised
 
-| Класс | `kind` | Когда |
+| Class | `kind` | When |
 |---|---|---|
-| `ConnectError` | `connect`, `dns` | соединение отклонено, хост не найден, сеть недоступна |
-| `ProxyError` | `proxy` | прокси недоступен, отказал в CONNECT/SOCKS, неверная авторизация прокси |
-| `TLSError` | `tls` | рукопожатие не удалось, сертификат не прошёл проверку, сервер отверг ClientHello |
-| `ProtocolError` | `protocol` | сервер выбрал не тот протокол: `http_version="2"` → HTTP/1.1, `keep_alpn` → h2, h2c не поддерживается. Запрос не отправлен |
-| `ConnectionClosed` | `connection_closed` | соединение закрыто или сброшено после установки, сервер оборвал ответ |
-| `Timeout` | `timeout` | истёк `total` |
-| `ConnectTimeout` | `connect_timeout` | истёк `connect` |
-| `ReadTimeout` | `read_timeout` | истёк `read` |
-| `WriteTimeout` | `write_timeout` | истёк `write` |
-| `RequestCancelled` | `cancelled` | `close(grace=...)` закрыл сессию, пока запрос был в полёте. Отменённая задача asyncio получает `asyncio.CancelledError`, а не это исключение |
-| `ResponseTooLarge` | `body_too_large` | распакованное тело больше `max_content_size` |
-| `TooManyRedirects` | `too_many_redirects` | больше 20 редиректов подряд |
-| `InvalidRequestError` | `invalid_request`, `configuration` | неверный URL, метод, заголовок; сессию нельзя собрать (например, JA3 с неподдерживаемым расширением) |
-| `StreamClosed` | `stream_closed`, `stream_not_read` | чтение уже закрытого потока; `r.content` у async-стрима до `await r.aread()` |
-| `HTTPStatusError` | `http_status` | `r.raise_for_status()` при статусе 400–599 |
+| `ConnectError` | `connect`, `dns` | connection refused, host not found, network unreachable |
+| `ProxyError` | `proxy` | proxy unreachable, CONNECT/SOCKS refused, wrong proxy credentials |
+| `TLSError` | `tls` | handshake failed, certificate failed verification, server rejected the ClientHello |
+| `ProtocolError` | `protocol` | the server picked the wrong protocol: `http_version="2"` → HTTP/1.1, `keep_alpn` → h2, h2c not supported. The request was not sent |
+| `ConnectionClosed` | `connection_closed` | connection closed or reset after it was established, the server cut off the response |
+| `Timeout` | `timeout` | `total` expired |
+| `ConnectTimeout` | `connect_timeout` | `connect` expired |
+| `ReadTimeout` | `read_timeout` | `read` expired |
+| `WriteTimeout` | `write_timeout` | `write` expired |
+| `RequestCancelled` | `cancelled` | `close(grace=...)` closed the session while the request was in flight. A cancelled asyncio task gets `asyncio.CancelledError`, not this exception |
+| `ResponseTooLarge` | `body_too_large` | the decompressed body is larger than `max_content_size` |
+| `TooManyRedirects` | `too_many_redirects` | more than 20 redirects in a row |
+| `InvalidRequestError` | `invalid_request`, `configuration` | invalid URL, method or header; the session cannot be built (for example, a JA3 with an unsupported extension) |
+| `StreamClosed` | `stream_closed`, `stream_not_read` | reading a stream that is already closed; `r.content` on an async stream before `await r.aread()` |
+| `HTTPStatusError` | `http_status` | `r.raise_for_status()` with a status of 400–599 |
 
-### Атрибуты `RequestError`
+### `RequestError` attributes
 
-| Атрибут | Что содержит |
+| Attribute | What it holds |
 |---|---|
-| `kind` | машинный вид ошибки (таблица выше) |
-| `stage` | `connect`, `write`, `read`, `body`, `request` (ошибка в самом запросе: неверный URL или метод, слишком много редиректов) или `None` |
-| `method`, `url` | запрос. Логин и пароль из URL удалены |
-| `elapsed` | секунды от начала запроса до ошибки |
-| `request_id` | id нативного запроса, совпадает с `Response.request_id` |
-| `retryable` | `True` для таймаутов, `connect`, `dns`, `proxy`, `connection_closed` |
-| `detail` | текст ошибки без контекста запроса |
-| `response` | ответ (только у `HTTPStatusError`) |
-| `__cause__` | исходный текст ошибки Go |
+| `kind` | machine-readable error kind (table above) |
+| `stage` | `connect`, `write`, `read`, `body`, `request` (an error in the request itself: invalid URL or method, too many redirects) or `None` |
+| `method`, `url` | the request. The username and password are removed from the URL |
+| `elapsed` | seconds from the start of the request to the error |
+| `request_id` | native request id, the same as `Response.request_id` |
+| `retryable` | `True` for timeouts, `connect`, `dns`, `proxy`, `connection_closed` |
+| `detail` | the error text without the request context |
+| `response` | the response (only for `HTTPStatusError`) |
+| `__cause__` | the original Go error text |
 
-Логины, пароли, токены `Basic` и `Bearer` из текста ошибки вырезаются: сообщение можно писать
-в лог.
+Usernames, passwords, and `Basic` and `Bearer` tokens are cut out of the error text, so the
+message is safe to write to a log.
 
-## Повторы
+## Retries
 
-`retryable=True` значит, что ошибка временная и тот же запрос может пройти. Это не значит,
-что повтор безопасен: при `connection_closed`, `read_timeout` и `timeout` сервер мог уже
-выполнить запрос. Повторяйте автоматически только идемпотентные запросы (GET, HEAD, PUT,
-DELETE, OPTIONS) или запросы с `Idempotency-Key`.
+`retryable=True` means the error is temporary and the same request may succeed. It does not
+mean a retry is safe: with `connection_closed`, `read_timeout` and `timeout` the server may
+have already processed the request. Retry automatically only idempotent requests (GET, HEAD,
+PUT, DELETE, OPTIONS) or requests with `Idempotency-Key`.
 
 ```python
 import time
@@ -135,37 +139,41 @@ def get_with_retries(s: Session, url: str, attempts: int = 3):
             time.sleep(0.5 * 2 ** attempt)
 ```
 
-Сама библиотека повторяет запрос только там, где так делает браузер:
+The library itself retries a request only where a browser does:
 
-- соединение из пула оказалось закрыто сервером: запрос повторяется по новому соединению,
-  если в старое из него ничего не записано (тогда — любой метод, тело отправляется заново)
-  или если он идемпотентный;
-- при `http_version="3"` HTTP/3-соединение не открылось или закрылось до отправки: запрос
-  заново проходит гонку протоколов (подробно — в разделе
-  [Протоколы](protocols.md#http3-и-quic)).
+- a connection from the pool turned out to be closed by the server: the request is retried on a
+  new connection if nothing from it was written to the old one (then any method, and the body
+  is sent again) or if it is idempotent;
+- with `http_version="3"`, the HTTP/3 connection did not open or closed before sending: the
+  request goes through protocol racing again (details in
+  [Protocols](protocols.md#http3-and-quic)).
 
-Запрос, который мог дойти до сервера, библиотека повторяет только если он идемпотентный.
+The library retries a request that may have reached the server only if it is idempotent: GET,
+HEAD, OPTIONS, TRACE or a request with an `Idempotency-Key` header (as Go's `net/http` does;
+PUT and DELETE are not retried by the library).
 
-## HTTP-статусы
+## HTTP status codes
 
-Ответы 4xx и 5xx — не исключения: `s.get(...)` возвращает `Response`. Проверить статус:
+4xx and 5xx responses are not exceptions: `s.get(...)` returns a `Response`. To check the
+status:
 
 ```python
 r = s.get("https://httpbin.org/status/404")
 print(r.ok)              # False (ok = 200–399)
-r.raise_for_status()     # HTTPStatusError: 404 ...; ответ в e.response
+r.raise_for_status()     # HTTPStatusError: 404 ...; the response is in e.response
 ```
 
-## Отмена
+## Cancellation
 
-- **asyncio.** Отмена задачи (`task.cancel()`, `asyncio.wait_for`, `asyncio.timeout`,
-  `TaskGroup`) сразу обрывает запрос в Go: и во время соединения, и при чтении тела.
-  Соединение закрывается, задача получает `CancelledError`.
-- **Закрытие сессии.** `close(grace=5.0)` ждёт запросы в полёте `grace` секунд, затем
-  отменяет их (`RequestCancelled`). С `grace=None` закрытие ждёт, пока все запросы закончатся.
-  Новые запросы в закрытую сессию — `SessionConfigurationError("session is closed")`.
-- **Ctrl+C.** В синхронном коде главного потока `KeyboardInterrupt` прерывает запрос и чтение
-  потока сразу, а не после прихода ответа. Нативный запрос при этом отменяется.
+- **asyncio.** Cancelling the task (`task.cancel()`, `asyncio.wait_for`, `asyncio.timeout`,
+  `TaskGroup`) aborts the request in Go right away, both while connecting and while reading
+  the body. The connection is closed, and the task gets `CancelledError`.
+- **Closing the session.** `close(grace=5.0)` waits `grace` seconds for in-flight requests,
+  then cancels them (`RequestCancelled`). With `grace=None`, closing waits until all requests
+  finish. New requests to a closed session raise `SessionConfigurationError("session is closed")`.
+- **Ctrl+C.** In synchronous code on the main thread, `KeyboardInterrupt` interrupts a request
+  and stream reading right away, not after the response arrives. The native request is
+  cancelled as well.
 
 ```python
 import asyncio
@@ -176,30 +184,30 @@ async def main():
         try:
             await asyncio.wait_for(s.get("https://httpbin.org/delay/10"), 1)
         except asyncio.TimeoutError:
-            print("отменено через 1 с, соединение закрыто")
+            print("cancelled after 1 s, connection closed")
 
 asyncio.run(main())
 ```
 
-## Лимит тела
+## Body size limit
 
-`max_content_size` (в сессии или в запросе) ограничивает **распакованное** тело в байтах.
-Защищает от сжатых «бомб»: гигабайт нулей в gzip занимает около мегабайта.
+`max_content_size` (in the session or in a request) limits the **decompressed** body in bytes.
+It protects against compression "bombs": a gigabyte of zeros in gzip takes about a megabyte.
 
 ```python
 with Session(max_content_size=10 * 1024 * 1024) as s:
-    s.get("https://example.com/huge")                          # ResponseTooLarge, если больше 10 MiB
-    s.get("https://example.com/huge", max_content_size=2**30)  # свой лимит для этого запроса
+    s.get("https://example.com/huge")                          # ResponseTooLarge if larger than 10 MiB
+    s.get("https://example.com/huge", max_content_size=2**30)  # a custom limit for this request
 ```
 
-При `stream=True` лимит проверяется по мере чтения. `max_content_size=None` в запросе
-означает «как у сессии»; по умолчанию лимита нет.
+With `stream=True` the limit is checked as the body is read. `max_content_size=None` in a
+request means "same as the session"; by default there is no limit.
 
-## Ошибки конфигурации
+## Configuration errors
 
-`SessionConfigurationError` наследует `ValueError` и бросается в конструкторе: неизвестный
-профиль или ОС, противоречивые настройки протокола, неверные значения TLS-параметров. Сообщение
-называет параметр и подсказывает исправление:
+`SessionConfigurationError` inherits from `ValueError` and is raised in the constructor: an
+unknown profile or OS, conflicting protocol settings, invalid TLS parameter values. The message
+names the parameter and suggests a fix:
 
 ```
 unknown client_identifier 'chrome_999'; did you mean: chrome_109, chrome_152, chrome_150
@@ -207,5 +215,5 @@ force_http1=True conflicts with http_version='2'
 grease requires ja3_string
 ```
 
-Если нативная библиотека не найдена, первый запрос бросит `TLSClientError` с путём, по
-которому её искали ([Установка](installation.md#своя-нативная-библиотека)).
+If the native library is not found, the first request raises `TLSClientError` with the path
+where it was looked for ([Installation](installation.md#custom-native-library)).

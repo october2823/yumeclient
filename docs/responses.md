@@ -1,47 +1,49 @@
-# Ответы и стриминг
+# Responses and streaming
+
+**English** | [Русский](ru/responses.md)
 
 ```python
 r = s.get("https://httpbin.org/json")
 r.status_code        # 200
-r.ok                 # True для 200–399
+r.ok                 # True for 200–399
 r["Content-Type"]    # 'application/json'
 r.json()             # dict
 r.http_version       # '2'
-r.elapsed            # 0.148 (секунды)
+r.elapsed            # 0.148 (seconds)
 ```
 
-## Атрибуты `Response`
+## `Response` attributes
 
-| Атрибут | Тип | Описание |
+| Attribute | Type | Description |
 |---|---|---|
-| `status_code`, `status` | `int` | код ответа |
+| `status_code`, `status` | `int` | response status code |
 | `ok` | `bool` | `200 <= status_code < 400` |
-| `headers` | `dict[str, list[str]]` | заголовки ответа: имя → список значений. Значения — как прислал сервер, имена приведены к каноничному виду (`x-lower-case` → `X-Lower-Case`) |
-| `r["Имя"]` | `str` | значения заголовка через `", "`, без учёта регистра; `KeyError`, если его нет |
-| `cookies` | `dict[str, str]` | cookie для конечного URL после обмена: подходящие cookie сессии и запроса плюс выставленные ответами (`Set-Cookie` всех хопов), без удалённых. Весь jar — в `s.cookies` |
-| `content` | `bytes` | тело, уже распакованное (gzip, deflate, br, zstd) |
-| `text` | `str` | тело как текст: кодировка из `charset` в `Content-Type`, иначе `encoding`; ошибки заменяются |
-| `encoding` | `str` | кодировка для `text`, если сервер её не указал; по умолчанию `"utf-8"`, можно присвоить |
-| `json()` | | `json.loads(r.text)`; невалидный JSON — `json.JSONDecodeError` (`ValueError`) |
-| `url` | `str` | итоговый URL после редиректов |
-| `history` | `list[Response]` | пройденные редиректы, от первого к последнему |
-| `is_redirect` | `bool` | ответ 3xx с `Location` (когда редирект не выполнялся) |
-| `elapsed` | `float` | длительность запроса в секундах, включая редиректы; без `stream=True` — вместе с чтением тела, со `stream=True` — до заголовков |
-| `http_version` | `str` | `"1.1"`, `"2"` или `"3"` |
-| `used_protocol` | `str` | строка протокола транспорта: `"HTTP/1.1"`, `"HTTP/2.0"`, `"HTTP/3.0"` |
-| `connection_info` | `dict` | соединение, TLS, адреса, тайминги ([ниже](#connection_info)) |
-| `fingerprint` | `dict` | отпечаток того, что ушло в сеть ([ниже](#fingerprint)) |
-| `request_id` | `str` | идентификатор запроса в нативном слое (есть и у исключений) |
-| `raise_for_status()` | | `HTTPStatusError` для кодов вне 200–399; ответ — в `e.response` |
-| `trace()` | | описание запроса без секретов ([Диагностика](diagnostics.md#трейс-запроса)) |
+| `headers` | `dict[str, list[str]]` | response headers: name → list of values. Values are as the server sent them; names are canonicalized (`x-lower-case` → `X-Lower-Case`) |
+| `r["Name"]` | `str` | header values joined with `", "`, case-insensitive; `KeyError` if the header is missing |
+| `cookies` | `dict[str, str]` | cookies for the final URL after the exchange: the matching session and request cookies plus the ones set by responses (`Set-Cookie` of all hops), minus deleted ones. The whole jar is in `s.cookies` |
+| `content` | `bytes` | the body, already decompressed (gzip, deflate, br, zstd) |
+| `text` | `str` | the body as text: the encoding from `charset` in `Content-Type`, otherwise `encoding`; errors are replaced |
+| `encoding` | `str` | the encoding for `text` when the server did not specify one; default `"utf-8"`, can be assigned |
+| `json()` | | `json.loads(r.text)`; invalid JSON raises `json.JSONDecodeError` (`ValueError`) |
+| `url` | `str` | the final URL after redirects |
+| `history` | `list[Response]` | followed redirects, from first to last |
+| `is_redirect` | `bool` | a 3xx response with `Location` (when the redirect was not followed) |
+| `elapsed` | `float` | request duration in seconds, including redirects; without `stream=True` it includes reading the body, with `stream=True` it ends at the headers |
+| `http_version` | `str` | `"1.1"`, `"2"` or `"3"` |
+| `used_protocol` | `str` | the transport's protocol string: `"HTTP/1.1"`, `"HTTP/2.0"`, `"HTTP/3.0"` |
+| `connection_info` | `dict` | connection, TLS, addresses, timings ([below](#connection_info)) |
+| `fingerprint` | `dict` | the fingerprint of what went out on the wire ([below](#fingerprint)) |
+| `request_id` | `str` | the request id in the native layer (exceptions have it too) |
+| `raise_for_status()` | | `HTTPStatusError` for codes outside 200–399; the response is in `e.response` |
+| `trace()` | | a description of the request without secrets ([Diagnostics](diagnostics.md#responsetrace)) |
 
-`repr(r)` — `<Response [200] 148ms>`.
+`repr(r)` is `<Response [200] 148ms>`.
 
-`r.headers` содержит заголовки в том виде, в каком их прислал сервер, включая
-`Content-Encoding` и `Content-Length` сжатого тела, а `r.content` уже распакован — так же, как
-в `requests`. Повторно распаковывать тело не нужно.
+`r.headers` holds the headers as the server sent them, including `Content-Encoding` and the
+`Content-Length` of the compressed body, while `r.content` is already decompressed, the same
+as in `requests`. You do not need to decompress the body again.
 
-## История редиректов
+## Redirect history
 
 ```python
 r = s.get("https://httpbin.org/redirect/2")
@@ -50,15 +52,16 @@ r.history[0].headers["Location"]
 r.url                                # https://httpbin.org/get
 ```
 
-У каждого элемента `history`: `status_code`, `headers`, `cookies` (его `Set-Cookie`), `url`,
-`used_protocol`, `elapsed` (от отправки этого хопа до его заголовков) и `content` — тело
-редиректа, распакованное.
+Each `history` item has `status_code`, `headers`, `cookies` (its `Set-Cookie`), `url`,
+`used_protocol`, `elapsed` (from sending this hop to its headers) and `content`, the
+decompressed redirect body.
 
-Тело редиректа читается, только пока оно идёт быстро: если оно больше 64 KiB, сервер молчит
-дольше 0.5 с (или дольше `read`-таймаута, если он меньше), чтение занимает больше 2 с или
-тело не распаковывается — `content` будет `b""`, а редирект всё равно выполнится.
+A redirect body is read only while it arrives quickly: if it is larger than 64 KiB, the server
+is silent for longer than 0.5 s (or longer than the `read` timeout, if that is smaller),
+reading takes more than 2 s, or the body does not decompress, then `content` is `b""`, and the
+redirect is still followed.
 
-При `allow_redirects=False` или без редиректов `history == []`.
+With `allow_redirects=False` or without redirects, `history == []`.
 
 ## connection_info
 
@@ -77,54 +80,55 @@ r.url                                # https://httpbin.org/get
 }
 ```
 
-- Всё относится к последнему хопу (после редиректов).
-- `connection_reused` — запрос ушёл по уже открытому соединению (keep-alive, HTTP/2 или
-  HTTP/3 мультиплексирование).
-- `alpn_negotiated` — что выбрал сервер (`""` — ALPN не прислан). У `http://` и у HTTP/3
-  TLS-полей и `alpn_negotiated` нет: QUIC-рукопожатие не записывается.
-- `remote_address` через прокси — адрес прокси.
+- Everything refers to the last hop (after redirects).
+- `connection_reused`: the request went over an already open connection (keep-alive, HTTP/2
+  or HTTP/3 multiplexing).
+- `alpn_negotiated`: what the server chose (`""` means no ALPN was sent). For `http://` and
+  for HTTP/3 there are no TLS fields and no `alpn_negotiated`: the QUIC handshake is not
+  recorded.
+- Through a proxy, `remote_address` is the address of the proxy.
 
-Тайминги, секунды:
+Timings, in seconds:
 
-| Поле | Что измеряет |
+| Field | What it measures |
 |---|---|
-| `redirects` | время до начала последнего хопа: предыдущие хопы и подготовка запроса |
-| `connect` | DNS, прокси, TCP (или QUIC) и TLS последнего хопа; `None`, если соединение переиспользовано |
-| `proxy` | часть `connect`, ушедшая на путь через прокси (TCP до прокси, CONNECT или SOCKS); `None` без прокси или при переиспользовании |
-| `write` | отправка заголовков и тела |
-| `wait` | ожидание заголовков ответа после отправки |
-| `body` | чтение тела |
-| `first_byte` | от начала запроса до заголовков ответа |
-| `total` | весь запрос; `redirects + connect + write + wait + body` |
+| `redirects` | time until the start of the last hop: previous hops and request preparation |
+| `connect` | DNS, proxy, TCP (or QUIC) and TLS of the last hop; `None` if the connection was reused |
+| `proxy` | the part of `connect` spent on the path through the proxy (TCP to the proxy, CONNECT or SOCKS); `None` without a proxy or when the connection was reused |
+| `write` | sending the headers and the body |
+| `wait` | waiting for the response headers after sending |
+| `body` | reading the body |
+| `first_byte` | from the start of the request to the response headers |
+| `total` | the whole request; `redirects + connect + write + wait + body` |
 
 ## fingerprint
 
-`r.fingerprint` — отпечаток соединения, по которому ушёл запрос. Он посчитан по байтам
-ClientHello, которые реально ушли в сокет, и совпадает с тем, что покажут Wireshark или
-tshark (`tls.handshake.ja3`, `tls.handshake.ja4`).
+`r.fingerprint` is the fingerprint of the connection the request went over. It is computed
+from the ClientHello bytes that actually went into the socket and matches what Wireshark or
+tshark show (`tls.handshake.ja3`, `tls.handshake.ja4`).
 
-| Поле | Описание |
+| Field | Description |
 |---|---|
-| `ja3`, `ja3_hash_md5` | JA3 и его MD5 |
-| `ja4`, `ja4_r` | JA4 (FoxIO) и его raw-форма |
-| `tls_extensions` | расширения ClientHello по порядку (GREASE включены) |
-| `alpn_offered` | ALPN, предложенный в ClientHello |
-| `akamai_fingerprint`, `akamai_hash_sha256_96` | отпечаток HTTP/2 (SETTINGS, WINDOW_UPDATE, PRIORITY, псевдозаголовки) |
-| `http_protocol` | протокол ответа |
-| `connection_reused` | запрос ушёл по открытому соединению |
-| `request_headers` | `[[имя, значение], ...]` — заголовки в том порядке и регистре, в каком транспорт записал их в соединение; у HTTP/2 и HTTP/3 с псевдозаголовками |
-| `source` | `"wire"` — посчитано по записанному TCP ClientHello; `"config"` — его не было (запрос по `http://`, любой ответ по HTTP/3), значения посчитаны из конфигурации |
+| `ja3`, `ja3_hash_md5` | JA3 and its MD5 |
+| `ja4`, `ja4_r` | JA4 (FoxIO) and its raw form |
+| `tls_extensions` | ClientHello extensions in order (GREASE included) |
+| `alpn_offered` | ALPN offered in the ClientHello |
+| `akamai_fingerprint`, `akamai_hash_sha256_96` | HTTP/2 fingerprint (SETTINGS, WINDOW_UPDATE, PRIORITY, pseudo-headers) |
+| `http_protocol` | the response protocol |
+| `connection_reused` | the request went over an open connection |
+| `request_headers` | `[[name, value], ...]`: headers in the order and case in which the transport wrote them to the connection; for HTTP/2 and HTTP/3 including pseudo-headers |
+| `source` | `"wire"`: computed from the recorded TCP ClientHello; `"config"`: there was none (a request over `http://`, any response over HTTP/3), so the values are computed from the configuration |
 
-У переиспользованного соединения ClientHello не было — поля TLS относятся к рукопожатию, с
-которого началось это соединение. `s._core.last_fingerprint` хранит отпечаток последнего
-запроса сессии.
+A reused connection had no ClientHello: the TLS fields refer to the handshake that started that
+connection. `s._core.last_fingerprint` holds the fingerprint of the session's last request.
 
-Сравнить отпечаток с эталоном — `fingerprint_diff()` ([Диагностика](diagnostics.md)).
+To compare a fingerprint with a reference, use `fingerprint_diff()`
+([Diagnostics](diagnostics.md)).
 
-## Потоковое чтение
+## Streaming
 
-С `stream=True` запрос возвращает ответ, как только пришли заголовки, а тело остаётся в
-нативном слое, пока вы его не прочитаете. Память ограничена размером куска.
+With `stream=True`, the request returns the response as soon as the headers have arrived, and
+the body stays in the native layer until you read it. Memory use is bounded by the chunk size.
 
 ```python
 with s.get(url, stream=True) as r:
@@ -143,19 +147,21 @@ async with AsyncSession() as s:
 
 | Sync | Async | |
 |---|---|---|
-| `r.iter_bytes(chunk_size=65536)` | `r.aiter_bytes(chunk_size=65536)` | куски до `chunk_size` байт |
-| `r.iter_content(chunk_size, decode_unicode=False)` | | как в `requests`; `decode_unicode=True` — строки |
-| `r.read()` | `await r.aread()` | дочитать всё в `r.content` |
-| `r.close()` | `await r.aclose()` | закрыть, не дочитывая |
-| `with r:` | `async with r:` | закрыть на выходе |
-| `r.is_stream_consumed` | | тело прочитано до конца или закрыто |
+| `r.iter_bytes(chunk_size=65536)` | `r.aiter_bytes(chunk_size=65536)` | chunks of up to `chunk_size` bytes |
+| `r.iter_content(chunk_size, decode_unicode=False)` | | as in `requests`; `decode_unicode=True` yields strings |
+| `r.read()` | `await r.aread()` | read the rest into `r.content` |
+| `r.close()` | `await r.aclose()` | close without reading the rest |
+| `with r:` | `async with r:` | close on exit |
+| `r.is_stream_consumed` | | the body has been read to the end or closed |
 
-- Выход из цикла `iter_bytes`/`aiter_bytes` (в том числе `break` и исключение) закрывает
-  поток. Повторное чтение закрытого потока — `StreamClosed`.
-- У sync-ответа обращение к `r.content` дочитывает тело. У async-ответа сначала нужен
-  `await r.aread()`, иначе `r.content` бросает `StreamClosed` (`kind="stream_not_read"`).
-- `total`-таймаут при `stream=True` кончается на заголовках; тело дальше ограничено
-  `read`-таймаутом как паузой между кусками ([Таймауты](timeouts-and-errors.md)).
-- `max_content_size` действует и на поток: превышение — `ResponseTooLarge` во время чтения.
-- Закрытие сессии закрывает её открытые потоки. Брошенный поток освобождается сборщиком
-  мусора, но соединение до этого занято — закрывайте явно.
+- Leaving an `iter_bytes`/`aiter_bytes` loop (including `break` and an exception) closes the
+  stream. Reading a closed stream again raises `StreamClosed`.
+- For a sync response, accessing `r.content` reads the rest of the body. For an async response
+  you first need `await r.aread()`; otherwise `r.content` raises `StreamClosed`
+  (`kind="stream_not_read"`).
+- With `stream=True`, the `total` timeout ends at the headers; after that the body is limited
+  by the `read` timeout as the pause between chunks ([Timeouts](timeouts-and-errors.md)).
+- `max_content_size` applies to streams too: exceeding it raises `ResponseTooLarge` during
+  reading.
+- Closing the session closes its open streams. An abandoned stream is released by the garbage
+  collector, but until then the connection stays busy, so close streams explicitly.
