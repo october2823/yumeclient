@@ -199,6 +199,7 @@ class Sniffer:
             finally:
                 try: u.shutdown(socket.SHUT_WR)
                 except Exception: pass
+                c.close()  # the client has closed too: nothing left to read
 
         def down():
             try:
@@ -210,7 +211,11 @@ class Sniffer:
             except Exception:
                 pass
             finally:
-                c.close()
+                # pass the server's FIN on, do not close: closing a socket that up() is still
+                # reading makes Windows abort the connection with RST, and the client loses the
+                # response it has not read yet (a rare ConnectionClosed in these tests)
+                try: c.shutdown(socket.SHUT_WR)
+                except OSError: pass
 
         threading.Thread(target=up, daemon=True).start(); threading.Thread(target=down, daemon=True).start()
 
