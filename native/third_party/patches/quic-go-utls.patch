@@ -1424,6 +1424,16 @@ diff --git a/http3/stream.go b/http3/stream.go
  
  	// Rules for when to set Content-Length are defined in https://tools.ietf.org/html/rfc7230#section-3.3.2.
  	isInformational := res.StatusCode >= 100 && res.StatusCode < 200
+@@ -377,8 +398,7 @@
+ 		res.ContentLength = 0
+ 	}
+ 	if s.requestedGzip && res.Header.Get("Content-Encoding") == "gzip" {
+-		res.Header.Del("Content-Encoding")
+-		res.Header.Del("Content-Length")
++		// yumeclient: headers kept as sent, like HTTP/1.1 and HTTP/2
+ 		res.ContentLength = -1
+ 		s.responseBody = newGzipReader(respBody)
+ 		res.Uncompressed = true
 diff --git a/http3/transport.go b/http3/transport.go
 --- a/http3/transport.go
 +++ b/http3/transport.go

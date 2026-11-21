@@ -8,6 +8,7 @@ import (
 	"time"
 
 	http "github.com/bogdanfinn/fhttp"
+	tls "github.com/bogdanfinn/utls"
 )
 
 // plainRoutes: the transports of a session's http:// requests.
@@ -88,6 +89,10 @@ func (p *plainRoutes) transport(h2c bool) (http.RoundTripper, error) {
 		// the session's proxy only: the https:// transport does not read
 		// HTTP_PROXY / HTTPS_PROXY from the environment either
 		t.Proxy = proxyFuncFromUrl(p.proxyUrl)
+		// the TLS leg to an https:// proxy is not certificate-verified, as for https://
+		// requests (newInsecureHttpsConnectDialer); before 0.8.1 http:// requests through
+		// an https:// proxy verified it and failed where https:// ones worked
+		t.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 		d := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
 		if p.localAddr != nil {
 			d.LocalAddr = p.localAddr

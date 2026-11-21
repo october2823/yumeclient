@@ -484,6 +484,7 @@ func (rt *roundTripper) dialTLS(ctx context.Context, network, addr string) (net.
 		tlsConfig.RootCAs = rt.transportOptions.RootCAs
 		tlsConfig.KeyLogWriter = rt.transportOptions.KeyLogWriter
 		tlsConfig.Certificates = rt.transportOptions.Certificates
+		tlsConfig.EncryptedClientHelloConfigList = rt.transportOptions.EncryptedClientHelloConfigList
 	}
 
 	rawConn = rt.bandwidthTracker.TrackConnection(ctx, rawConn)
@@ -735,6 +736,7 @@ func (rt *roundTripper) dialTLSForWebsocket(ctx context.Context, network, addr s
 		tlsConfig.RootCAs = rt.transportOptions.RootCAs
 		tlsConfig.KeyLogWriter = rt.transportOptions.KeyLogWriter
 		tlsConfig.Certificates = rt.transportOptions.Certificates
+		tlsConfig.EncryptedClientHelloConfigList = rt.transportOptions.EncryptedClientHelloConfigList
 	}
 
 	rawConn = rt.bandwidthTracker.TrackConnection(ctx, rawConn)

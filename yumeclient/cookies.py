@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import ipaddress
-from dataclasses import dataclass
+import threading
+from dataclasses import dataclass, replace
 from http.cookiejar import Cookie
 from time import time
 from typing import Any, Iterator
@@ -62,12 +63,26 @@ class CookieJar:
     """
     def __init__(self, initial: Any = None) -> None:
         self._items: list[JarCookie] = []
+        # requests running in parallel (threads, AsyncSession workers) update the jar at the
+        # same time; without the lock concurrent set() calls lost each other's cookies
+        self._lock = threading.RLock()
         if isinstance(initial, dict): self.update(initial)
         elif isinstance(initial, list):
             for item in initial:
                 if isinstance(item, dict): self.set(item.get("name", ""), item.get("value", ""), domain=item.get("domain", ""), path=item.get("path", "/"), expires=item.get("expirationDate", item.get("expires")), secure=item.get("secure", False), http_only=item.get("httpOnly", item.get("http_only", False)), same_site=item.get("sameSite"), host_only=item.get("hostOnly", item.get("host_only", False)))
 
+    def __getstate__(self) -> dict[str, Any]:
+        with self._lock: return {"_items": [replace(c) for c in self._items]}
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        self._items = list(state.get("_items", []))
+        self._lock = threading.RLock()
+
     def set(self, name: str, value: str, *, domain: str = "", path: str = "/", expires: float | None = None, secure: bool = False, http_only: bool = False, same_site: str | None = None, host_only: bool = False) -> None:
+        with self._lock: self._set(name, value, domain, path, expires, secure, http_only, same_site, host_only)
+
+    def _set(self, name: str, value: str, domain: str, path: str, expires: float | None, secure: bool,
+             http_only: bool, same_site: str | None, host_only: bool) -> None:
         if not domain:
             # update the most specific existing same-name cookie in place instead of
             # shadowing it with a domainless duplicate (jar["sid"] = "x" semantics)
@@ -82,6 +97,9 @@ class CookieJar:
         self._items.append(JarCookie(str(name), str(value), domain, path or "/", expires, secure, http_only, same_site, bool(host_only and domain)))
 
     def update(self, values: Any, *, domain: str = "") -> None:
+        with self._lock: self._update(values, domain)
+
+    def _update(self, values: Any, domain: str) -> None:
         if hasattr(values, "items"):
             for name, value in values.items(): self.set(name, value, domain=domain)
         else:
@@ -93,7 +111,7 @@ class CookieJar:
             if sep and name: self.set(name, value, domain=domain)
 
     def get_cookie(self, name: str) -> Cookie | None:
-        found = [c for c in self._items if c.name == name]
+        with self._lock: found = [c for c in self._items if c.name == name]
         if not found: return None
         c = max(found, key=lambda x: len(x.domain))
         return Cookie(0, c.name, c.value, None, False, c.domain, bool(c.domain), c.path, True, c.expires, c.expires is not None, None, None, {"HttpOnly": c.http_only}, False, None)
@@ -103,11 +121,11 @@ class CookieJar:
         return item.value if item else default
 
     def remove(self, name: str, *, domain: str | None = None, path: str | None = None) -> None:
-        self._items = [c for c in self._items if not (c.name == name and (domain is None or c.domain == _normalize_domain(domain)) and (path is None or c.path == path))]
+        with self._lock: self._items = [c for c in self._items if not (c.name == name and (domain is None or c.domain == _normalize_domain(domain)) and (path is None or c.path == path))]
 
     def clear_domain(self, domain: str) -> None:
         domain = domain.lstrip(".").lower()
-        self._items = [c for c in self._items if c.domain != domain]
+        with self._lock: self._items = [c for c in self._items if c.domain != domain]
 
     def to_dict(self, *, domain: str | None = None, url: str | None = None) -> dict[str, str]:
         """name -> value. ``url=`` applies full RFC 6265 selection (see :meth:`for_url`, the
@@ -119,7 +137,7 @@ class CookieJar:
             return selected
         host = _normalize_domain(domain) if domain else ""
         chosen: dict[str, JarCookie] = {}
-        for c in self._items:
+        for c in self._copy():
             if host and not c.matches(host): continue
             if c.expires is not None and c.expires < time(): continue
             if c.name not in chosen or len(c.domain) > len(chosen[c.name].domain): chosen[c.name] = c
@@ -134,7 +152,7 @@ class CookieJar:
         secure = parts.scheme.lower() in ("https", "wss")
         now = time()
         chosen: list[tuple[int, JarCookie]] = []
-        for index, c in enumerate(self._items):
+        for index, c in enumerate(self._copy()):
             if c.expires is not None and c.expires <= now: continue
             if c.secure and not secure: continue
             if not c.matches(host) or not _path_match(path, c.path or "/"): continue
@@ -150,10 +168,10 @@ class CookieJar:
         return [{"name": c.name, "value": c.value, "domain": c.domain, "path": c.path or "/",
                  "expires": c.expires or 0, "secure": c.secure, "httpOnly": c.http_only,
                  "hostOnly": c.host_only, "sameSite": c.same_site or ""}
-                for c in self._items if c.name and not (c.expires is not None and c.expires <= now)]
+                for c in self._copy() if c.name and not (c.expires is not None and c.expires <= now)]
 
     def export(self) -> list[dict[str, Any]]:
-        return [{"name": c.name, "value": c.value, "domain": c.domain, "path": c.path, "expirationDate": c.expires, "secure": c.secure, "httpOnly": c.http_only, "sameSite": c.same_site, "hostOnly": c.host_only} for c in self._items]
+        return [{"name": c.name, "value": c.value, "domain": c.domain, "path": c.path, "expirationDate": c.expires, "secure": c.secure, "httpOnly": c.http_only, "sameSite": c.same_site, "hostOnly": c.host_only} for c in self._copy()]
 
     def __getitem__(self, name: str) -> str:
         value = self.get(name)
@@ -161,5 +179,8 @@ class CookieJar:
         return value
     def __setitem__(self, name: str, value: str) -> None: self.set(name, value)
     def __contains__(self, name: object) -> bool: return isinstance(name, str) and self.get(name) is not None
-    def __iter__(self) -> Iterator[JarCookie]: return iter(self._items)
+    def __iter__(self) -> Iterator[JarCookie]: return iter(self._copy())
     def __len__(self) -> int: return len(self._items)
+
+    def _copy(self) -> list[JarCookie]:
+        with self._lock: return list(self._items)

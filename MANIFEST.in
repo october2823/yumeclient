@@ -1,5 +1,6 @@
-recursive-include native *.go go.mod go.sum
-recursive-include scripts *.ps1 *.sh
+recursive-include native *.go *.json go.mod go.sum *.patch
+recursive-include scripts *.py *.ps1 *.sh
 recursive-include yumeclient *.py *.typed *.so *.dylib *.dll
-include README.md USAGE.md LICENSE UPSTREAM-LICENSE
-recursive-include scripts *.sh *.ps1
+recursive-include docs *.md
+recursive-include examples *.py *.md
+include README.md USAGE.md CHANGELOG.md LICENSE UPSTREAM-LICENSE THIRD_PARTY_NOTICES.md

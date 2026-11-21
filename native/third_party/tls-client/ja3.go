@@ -155,10 +155,6 @@ func stringToSpec(ja3 string, signatureAlgorithms []tls.SignatureScheme, delegat
 		targetPointFormats = append(targetPointFormats, byte(pid))
 	}
 
-	if len(certCompressionAlgorithms) == 0 && strings.Contains(ja3StringParts[2], fmt.Sprintf("%d", tls.ExtensionCompressCertificate)) {
-		fmt.Println("attention our ja3 defines ExtensionCompressCertificate but you did not specify certCompression")
-	}
-
 	if len(certCompressionAlgorithms) != 0 {
 		extMap[tls.ExtensionCompressCertificate] = &tls.UtlsCompressCertExtension{Algorithms: certCompressionAlgorithms}
 	}
@@ -264,6 +260,10 @@ func getExtensionBaseMap() map[uint16]tls.TLSExtension {
 			},
 		},
 		tls.ExtensionNextProtoNeg: &tls.NPNExtension{},
+		// encrypt_then_mac (RFC 7366; utls negotiates it for CBC suites) and
+		// trust_anchors (Chrome 146+, empty list unless filled)
+		tls.FakeExtensionEncryptThenMAC: &tls.GenericExtension{Id: tls.FakeExtensionEncryptThenMAC},
+		0xca34:                          &tls.GenericExtension{Id: 0xca34, Data: []byte{0x00, 0x00}},
 		tls.ExtensionRenegotiationInfo: &tls.RenegotiationInfoExtension{
 			Renegotiation: tls.RenegotiateOnceAsClient,
 		},

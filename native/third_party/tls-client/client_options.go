@@ -37,6 +37,10 @@ type TransportOptions struct {
 	ReadBufferSize         int   // If zero, a default (currently 4KB) is used.
 	DisableKeepAlives      bool
 	DisableCompression     bool
+	// EncryptedClientHelloConfigList (yumeclient): a serialized ECHConfigList; when set,
+	// TLS connections over TCP encrypt the ClientHello with it (real ECH instead of the
+	// GREASE extension of the profile)
+	EncryptedClientHelloConfigList []byte
 }
 
 type (
@@ -79,6 +83,7 @@ type httpClientConfig struct {
 	proxyDialerFactory ProxyDialerFactory
 
 	proxyUrl                    string
+	http3ProxyUrl               string // QUIC only; proxyUrl when empty
 	serverNameOverwrite         string
 	clientProfile               profiles.ClientProfile
 	timeout                     time.Duration
@@ -108,6 +113,24 @@ type httpClientConfig struct {
 // proxyUrl should be formatted as:
 //
 //	"http://user:pass@host:port"
+//
+// WithHTTP3ProxyUrl sends HTTP/3 (QUIC) through this SOCKS5 proxy instead of the proxy
+// URL, which then carries only TCP (HTTP/1.1, HTTP/2). Needed to race HTTP/3 behind an
+// HTTP(S) proxy that cannot tunnel UDP.
+func WithHTTP3ProxyUrl(proxyUrl string) HttpClientOption {
+	return func(config *httpClientConfig) {
+		config.http3ProxyUrl = proxyUrl
+	}
+}
+
+// http3Proxy: the proxy HTTP/3 goes through
+func (config *httpClientConfig) http3Proxy() string {
+	if config.http3ProxyUrl != "" {
+		return config.http3ProxyUrl
+	}
+	return config.proxyUrl
+}
+
 func WithProxyUrl(proxyUrl string) HttpClientOption {
 	return func(config *httpClientConfig) {
 		config.proxyUrl = proxyUrl

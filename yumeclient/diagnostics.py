@@ -20,8 +20,8 @@ TRACE_FORMAT = "yumeclient.trace"
 TRACE_VERSION = 1
 
 # constructor options that shape the ClientHello / HTTP layer. Not part of a profile:
-# proxy, udp_proxy, timeout, cookies, verify, trust_anchors_payload, local_address,
-# max_content_size (environment, secrets or limits, not identity)
+# proxy, udp_proxy, timeout, cookies, verify, local_address, max_content_size
+# (environment, secrets or limits, not identity)
 _IDENTITY_OPTIONS = (
     "client_identifier", "client_os", "header_style", "http_version", "random_tls_extension_order",
     "header_order", "force_http1", "disable_http3", "disable_session_tickets", "server_name_overwrite",
@@ -29,7 +29,7 @@ _IDENTITY_OPTIONS = (
     "alpn_protocols", "alps_protocols", "cert_compression_algos", "h2_settings", "h2_settings_order",
     "connection_flow", "pseudo_header_order", "priority_frames", "header_priority",
     "fill_custom_with_chrome_defaults", "tls_extension_order", "ech_config_list", "grease", "psk_mode",
-    "key_share_data")
+    "key_share_data", "trust_anchors_payload")
 _FINGERPRINT_KEYS = ("ja3", "ja3_hash_md5", "ja4", "ja4_r", "akamai_fingerprint", "alpn_offered",
                      "tls_extensions", "header_order", "source")
 
@@ -62,6 +62,8 @@ def _jsonable(name: str, value: Any) -> Any:
         return base64.b64encode(bytes(value)).decode("ascii")
     if name == "key_share_data" and value is not None:
         return {str(int(group)): base64.b64encode(bytes(data)).decode("ascii") for group, data in value.items()}
+    if name == "trust_anchors_payload" and isinstance(value, (bytes, bytearray)):
+        return bytes(value).hex()  # the constructor takes hex too
     if isinstance(value, tuple): return list(value)
     return value
 

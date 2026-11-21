@@ -470,3 +470,33 @@ def test_cancellation_logs_nothing_to_the_event_loop(server):
             gc.collect()
     asyncio.run(main())
     assert errors == [], [str(item.get("message")) for item in errors]
+
+
+def test_unclosed_session_releases_its_connections_when_collected():
+    # a Session dropped without close() kept its native session (pool, connections) forever
+    closed = threading.Event()
+    srv = socket.socket()
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(4)
+
+    def serve():
+        conn, _ = srv.accept()
+        with conn:
+            conn.recv(65536)
+            conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+            conn.settimeout(10)
+            try:
+                if not conn.recv(65536):
+                    closed.set()
+            except OSError:
+                closed.set()
+
+    threading.Thread(target=serve, daemon=True).start()
+    try:
+        s = Session(timeout=5)
+        assert s.get(f"http://127.0.0.1:{srv.getsockname()[1]}/").content == b"ok"
+        del s
+        gc.collect()
+        assert closed.wait(5), "the connection stayed open after the session was collected"
+    finally:
+        srv.close()

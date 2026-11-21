@@ -164,7 +164,7 @@ func validateConfig(config *httpClientConfig) error {
 		return fmt.Errorf("invalid config: WithDialContext overrides the built-in proxy logic. If you use a custom dialer, you must handle the proxy connection (CONNECT handshake) yourself inside that dialer.")
 	}
 
-	if err := validateProxyConfig(config.proxyUrl, config); err != nil {
+	if err := validateProxyConfig(config.http3Proxy(), config); err != nil {
 		return err
 	}
 
@@ -262,7 +262,7 @@ func buildFromConfig(logger Logger, config *httpClientConfig) (*http.Client, pro
 
 	clientProfile := config.clientProfile
 
-	transport, err := newRoundTripper(clientProfile, config.transportOptions, config.serverNameOverwrite, config.insecureSkipVerify, config.withRandomTlsExtensionOrder, config.forceHttp1, config.disableHttp3, config.disableSessionTickets, config.enableProtocolRacing, config.certificatePins, config.badPinHandler, config.disableIPV6, config.disableIPV4, bandwidthTracker, config.proxyUrl, dialer)
+	transport, err := newRoundTripper(clientProfile, config.transportOptions, config.serverNameOverwrite, config.insecureSkipVerify, config.withRandomTlsExtensionOrder, config.forceHttp1, config.disableHttp3, config.disableSessionTickets, config.enableProtocolRacing, config.certificatePins, config.badPinHandler, config.disableIPV6, config.disableIPV4, bandwidthTracker, config.http3Proxy(), dialer)
 	if err != nil {
 		return nil, nil, nil, clientProfile, err
 	}
@@ -347,7 +347,11 @@ func (c *httpClient) SetProxy(proxyUrl string) error {
 	// validateConfig only runs when the client is built, so the proxy related checks have
 	// to be repeated here. Otherwise a client created without a proxy could be switched to
 	// a TCP only proxy at runtime and silently bypass them.
-	if err := validateProxyConfig(proxyUrl, c.config); err != nil {
+	h3proxy := proxyUrl
+	if c.config.http3ProxyUrl != "" {
+		h3proxy = c.config.http3ProxyUrl
+	}
+	if err := validateProxyConfig(h3proxy, c.config); err != nil {
 		return err
 	}
 
@@ -402,7 +406,7 @@ func (c *httpClient) applyProxy() error {
 		}
 	}
 
-	transport, err := newRoundTripper(c.config.clientProfile, c.config.transportOptions, c.config.serverNameOverwrite, c.config.insecureSkipVerify, c.config.withRandomTlsExtensionOrder, c.config.forceHttp1, c.config.disableHttp3, c.config.disableSessionTickets, c.config.enableProtocolRacing, c.config.certificatePins, c.config.badPinHandler, c.config.disableIPV6, c.config.disableIPV4, c.bandwidthTracker, c.config.proxyUrl, dialer)
+	transport, err := newRoundTripper(c.config.clientProfile, c.config.transportOptions, c.config.serverNameOverwrite, c.config.insecureSkipVerify, c.config.withRandomTlsExtensionOrder, c.config.forceHttp1, c.config.disableHttp3, c.config.disableSessionTickets, c.config.enableProtocolRacing, c.config.certificatePins, c.config.badPinHandler, c.config.disableIPV6, c.config.disableIPV4, c.bandwidthTracker, c.config.http3Proxy(), dialer)
 	if err != nil {
 		return err
 	}

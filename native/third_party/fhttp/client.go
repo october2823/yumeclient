@@ -501,12 +501,17 @@ func redirectBehavior(reqMethod string, resp *Response, ireq *Request) (redirect
 		shouldRedirect = true
 		includeBody = false
 
-		// RFC 2616 allowed automatic redirection only with GET and
-		// HEAD requests. RFC 7231 lifts this restriction, but we still
-		// restrict other methods to GET to maintain compatibility.
-		// See Issue 18570.
-		if reqMethod != "GET" && reqMethod != "HEAD" {
+		// yumeclient: the Fetch standard (browsers): 301/302 turn POST into GET, 303
+		// turns everything but GET/HEAD into GET; other methods keep the method and
+		// the body (Go turned every method into GET)
+		switch {
+		case resp.StatusCode == 303 && reqMethod != "GET" && reqMethod != "HEAD", resp.StatusCode != 303 && reqMethod == "POST":
 			redirectMethod = "GET"
+		case reqMethod != "GET" && reqMethod != "HEAD":
+			includeBody = true
+			if ireq.GetBody == nil && ireq.outgoingLength() != 0 {
+				shouldRedirect = false
+			}
 		}
 	case 307, 308:
 		redirectMethod = reqMethod
@@ -660,17 +665,22 @@ func (c *Client) do(req *Request) (retres *Response, reterr error) {
 				req.ContentLength = ireq.ContentLength
 			}
 
-			// Copy original headers before setting the Referer,
-			// in case the user set Referer on their first request.
-			// If they really want to override, they can do it in
-			// their CheckRedirect func.
+			// Copy original headers. A Referer the caller set on the first
+			// request is kept; none is added: browsers keep the request's
+			// referrer across redirects (Fetch), and so does requests, while
+			// Go set the redirecting URL as Referer on every hop.
 			copyHeaders(req)
 
-			// Add the Referer header from the most recent
-			// request URL to the new one, if it's not https->http:
-			if ref := refererForURL(reqs[len(reqs)-1].URL, req.URL); ref != "" {
-				if !req.Header.has("Referer") && !req.Header.has("referer") {
-					req.Header.Set("Referer", ref)
+			// a redirect that changes the method (POST -> GET on 301, 302,
+			// 303) drops the body headers and Origin, like Chromium
+			// (net/url_request/redirect_util.cc) and requests
+			if redirectMethod != reqs[len(reqs)-1].Method {
+				for k := range req.Header {
+					switch strings.ToLower(k) {
+					case "content-type", "content-encoding", "content-language", "content-location",
+						"content-length", "transfer-encoding", "origin":
+						delete(req.Header, k)
+					}
 				}
 			}
 			err = c.checkRedirect(req, reqs)
@@ -794,9 +804,11 @@ func (c *Client) makeHeadersCopier(ireq *Request) func(*Request) {
 	}
 }
 
+// yumeclient: up to 20 redirects, as in the Fetch standard and Chromium; Go stopped at
+// the 10th (following 9)
 func defaultCheckRedirect(req *Request, via []*Request) error {
-	if len(via) >= 10 {
-		return errors.New("stopped after 10 redirects")
+	if len(via) > 20 {
+		return errors.New("stopped after 20 redirects")
 	}
 	return nil
 }

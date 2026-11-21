@@ -132,7 +132,7 @@ def h1(native):
     (dict(force_http1=True, http_version="3"), "force_http1=True conflicts with http_version='3'"),
     (dict(disable_http3=True, http_version="3"), "conflicts with disable_http3"),
     (dict(keep_alpn=True), "keep_alpn=True needs"),
-    (dict(http_version="3", proxy="http://127.0.0.1:1"), "requires socks5"),
+    (dict(http_version="3", proxy="http://127.0.0.1:1"), "QUIC needs UDP"),
     (dict(ja3_string=JA3, alpn_protocols=["h2"], http_version="1.1"), "conflicts with forced HTTP/1.1"),
     (dict(ja3_string=JA3, alpn_protocols=["h2", "http/1.1"], force_http1=True), "conflicts with forced HTTP/1.1"),
     (dict(ja3_string=JA3, alpn_protocols=["h2"], http_version="1.1", keep_alpn=True), "cannot select http/1.1"),

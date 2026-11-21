@@ -1,4 +1,76 @@
 # github.com/bogdanfinn/fhttp v0.6.9
+diff --git a/client.go b/client.go
+--- a/client.go
++++ b/client.go
+@@ -501,12 +501,17 @@
+ 		shouldRedirect = true
+ 		includeBody = false
+ 
+-		// RFC 2616 allowed automatic redirection only with GET and
+-		// HEAD requests. RFC 7231 lifts this restriction, but we still
+-		// restrict other methods to GET to maintain compatibility.
+-		// See Issue 18570.
+-		if reqMethod != "GET" && reqMethod != "HEAD" {
++		// yumeclient: the Fetch standard (browsers): 301/302 turn POST into GET, 303
++		// turns everything but GET/HEAD into GET; other methods keep the method and
++		// the body (Go turned every method into GET)
++		switch {
++		case resp.StatusCode == 303 && reqMethod != "GET" && reqMethod != "HEAD", resp.StatusCode != 303 && reqMethod == "POST":
+ 			redirectMethod = "GET"
++		case reqMethod != "GET" && reqMethod != "HEAD":
++			includeBody = true
++			if ireq.GetBody == nil && ireq.outgoingLength() != 0 {
++				shouldRedirect = false
++			}
+ 		}
+ 	case 307, 308:
+ 		redirectMethod = reqMethod
+@@ -660,17 +665,22 @@
+ 				req.ContentLength = ireq.ContentLength
+ 			}
+ 
+-			// Copy original headers before setting the Referer,
+-			// in case the user set Referer on their first request.
+-			// If they really want to override, they can do it in
+-			// their CheckRedirect func.
++			// Copy original headers. A Referer the caller set on the first
++			// request is kept; none is added: browsers keep the request's
++			// referrer across redirects (Fetch), and so does requests, while
++			// Go set the redirecting URL as Referer on every hop.
+ 			copyHeaders(req)
+ 
+-			// Add the Referer header from the most recent
+-			// request URL to the new one, if it's not https->http:
+-			if ref := refererForURL(reqs[len(reqs)-1].URL, req.URL); ref != "" {
+-				if !req.Header.has("Referer") && !req.Header.has("referer") {
+-					req.Header.Set("Referer", ref)
++			// a redirect that changes the method (POST -> GET on 301, 302,
++			// 303) drops the body headers and Origin, like Chromium
++			// (net/url_request/redirect_util.cc) and requests
++			if redirectMethod != reqs[len(reqs)-1].Method {
++				for k := range req.Header {
++					switch strings.ToLower(k) {
++					case "content-type", "content-encoding", "content-language", "content-location",
++						"content-length", "transfer-encoding", "origin":
++						delete(req.Header, k)
++					}
+ 				}
+ 			}
+ 			err = c.checkRedirect(req, reqs)
+@@ -794,9 +804,11 @@
+ 	}
+ }
+ 
++// yumeclient: up to 20 redirects, as in the Fetch standard and Chromium; Go stopped at
++// the 10th (following 9)
+ func defaultCheckRedirect(req *Request, via []*Request) error {
+-	if len(via) >= 10 {
+-		return errors.New("stopped after 10 redirects")
++	if len(via) > 20 {
++		return errors.New("stopped after 20 redirects")
+ 	}
+ 	return nil
+ }
 diff --git a/http2/client_conn_pool.go b/http2/client_conn_pool.go
 --- a/http2/client_conn_pool.go
 +++ b/http2/client_conn_pool.go
@@ -284,7 +356,22 @@ diff --git a/transport.go b/transport.go
  	"compress/zlib"
  	"container/list"
  	"context"
-@@ -2547,7 +2546,10 @@
+@@ -2188,11 +2187,10 @@
+ 		resp.Body = body
+ 
+ 		if rc.addedGzip {
++			// yumeclient: the headers stay as the server sent them (Content-Encoding,
++			// Content-Length of the encoded body), like HTTP/2 here and requests; the
++			// body is decoded (resp.Uncompressed)
+ 			resp.Body = DecompressBody(resp)
+-			resp.Header.Del("Content-Encoding")
+-			resp.Header.Del("Content-Length")
+-			resp.ContentLength = -1
+-			resp.Uncompressed = true
+ 		}
+ 
+ 		select {
+@@ -2547,7 +2545,10 @@
  	// requested it.
  
  	requestedGzip := false
@@ -295,7 +382,7 @@ diff --git a/transport.go b/transport.go
  		req.Header.Get("Accept-Encoding") == "" &&
  		req.Header.get("accept-encoding") == "" &&
  		req.Header.Get("Range") == "" &&
-@@ -2880,6 +2882,36 @@
+@@ -2880,6 +2881,36 @@
  	return DecompressBodyByType(res.Body, ce)
  }
  
@@ -332,7 +419,7 @@ diff --git a/transport.go b/transport.go
  func DecompressBodyByType(body io.ReadCloser, contentType string) io.ReadCloser {
  	switch contentType {
  	case "gzip":
-@@ -2891,7 +2923,7 @@
+@@ -2891,7 +2922,7 @@
  			body: body,
  		}
  	case "deflate":
@@ -341,7 +428,7 @@ diff --git a/transport.go b/transport.go
  	case "zstd":
  		return &zstdReader{
  			body: body,
-@@ -2999,50 +3031,60 @@
+@@ -2999,50 +3030,60 @@
  	return br.body.Close()
  }
  
@@ -432,7 +519,7 @@ diff --git a/transport.go b/transport.go
  }
  
  // zstdReader wraps a response body so it can lazily
-@@ -3068,47 +3110,12 @@
+@@ -3068,47 +3109,12 @@
  }
  
  func (zs *zstdReader) Close() error {

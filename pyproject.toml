@@ -1,14 +1,42 @@
 [build-system]
-requires = ["setuptools>=70", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "yumeclient"
-version = "0.8.0"
-description = "Async Python facade for bogdanfinn/tls-client"
+version = "0.8.1"
+description = "HTTP client that sends requests like real browsers and apps: TLS, HTTP/2, HTTP/3/QUIC fingerprints and headers, with sync and asyncio APIs"
 requires-python = ">=3.11"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE", "UPSTREAM-LICENSE", "THIRD_PARTY_NOTICES.md"]
 readme = "README.md"
+keywords = ["http", "http2", "http3", "quic", "tls", "ja3", "ja4", "fingerprint", "browser", "impersonate",
+            "asyncio", "requests", "tls-client"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Go",
+    "Framework :: AsyncIO",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://github.com/october2823/yumeclient"
+Documentation = "https://github.com/october2823/yumeclient/blob/main/docs/index.md"
+Changelog = "https://github.com/october2823/yumeclient/blob/main/CHANGELOG.md"
+Issues = "https://github.com/october2823/yumeclient/issues"
+Source = "https://github.com/october2823/yumeclient"
 
 [project.optional-dependencies]
 test = ["pytest>=8", "pytest-asyncio>=0.24", "aioquic>=1.2"]

@@ -140,15 +140,16 @@ def test_profile_roundtrip_identifier():
 
 
 def test_profile_roundtrip_ja3_with_binary_options():
-    s = Session(ja3_string=JA3, tls_extension_order=[0, 10, 11, 13, 16, 43, 45, 51], grease=False,
-                ech_config_list=b"\x00\x01ech", key_share_data={29: b"\x11" * 32}, alpn_protocols=["h2", "http/1.1"],
+    ech = b"\x00\x04\xfe\x0d\x00\x00"  # ECHConfigList framing (contents irrelevant here)
+    s = Session(ja3_string=JA3.replace("-51,", "-51-65037,"), tls_extension_order=[0, 10, 11, 13, 16, 43, 45, 51],
+                grease=False, ech_config_list=ech, key_share_data={29: b"\x11" * 32}, alpn_protocols=["h2", "http/1.1"],
                 h2_settings={"HEADER_TABLE_SIZE": 65536}, fill_custom_with_chrome_defaults=False,
                 random_tls_extension_order=False)
     exported = json.loads(json.dumps(s.export_profile()))
     assert "client_identifier" not in exported["transport"]
     clone = Session.from_profile(exported)
     assert clone._core._transportMark() == s._core._transportMark()
-    assert clone._core.ech_config_list == b"\x00\x01ech" and clone._core.key_share_data == {29: b"\x11" * 32}
+    assert clone._core.ech_config_list == ech and clone._core.key_share_data == {29: b"\x11" * 32}
     s.close(); clone.close()
 
 

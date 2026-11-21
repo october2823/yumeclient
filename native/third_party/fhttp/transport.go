@@ -2187,11 +2187,10 @@ func (pc *persistConn) readLoop() {
 		resp.Body = body
 
 		if rc.addedGzip {
+			// yumeclient: the headers stay as the server sent them (Content-Encoding,
+			// Content-Length of the encoded body), like HTTP/2 here and requests; the
+			// body is decoded (resp.Uncompressed)
 			resp.Body = DecompressBody(resp)
-			resp.Header.Del("Content-Encoding")
-			resp.Header.Del("Content-Length")
-			resp.ContentLength = -1
-			resp.Uncompressed = true
 		}
 
 		select {

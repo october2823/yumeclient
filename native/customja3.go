@@ -97,6 +97,16 @@ func (r *chromeReference) fillSpec(spec *tls.ClientHelloSpec) {
 			if len(ext.SupportedProtocols) == 0 {
 				ext.SupportedProtocols = r.alps()
 			}
+		case *tls.GenericExtension:
+			// trust_anchors: Chrome's list of trust anchor ids (the extension is
+			// built with an empty list)
+			if ext.Id == extTrustAnchors {
+				for _, re := range r.spec.Extensions {
+					if g, ok := re.(*tls.GenericExtension); ok && g.Id == extTrustAnchors {
+						ext.Data = append([]byte(nil), g.Data...)
+					}
+				}
+			}
 		case *tls.GREASEEncryptedClientHelloExtension:
 			if len(ext.CandidateCipherSuites) == 0 && len(ext.CandidatePayloadLens) == 0 {
 				if ref := findExt[*tls.GREASEEncryptedClientHelloExtension](r.spec); ref != nil {
@@ -226,3 +236,7 @@ type customH2Input struct {
 	priorities       []http2.Priority
 	headerPriority   *http2.PriorityParam
 }
+
+// extTrustAnchors is the trust_anchors extension (draft-ietf-tls-trust-anchor-ids)
+// that Chrome sends from version 146.
+const extTrustAnchors uint16 = 0xca34

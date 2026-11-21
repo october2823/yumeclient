@@ -166,11 +166,21 @@ def test_chromium_profiles_send_chrome_http3_settings(h3, identifier):
 
 
 def test_custom_ja3_with_chrome_fill_sends_chrome_http3_settings(h3):
-    # no MLKEM group: protocol racing stays enabled for custom JA3 sessions
     ja3 = ("771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,"
            "0-23-65281-10-11-35-16-5-13-18-51-45-43-27-17613-21,29-23-24,0")
     settings, _, _ = _get(h3, ja3_string=ja3)
     assert settings == json.loads(FIXTURE.read_text(encoding="utf-8"))["http3"]["settings"]
+
+
+@pytest.mark.parametrize("fill", [True, False])
+def test_custom_ja3_with_mlkem_uses_http3(h3, fill):
+    # X25519MLKEM768 (4588) in the JA3, as in every current Chrome: such sessions used to
+    # stay on TCP without a word (the QUIC hello does not take the JA3's curves)
+    ja3 = ("771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,"
+           "0-23-65281-10-11-35-16-5-13-18-51-45-43-27-17613-65037,4588-29-23-24,0")
+    settings, _, _ = _get(h3, ja3_string=ja3, fill_custom_with_chrome_defaults=fill)
+    if fill:
+        assert settings == json.loads(FIXTURE.read_text(encoding="utf-8"))["http3"]["settings"]
 
 
 def test_none_removes_the_http3_priority_header(h3):
@@ -854,3 +864,31 @@ def test_tiny_server_idle_timeout_does_not_flood_pings(native):
         assert idle <= 6, idle
     finally:
         srv.close()
+
+
+def test_udp_proxy_carries_quic_and_proxy_tcp(native):
+    # udp_proxy used to replace the TCP proxy as well, and http_version="3" behind an
+    # HTTP proxy was refused even with a SOCKS5 udp_proxy for the QUIC part
+    from socks5udp import Socks5
+    from test_diagnostics import ConnectProxy
+
+    h2, h3 = _servers_on_one_port()
+    tcp, udp = ConnectProxy(), Socks5()
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            with Session(client_identifier="chrome_144", verify=False, timeout=8, http_version="3",
+                         proxy=f"http://127.0.0.1:{tcp.port}", udp_proxy=udp.url) as s:
+                assert s.get(f"https://127.0.0.1:{h3.port}/").used_protocol == "HTTP/3.0"
+            assert ("udp", "127.0.0.1", h3.port) in udp.log
+            with Session(client_identifier="chrome_144", verify=False, timeout=8,
+                         proxy=f"http://127.0.0.1:{tcp.port}", udp_proxy=udp.url) as s:
+                assert s.get(f"https://127.0.0.1:{h2.port}/").used_protocol == "HTTP/2.0"
+        assert tcp.seen == [f"CONNECT 127.0.0.1:{h2.port} HTTP/1.1"]
+        assert not [entry for entry in udp.log if entry[0] == "connect"]
+        with pytest.raises(yumeclient.SessionConfigurationError, match="udp_proxy"):
+            Session(udp_proxy="udp://127.0.0.1:1")
+        with pytest.raises(yumeclient.SessionConfigurationError, match="QUIC needs UDP"):
+            Session(http_version="3", proxy="http://127.0.0.1:1")
+    finally:
+        tcp.sock.close(); udp.close(); h2.close(); h3.close()

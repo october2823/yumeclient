@@ -1,10 +1,14 @@
-"""yumeclient — requests-style sync/async TLS client over bogdanfinn/tls-client v1.16.0.
+"""yumeclient — requests-style sync/async HTTP client with browser and app fingerprints.
 
-The Python layer never swaps in another TLS implementation: every request goes
-through the Go cffi adapter (native/) which drives the upstream client and its
-uTLS fingerprints. ``session.cookies`` is the single source of truth: each call
-sends a snapshot, the native per-request jar selects cookies per redirect hop
-(RFC 6265) and only the changes (``jarDelta``) come back.
+Every request goes through the native library (native/, Go, loaded with ctypes): it
+builds the profile's TLS ClientHello with uTLS, speaks HTTP/1.1, HTTP/2 and HTTP/3
+(QUIC) the way the profile's client does, and follows redirects. Its network stack is
+bogdanfinn/tls-client with patched upstream modules (native/third_party).
+``session.cookies`` is the single source of truth: each call sends a snapshot, the native
+per-request jar selects cookies per redirect hop (RFC 6265) and only the changes
+(``jarDelta``) come back.
+
+Documentation: https://github.com/october2823/yumeclient/tree/main/docs
 """
 from __future__ import annotations
 
@@ -45,9 +49,10 @@ __all__ = ["Session", "AsyncSession", "Response", "CookieJar", "Headers", "Profi
            "SessionConfigurationError", "close_runtime", "encode_multipart", "choose_boundary",
            "TimeoutConfig", "InvalidRequestError", "RequestCancelled", "ConnectError", "ProxyError", "TLSError",
            "ConnectionClosed", "Timeout", "ConnectTimeout", "ReadTimeout", "WriteTimeout", "ResponseTooLarge",
-           "StreamClosed", "HTTPStatusError", "ProtocolError", "fingerprint_diff", "__version__"]
+           "StreamClosed", "HTTPStatusError", "ProtocolError", "TooManyRedirects", "fingerprint_diff",
+           "__version__"]
 
-__version__ = "0.8.0"
+__version__ = "0.8.1"
 
 
 class TLSClientError(RuntimeError): pass
@@ -85,8 +90,8 @@ class TLSError(ConnectError):
     """TLS handshake or certificate verification failed."""
 class ProtocolError(ConnectError):
     """The server negotiated an HTTP version the session does not allow (``http_version='2'``
-    got HTTP/1.1; ``keep_alpn=True`` got h2). The connection is closed after the TLS
-    handshake, before the request is written."""
+    got HTTP/1.1 or does not speak h2c on http://; ``keep_alpn=True`` got h2). The connection
+    is closed before the request is written."""
 class ConnectionClosed(RequestError, ConnectionError):
     """The connection was closed or reset after it had been established."""
 class Timeout(RequestError, TimeoutError):
@@ -103,6 +108,8 @@ class StreamClosed(RequestError):
     """The streamed response body was already closed."""
 class HTTPStatusError(RequestError):
     """Raised by :meth:`Response.raise_for_status`; the response is in ``.response``."""
+class TooManyRedirects(RequestError):
+    """The request was redirected more than 20 times (the Fetch standard's limit)."""
 
 
 _ERROR_KINDS: dict[str, type[RequestError]] = {
@@ -110,7 +117,8 @@ _ERROR_KINDS: dict[str, type[RequestError]] = {
     "write_timeout": WriteTimeout, "connect": ConnectError, "dns": ConnectError, "proxy": ProxyError,
     "tls": TLSError, "connection_closed": ConnectionClosed, "cancelled": RequestCancelled,
     "body_too_large": ResponseTooLarge, "invalid_request": InvalidRequestError,
-    "configuration": InvalidRequestError, "stream_closed": StreamClosed, "protocol": ProtocolError}
+    "configuration": InvalidRequestError, "stream_closed": StreamClosed, "protocol": ProtocolError,
+    "too_many_redirects": TooManyRedirects}
 _RETRYABLE = frozenset({"timeout", "connect_timeout", "read_timeout", "write_timeout", "connect", "dns",
                         "proxy", "connection_closed"})
 _USERINFO = re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)[^\s/@]+@")
@@ -120,6 +128,50 @@ _AUTH_VALUE = re.compile(r"(?i)\b(basic|bearer)\s+[a-z0-9._~+/=-]+")
 def _redact(text: str) -> str:
     """Drop credentials from URLs (scheme://user:pass@) and Basic/Bearer tokens."""
     return _AUTH_VALUE.sub(r"\1 ***", _USERINFO.sub(r"\1***@", text))
+
+
+_PROXY_SCHEMES = ("http", "https", "socks5", "socks5h", "socks4", "socks4a")
+
+
+def _proxyUrl(value: Any, option: str = "proxy") -> str | None:
+    """A proxy URL checked before any request: before 0.8.1 a typo surfaced only at the
+    first request, as InvalidRequestError "client creation failed: ...". "" means no
+    proxy (per request: a direct connection even when the session has a proxy)."""
+    if value is None or value == "": return value
+    if not isinstance(value, str): raise SessionConfigurationError(f"{option} must be a URL string, got {type(value).__name__}")
+    shown = _safeUrl(value) if "@" in value else value
+    if "://" not in value:
+        raise SessionConfigurationError(f"{option} {shown!r} has no scheme; write it as http://host:port "
+                                        f"(or {', '.join(s + '://' for s in _PROXY_SCHEMES[1:])})")
+    parts = urlsplit(value)
+    scheme = parts.scheme.lower()
+    if scheme not in _PROXY_SCHEMES:
+        raise SessionConfigurationError(f"{option} {shown!r}: unsupported scheme {parts.scheme!r}; "
+                                        f"use one of {', '.join(s + '://' for s in _PROXY_SCHEMES)}")
+    try: port = parts.port
+    except ValueError: raise SessionConfigurationError(f"{option} {shown!r}: invalid port") from None
+    if not parts.hostname: raise SessionConfigurationError(f"{option} {shown!r}: no host")
+    if port is None and scheme.startswith("socks"):
+        raise SessionConfigurationError(f"{option} {shown!r}: a SOCKS proxy needs a port (usually 1080)")
+    return value
+
+
+def _urlProblem(url: Any) -> str | None:
+    """Why a request URL cannot be sent, or None. Checked before the native call: such
+    URLs used to fail as a retryable ConnectError (kind "connect")."""
+    if not isinstance(url, str): return f"URL must be a str, not {type(url).__name__}"
+    if any(ch in url for ch in "\r\n\x00"): return "URL contains control characters"
+    try:
+        parts = urlsplit(url)
+        port = parts.port
+    except ValueError as exc:
+        return f"invalid URL: {exc}"
+    scheme = parts.scheme.lower()
+    if not scheme: return "URL has no scheme; use http:// or https://"
+    if scheme not in ("http", "https"): return f"unsupported URL scheme {parts.scheme!r}; use http:// or https://"
+    if not parts.hostname: return "URL has no host"
+    if port == 0: return "invalid URL port 0"
+    return None
 
 
 def _safeUrl(url: str | None) -> str | None:
@@ -163,8 +215,8 @@ class TimeoutConfig:
       body is then bounded by ``read`` (``total`` serves as the read limit when ``read`` is None).
 
     ``timeout=`` accepts a number (= ``total``), a ``(connect, read)`` tuple, a ``TimeoutConfig``
-    or ``None`` (no limits). Stage limits are not enforced on HTTP/3 hops of protocol-racing
-    sessions (quic-go reports no stages); ``total`` and the body ``read`` limit are.
+    or ``None`` (no limits). The stages are the same for HTTP/1.1, HTTP/2 and HTTP/3 (where
+    ``connect`` is the QUIC handshake).
     """
     total: float | None = None
     connect: float | None = None
@@ -239,6 +291,17 @@ def _call(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _closeNative(sessionId: str) -> None:
     _native().yumeclient_close(sessionId.encode())
+
+
+def _closeForgotten(ids: dict[str, Any]) -> None:
+    """weakref.finalize callback of a session that was never closed: release its native
+    sessions (connections, pools). No lock and no library loading: it can run from the
+    garbage collector in any thread, and a library that was never loaded has nothing open."""
+    lib = _library
+    if lib is None: return
+    for sessionId in [ids["main"], *list(ids["proxies"])]:
+        try: lib.yumeclient_close(sessionId.encode())
+        except Exception: pass
 
 
 def _cancelNative(requestId: str) -> None:
@@ -576,8 +639,10 @@ def _checkProtocol(*, http_version: str, force_http1: bool, disable_http3: bool,
         raise SessionConfigurationError("keep_alpn=True needs http_version='1.1' (or force_http1=True); "
                                         "with http_version='auto' the profile's ALPN is already sent unchanged")
     if keep_alpn and udp_proxy: raise SessionConfigurationError("keep_alpn cannot be combined with udp_proxy")
-    if httpVer == "3" and proxy and not proxy.lower().startswith("socks5://"):
-        raise SessionConfigurationError("HTTP/3 racing with a proxy requires socks5:// to tunnel UDP")
+    if httpVer == "3" and proxy and not proxy.lower().startswith(("socks5://", "socks5h://")) and not udp_proxy:
+        raise SessionConfigurationError(f"HTTP/3 with a {proxy.split(':', 1)[0]}:// proxy: QUIC needs UDP, which only "
+                                        "SOCKS5 tunnels. Use a socks5:// proxy, add udp_proxy='socks5://...' for "
+                                        "QUIC, or disable HTTP/3")
     if alpn is None: return
     offer = list(alpn)
     if not offer or not all(isinstance(p, str) and p for p in offer):
@@ -773,6 +838,70 @@ def _normalizeCurveName(value):
 def _normalizeVersionName(value):
     return _mapperName("supported_versions", value, _VERSION_NAMES)
 
+_H2_SETTING_IDS = {"HEADER_TABLE_SIZE": 1, "ENABLE_PUSH": 2, "MAX_CONCURRENT_STREAMS": 3,
+                   "INITIAL_WINDOW_SIZE": 4, "MAX_FRAME_SIZE": 5, "MAX_HEADER_LIST_SIZE": 6,
+                   "ENABLE_CONNECT_PROTOCOL": 8, "NO_RFC7540_PRIORITIES": 9}
+
+
+_CUSTOM_OPTION_NAMES = {"supportedSignatureAlgorithms": "supported_signature_algorithms",
+                        "keyShareCurves": "key_share_curves", "supportedVersions": "supported_versions",
+                        "alpnProtocols": "alpn_protocols", "alpsProtocols": "alps_protocols",
+                        "certCompressionAlgos": "cert_compression_algos",
+                        "trustAnchorsPayload": "trust_anchors_payload", "h2Settings": "h2_settings",
+                        "h2SettingsOrder": "h2_settings_order", "connectionFlow": "connection_flow",
+                        "pseudoHeaderOrder": "pseudo_header_order", "priorityFrames": "priority_frames",
+                        "headerPriority": "header_priority"}
+
+
+def _h2SettingName(value: Any) -> str:
+    """An HTTP/2 setting as the native layer reads it: a name (RFC 9113, upstream's
+    UNKNOWN_SETTING_<id>) or the numeric id. Unknown names used to be dropped silently."""
+    if isinstance(value, bool): raise SessionConfigurationError(f"h2 setting {value!r}: expected a name or an id")
+    if isinstance(value, int): number = value
+    else:
+        text = str(value).strip()
+        if text.upper() in _H2_SETTING_IDS: return text.upper()
+        digits = text.upper().removeprefix("UNKNOWN_SETTING_")
+        try: number = int(digits, 0)
+        except ValueError:
+            raise SessionConfigurationError(f"unknown HTTP/2 setting {value!r}; use one of "
+                                            f"{', '.join(_H2_SETTING_IDS)} or a numeric id") from None
+    if not 0 < number <= 0xFFFF: raise SessionConfigurationError(f"HTTP/2 setting id {value!r} out of range 1..65535")
+    return str(number)
+
+
+def _h2Settings(settings: Mapping[Any, int] | None, order: Sequence[Any] | None) -> tuple[dict[str, int] | None, list[str] | None]:
+    resolved = None
+    if settings is not None:
+        resolved = {}
+        for key, value in settings.items():
+            if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 0xFFFFFFFF:
+                raise SessionConfigurationError(f"HTTP/2 setting {key!r}: value must be an int 0..2**32-1")
+            resolved[_h2SettingName(key)] = value
+    if order is None:
+        # the native side keeps settings in a map: without an explicit order the frame
+        # order was random; the dict order is what the caller wrote
+        return resolved, list(resolved) if resolved else None
+    return resolved, [_h2SettingName(key) for key in order]
+
+
+def _trustAnchorsHex(value: Any, ja3: str | None) -> str | None:
+    """trust_anchors_payload (bytes or hex) -> hex of the trust_anchors extension (0xca34) data."""
+    if value is None: return None
+    if isinstance(value, (bytes, bytearray)): data = bytes(value)
+    elif isinstance(value, str):
+        try: data = bytes.fromhex(value.replace(":", "").replace(" ", ""))
+        except ValueError: raise SessionConfigurationError("trust_anchors_payload must be bytes or a hex string") from None
+    else: raise SessionConfigurationError("trust_anchors_payload must be bytes or a hex string")
+    if len(data) < 2 or int.from_bytes(data[:2], "big") != len(data) - 2:
+        raise SessionConfigurationError("trust_anchors_payload must be a TrustAnchorIdentifier list: "
+                                        "a 2-byte length followed by that many bytes")
+    extensions = ja3.split(",")[2].split("-") if ja3 and ja3.count(",") >= 2 else []
+    if ja3 and "51764" not in extensions:
+        raise SessionConfigurationError("trust_anchors_payload needs extension 51764 (trust_anchors) in ja3_string")
+    return data.hex()
+
+
 def _normalizeHexU16(value):
     # upstream ja3.go: strconv.ParseUint(s, 16, 16) — hex WITHOUT 0x prefix.
     # decimal ja3 strings ("1027") vs hex strings ("0403") are disambiguated:
@@ -780,10 +909,45 @@ def _normalizeHexU16(value):
     # -> decimal converted to hex ("1027" -> "403").
     if isinstance(value, int): return "%x" % value
     if not isinstance(value, str): return str(value)
-    stripped = value[2:] if value.lower().startswith("0x") else value
+    if value.lower().startswith("0x"): return value[2:]  # upstream parses hex without the prefix
+    stripped = value
     if stripped.isdigit() and len(stripped) < 5 and stripped[0] != "0":
         return "%x" % int(stripped)
     return value
+
+
+_PSEUDO = {":method": ":method", ":authority": ":authority", ":scheme": ":scheme", ":path": ":path"}
+_PSEUDO.update({name[1:]: name for name in list(_PSEUDO)})
+_PSEUDO.update({name[1]: name for name in list(_PSEUDO.values())})
+
+
+def _pseudoOrder(order: Sequence[str] | None) -> list[str] | None:
+    """The four request pseudo-headers in the wire order (":method", "method" or "m").
+    A partial or misspelled list used to drop the missing ones from the request."""
+    if order is None: return None
+    resolved = [_PSEUDO.get(str(name).strip().lower()) for name in order]
+    if None in resolved or sorted(set(resolved)) != sorted(set(_PSEUDO.values())) or len(resolved) != 4:
+        raise SessionConfigurationError(f"pseudo_header_order {list(order)!r}: list all four of "
+                                        f":method, :authority, :scheme, :path once")
+    return resolved
+
+
+_SIGALG_NAMES = frozenset({"PKCS1WithSHA256", "PKCS1WithSHA384", "PKCS1WithSHA512", "PSSWithSHA256", "PSSWithSHA384",
+                           "PSSWithSHA512", "ECDSAWithP256AndSHA256", "ECDSAWithP384AndSHA384",
+                           "ECDSAWithP521AndSHA512", "PKCS1WithSHA1", "ECDSAWithSHA1", "Ed25519", "SHA224_RSA",
+                           "SHA224_ECDSA"})
+
+
+def _sigAlg(value: Any) -> str:
+    """A signature scheme: upstream name, int id, hex string ("0403", "0x0403") or decimal."""
+    normalized = _normalizeHexU16(value)
+    if normalized in _SIGALG_NAMES: return normalized
+    try: number = int(normalized, 16)
+    except ValueError: number = -1
+    if not 0 <= number <= 0xFFFF:
+        raise SessionConfigurationError(f"unknown signature algorithm {value!r}; use a name "
+                                        f"({', '.join(sorted(_SIGALG_NAMES))}) or the IANA id")
+    return normalized
 
 
 class _RequestHandle:
@@ -830,7 +994,7 @@ class _Core:
                  ja3_string: str | None = None, supported_signature_algorithms: Sequence[str] | None = None,
                  key_share_curves: Sequence[str] | None = None, supported_versions: Sequence[str] | None = None,
                  alpn_protocols: Sequence[str] | None = None, alps_protocols: Sequence[str] | None = None,
-                 cert_compression_algos: Sequence[str] | None = None, trust_anchors_payload: str | None = None,
+                 cert_compression_algos: Sequence[str] | None = None, trust_anchors_payload: bytes | str | None = None,
                  h2_settings: Mapping[str, int] | None = None, h2_settings_order: Sequence[str] | None = None,
                  connection_flow: int = 0, pseudo_header_order: Sequence[str] | None = None,
                  priority_frames: Sequence[Mapping[str, Any]] | None = None,
@@ -856,6 +1020,8 @@ class _Core:
             self.header_style = resolve_header_style("" if ja3_string else self.client_identifier, header_style)
         except ValueError as exc: raise SessionConfigurationError(str(exc)) from exc
         self.keep_alpn = bool(keep_alpn)
+        proxy = _proxyUrl(proxy) or None
+        udp_proxy = _proxyUrl(udp_proxy, "udp_proxy") or None
         if isinstance(alpn_protocols, str): alpn_protocols = [alpn_protocols]
         _checkProtocol(http_version=_version(http_version), force_http1=force_http1, disable_http3=disable_http3,
                        keep_alpn=self.keep_alpn, udp_proxy=udp_proxy, proxy=proxy,
@@ -875,16 +1041,25 @@ class _Core:
             if ja3_string is None: raise SessionConfigurationError("tls_extension_order requires ja3_string")
             if not all(isinstance(x, int) and 0 <= x <= 65535 for x in tls_extension_order):
                 raise SessionConfigurationError("tls_extension_order must be ints 0..65535")
-        if ech_config_list is not None and ja3_string is None:
-            raise SessionConfigurationError("ech_config_list requires ja3_string")
+        if ech_config_list is not None:
+            if ja3_string is None: raise SessionConfigurationError("ech_config_list requires ja3_string")
+            ech_config_list = bytes(ech_config_list)
+            # ECHConfigList: 2-byte length, then the configs (draft-ietf-tls-esni)
+            if len(ech_config_list) < 2 or int.from_bytes(ech_config_list[:2], "big") != len(ech_config_list) - 2:
+                raise SessionConfigurationError("ech_config_list must be a serialized ECHConfigList (2-byte length prefix)")
+            ja3Parts = ja3_string.split(",")
+            if len(ja3Parts) < 3 or "65037" not in ja3Parts[2].split("-"):
+                raise SessionConfigurationError("ech_config_list needs extension 65037 (encrypted_client_hello) in ja3_string")
+            if _version(http_version) == "3":
+                raise SessionConfigurationError("ech_config_list works over TCP only (HTTP/1.1, HTTP/2), not with http_version='3'")
         if grease is not None and ja3_string is None:
             raise SessionConfigurationError("grease requires ja3_string")
         if psk_mode is not None:
             if psk_mode not in ("psk", "no_psk"):
                 raise SessionConfigurationError("psk_mode must be 'psk' or 'no_psk'")
             if ja3_string is None: raise SessionConfigurationError("psk_mode requires ja3_string")
-        if udp_proxy is not None and not str(udp_proxy).lower().startswith(("socks5://", "udp://")):
-            raise SessionConfigurationError("udp_proxy must be socks5:// or udp:// (for HTTP/3 racing)")
+        if udp_proxy is not None and not udp_proxy.lower().startswith(("socks5://", "socks5h://")):
+            raise SessionConfigurationError("udp_proxy must be a socks5:// proxy (QUIC goes through its UDP ASSOCIATE)")
         self.tls_extension_order = list(tls_extension_order) if tls_extension_order else None
         self.ech_config_list = ech_config_list
         self.grease = grease
@@ -908,15 +1083,17 @@ class _Core:
         # decimal/hex numbers from curl_cffi-style calls and normalize them
         keyShareCurves = [_normalizeCurveName(v) for v in key_share_curves] if key_share_curves is not None else None
         supportedVersions = [_normalizeVersionName(v) for v in supported_versions] if supported_versions is not None else None
-        sigAlgs = [_normalizeHexU16(v) for v in supported_signature_algorithms] if supported_signature_algorithms is not None else None
+        sigAlgs = [_sigAlg(v) for v in supported_signature_algorithms] if supported_signature_algorithms is not None else None
+        h2Resolved, h2OrderResolved = _h2Settings(h2_settings, h2_settings_order)
         customData = {"ja3String": ja3_string, "supportedSignatureAlgorithms": sigAlgs,
             "keyShareCurves": keyShareCurves, "supportedVersions": supportedVersions,
             "alpnProtocols": alpn_protocols, "alpsProtocols": alps_protocols,
             "certCompressionAlgos": [_mapperName("cert_compression_algos", v, _CERT_COMPRESSION_NAMES)
                                      for v in cert_compression_algos] if cert_compression_algos is not None else None,
-            "trustAnchorsPayload": trust_anchors_payload,
-            "h2Settings": h2_settings, "h2SettingsOrder": h2_settings_order, "connectionFlow": connection_flow,
-            "pseudoHeaderOrder": pseudo_header_order, "priorityFrames": priority_frames, "headerPriority": header_priority}
+            "trustAnchorsPayload": _trustAnchorsHex(trust_anchors_payload, ja3_string),
+            "h2Settings": h2Resolved, "h2SettingsOrder": h2OrderResolved, "connectionFlow": connection_flow,
+            "pseudoHeaderOrder": _pseudoOrder(pseudo_header_order), "priorityFrames": priority_frames,
+            "headerPriority": header_priority}
         customData = {key: value for key, value in customData.items() if value is not None and value != 0}
         if ja3_string:
             if client_identifier is not None: raise SessionConfigurationError("ja3_string cannot be combined with client_identifier")
@@ -933,8 +1110,9 @@ class _Core:
                                               for group, data in self.key_share_data.items()}
             self.client_identifier = ""
             self.custom = customData
-        elif any(value is not None for key, value in customData.items() if key != "connectionFlow"):
-            raise SessionConfigurationError("custom TLS options require ja3_string")
+        elif customData:  # connection_flow included: without ja3_string it was silently ignored
+            raise SessionConfigurationError(f"{', '.join(_CUSTOM_OPTION_NAMES.get(k, k) for k in customData)} "
+                                            "require ja3_string")
         self._sessionId = str(uuid.uuid4())
         self._closed = False
         self._configMark = self._transportMark()
@@ -942,6 +1120,10 @@ class _Core:
         self._inflight: dict[str, _RequestHandle] = {}
         self._streams: "weakref.WeakSet[_NativeStream]" = weakref.WeakSet()
         self._proxySessions: set[str] = set()
+        # a session dropped without close() releases its native connections when collected
+        self._liveIds: dict[str, Any] = {"main": self._sessionId, "proxies": self._proxySessions}
+        self._forgotten = weakref.finalize(self, _closeForgotten, self._liveIds)
+        self._forgotten.atexit = False  # the process is ending anyway
 
     # -- transport identity -------------------------------------------------
     def _transportMark(self) -> tuple[Any, ...]:
@@ -956,6 +1138,7 @@ class _Core:
         if mark != self._configMark:
             self._configMark = mark
             oldId, self._sessionId = self._sessionId, str(uuid.uuid4())
+            self._liveIds["main"] = self._sessionId
             return oldId
         return None
 
@@ -967,6 +1150,7 @@ class _Core:
         if oldId is None: return []
         with self._state:
             derived, self._proxySessions = list(self._proxySessions), set()
+            self._liveIds.update(main=self._sessionId, proxies=self._proxySessions)
         return [oldId, *derived]
 
     def _sessionIdFor(self, proxy: str | None) -> str:
@@ -988,10 +1172,14 @@ class _Core:
                  stream: bool = False, max_content_size: int | None = None,
                  _handle: _RequestHandle | None = None, _flags: dict[str, bool] | None = None) -> Response:
         self._checkOpen()
+        problem = _urlProblem(url)
+        if problem:
+            raise InvalidRequestError(problem, kind="invalid_request", stage="request", method=str(method).upper(),
+                                      url=_safeUrl(url) if isinstance(url, str) else None)
         handle = _handle or _RequestHandle()
         timeouts = _timeoutConfig(timeout) if timeout is not None else self.timeout
         limit = max_content_size if max_content_size is not None else self.max_content_size
-        requestProxy = proxy if proxy is not None else self.proxy
+        requestProxy = _proxyUrl(proxy) if proxy is not None else self.proxy
         merged = Headers(self.headers)
         if headers: merged.update(headers)
         # None removes a header (requests semantics), also one the transport would add
@@ -1078,7 +1266,7 @@ class _Core:
         """Per-request protocol check and flags. Called in the caller's thread (before the
         request moves to a worker) so that errors and warnings point at the caller."""
         return _validateTransport(http_version=self.http_version, force_http1=self.force_http1,
-                                  disable_http3=self.disable_http3, proxy=self.proxy if proxy is None else proxy,
+                                  disable_http3=self.disable_http3, proxy=self.proxy if proxy is None else _proxyUrl(proxy),
                                   client_identifier=self._h3Identity(), keep_alpn=self.keep_alpn,
                                   udp_proxy=self.udp_proxy, alpn=(self.custom or {}).get("alpnProtocols"))
 
@@ -1112,6 +1300,7 @@ class _Core:
     def close(self, grace: float | None = 5.0) -> None:
         if self._closed: return
         self._closed = True
+        self._forgotten.detach()
         self._cancelInflight(grace)
         self._closeStreams()
         for sessionId in self._nativeIds():

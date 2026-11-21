@@ -136,3 +136,20 @@ def test_cbc_with_other_profiles(native):
         pytest.skip(str(exc))
     finally:
         srv.close()
+
+
+def test_cloudscraper_ja3_with_encrypt_then_mac(native):
+    # extension 22 (encrypt_then_mac) was missing from the JA3 mapper: cloudscraper's own
+    # JA3 failed on every handshake ("unknown ClientHelloID: Custom-ja3")
+    ja3 = "771,49172-49162-49171-49161-53-47-10,0-11-10-35-16-22-23-13,29-23-24,0"
+    srv = CBCServer(etm=True)
+    try:
+        srv.ciphers.clear()
+        with Session(ja3_string=ja3, verify=False, timeout=10, force_http1=True,
+                     alpn_protocols=["http/1.1"]) as s:
+            r = s.post(f"https://127.0.0.1:{srv.port}/z", data=b"abc")
+        assert r.status_code == 200 and r.content.startswith(hashlib.sha256(b"abc").hexdigest().encode())
+        assert "22" in r.fingerprint["ja3"].split(",")[2].split("-")
+        assert r.connection_info["tls_cipher"].endswith(("_CBC_SHA", "_CBC_SHA256"))
+    finally:
+        srv.close()

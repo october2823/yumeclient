@@ -324,6 +324,8 @@ type advancedTls struct {
  // chromeDefaults: profile whose values fill what the custom JA3 leaves open
  // (fill_custom_with_chrome_defaults=True), "" = generic values only
  chromeDefaults string
+ // trustAnchors: data of the trust_anchors extension (0xca34), trust_anchors_payload
+ trustAnchors []byte
 }
 
 // decodeAdvancedTls reads the extra fields straight from the raw payload JSON
@@ -337,6 +339,7 @@ func decodeAdvancedTls(rawPayload []byte) *advancedTls {
    Grease            *bool  `json:"grease"`
    PskMode           string `json:"pskMode"`
    ChromeDefaults    string `json:"chromeDefaultsProfile"`
+   TrustAnchors      string `json:"trustAnchorsPayload"`
   } `json:"customTlsClient"`
  }
  if err := json.Unmarshal(rawPayload, &envelope); err != nil || envelope.CustomTlsClient == nil {
@@ -351,7 +354,22 @@ func decodeAdvancedTls(rawPayload []byte) *advancedTls {
  if c.Grease != nil { a.grease = c.Grease }
  if c.PskMode != "" { a.pskMode = c.PskMode }
  a.chromeDefaults = c.ChromeDefaults
+ if c.TrustAnchors != "" {
+  if raw, err := hex.DecodeString(c.TrustAnchors); err == nil { a.trustAnchors = raw }
+ }
  return a
+}
+
+// applyTrustAnchors sets the trust_anchors extension (0xca34) data given with
+// trust_anchors_payload; without it the extension keeps Chrome's list (fill) or
+// an empty one.
+func applyTrustAnchors(spec *tls.ClientHelloSpec, data []byte) {
+ if data == nil { return }
+ for _, e := range spec.Extensions {
+  if g, ok := e.(*tls.GenericExtension); ok && g.Id == extTrustAnchors {
+   g.Data = append([]byte(nil), data...)
+  }
+ }
 }
 
 func applyGrease(spec *tls.ClientHelloSpec, enabled bool) {
@@ -467,28 +485,51 @@ func applyPskMode(spec *tls.ClientHelloSpec, mode string) {
  spec.Extensions = filtered
 }
 
+// udpProxyFrom: udp_proxy — HTTP/3 (QUIC) goes through this SOCKS5 proxy and TCP through
+// `proxy`. Before 0.8.1 the custom-JA3 builder let it replace the TCP proxy too and the
+// profile builder ignored it.
+func udpProxyFrom(rawPayload []byte) string {
+ var env struct {
+  UDPProxyUrl string `json:"udpProxyUrl"`
+ }
+ if json.Unmarshal(rawPayload, &env) != nil { return "" }
+ return env.UDPProxyUrl
+}
+
 func extensionID(e tls.TLSExtension) uint16 {
+ // ids as on the wire; ECH, old ALPS, NPN and pre_shared_key were wrong or missing
+ // before 0.8.1, so tls_extension_order put those extensions at the end
  switch t := e.(type) {
  case *tls.SNIExtension: return 0
  case *tls.StatusRequestExtension: return 5
  case *tls.SupportedCurvesExtension: return 10
  case *tls.SupportedPointsExtension: return 11
  case *tls.SignatureAlgorithmsExtension: return 13
- case *tls.SCTExtension: return 18
  case *tls.ALPNExtension: return 16
- case *tls.SessionTicketExtension: return 35
- case *tls.UtlsExtendedMasterSecretExtension: return 23
- case *tls.KeyShareExtension: return 51
- case *tls.SupportedVersionsExtension: return 43
- case *tls.PSKKeyExchangeModesExtension: return 45
- case *tls.UtlsCompressCertExtension: return 27
- case *tls.RenegotiationInfoExtension: return 65281
+ case *tls.StatusRequestV2Extension: return 17
+ case *tls.SCTExtension: return 18
  case *tls.UtlsPaddingExtension: return 21
+ case *tls.UtlsExtendedMasterSecretExtension: return 23
+ case *tls.FakeTokenBindingExtension: return 24
+ case *tls.UtlsCompressCertExtension: return 27
  case *tls.FakeRecordSizeLimitExtension: return 28
- case *tls.DelegatedCredentialsExtension: return 34
+ case *tls.FakeDelegatedCredentialsExtension: return 34
+ case *tls.SessionTicketExtension: return 35
+ case *tls.UtlsPreSharedKeyExtension, *tls.FakePreSharedKeyExtension: return 41
+ case *tls.SupportedVersionsExtension: return 43
+ case *tls.CookieExtension: return 44
+ case *tls.PSKKeyExchangeModesExtension: return 45
+ case *tls.SignatureAlgorithmsCertExtension: return 50
+ case *tls.KeyShareExtension: return 51
+ case *tls.QUICTransportParametersExtension: return 57
+ case *tls.NPNExtension: return 13172
+ case *tls.ApplicationSettingsExtension: return 17513
  case *tls.ApplicationSettingsExtensionNew: return 17613
- case *tls.ApplicationSettingsExtension: return 13172
- case *tls.GREASEEncryptedClientHelloExtension: return 17513
+ case *tls.FakeChannelIDExtension:
+  if t.OldExtensionID { return 30031 }
+  return 30032
+ case tls.EncryptedClientHelloExtension: return 0xfe0d
+ case *tls.RenegotiationInfoExtension: return 65281
  case *tls.UtlsGREASEExtension: return tls.GREASE_PLACEHOLDER
  case *tls.GenericExtension: return t.Id
  }
@@ -752,9 +793,16 @@ func customJa3Profile(in src.RequestInput, rawPayload []byte) (profiles.ClientPr
    applyExtensionOrder(&spec, adv.extOrder)
    if adv.grease != nil { applyGrease(&spec, *adv.grease) }
    if adv.pskMode != "" { applyPskMode(&spec, adv.pskMode) }
+   applyTrustAnchors(&spec, adv.trustAnchors)
   }
   applyKeyShareData(&spec, rawPayload)
   return spec, nil
+ }
+ // a ja3 the spec cannot be built from (an extension id without an implementation)
+ // fails here, as a configuration error, instead of as an unknown ClientHelloID on
+ // every handshake
+ if _, err := buildSpec(); err != nil {
+  return profiles.ClientProfile{}, nil, nil, fmt.Errorf("ja3_string: %w", err)
  }
 
  helloID := tls.ClientHelloID{
@@ -794,7 +842,7 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
  }
  patchedSessions.Unlock()
 
- profile, buildSpec, adv, perr := customJa3Profile(in, rawPayload)
+ profile, _, adv, perr := customJa3Profile(in, rawPayload)
  if perr != nil { return nil, sessionId, false, src.NewTLSClientError(perr) }
 
  timeoutMs := in.TimeoutMilliseconds
@@ -808,7 +856,15 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
   tls_client.WithTimeoutMilliseconds(timeoutMs),
   tls_client.WithCookieJar(tls_client.NewCookieJar()),
  }
- if extras.okhttp() { options = append(options, tls_client.WithTransportOptions(okhttpTransportOptions())) }
+ var transportOpts *tls_client.TransportOptions
+ if extras.okhttp() { transportOpts = okhttpTransportOptions() }
+ if adv != nil && len(adv.echConfigList) > 0 {
+  // ech_config_list: real ECH over TCP (utls encrypts the inner ClientHello into the
+  // profile's ECH extension); it used to be parsed and dropped
+  if transportOpts == nil { transportOpts = &tls_client.TransportOptions{} }
+  transportOpts.EncryptedClientHelloConfigList = adv.echConfigList
+ }
+ if transportOpts != nil { options = append(options, tls_client.WithTransportOptions(transportOpts)) }
  // explicit tls_extension_order wins over shuffle: CFNetwork/iOS sends a fixed
  // extension order, and ShuffleChromeTLSExtensions would randomize it
  shuffle := in.WithRandomTLSExtensionOrder && (adv == nil || len(adv.extOrder) == 0)
@@ -819,9 +875,10 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
  if in.ForceHttp1 && !keepAlpn { options = append(options, tls_client.WithForceHttp1()) }
  if wantsNoSessionTickets(rawPayload) { options = append(options, tls_client.WithDisableSessionTickets()) }
  if in.DisableHttp3 { options = append(options, tls_client.WithDisableHttp3()) }
- if in.WithProtocolRacing && !specHasMLKEMCurve(buildSpec) {
-  // quic-go rejects MLKEM-family keyshare preferences ("CurvePreferences includes
-  // unsupported curve"); keep h2-only when the ja3 asks for 4588-family curves
+ if in.WithProtocolRacing {
+  // the QUIC hello is the inherited browser capture (fill) or quic-go's own; neither
+  // takes the JA3's curve list, so X25519MLKEM768 in the JA3 no longer rules HTTP/3 out
+  // (before 0.8.1 such a session silently stayed on TCP)
   options = append(options, tls_client.WithProtocolRacing())
  }
  if !in.FollowRedirects { options = append(options, tls_client.WithNotFollowRedirects()) }
@@ -838,35 +895,23 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
  }
  proxyUrl := ""
  if in.ProxyUrl != nil { proxyUrl = *in.ProxyUrl }
- // udp_proxy for HTTP/3 racing must be socks5 for upstream; apply when main proxy is not socks5
- var udpProxyUrl string
- var envelopeUdp struct {
-  UDPProxyUrl string `json:"udpProxyUrl"`
+ udpProxyUrl := udpProxyFrom(rawPayload)
+ if udpProxyUrl != "" && keepAlpn {
+  return nil, sessionId, false, src.NewTLSClientError(fmt.Errorf("keep_alpn cannot be combined with udp_proxy"))
  }
- if json.Unmarshal(rawPayload, &envelopeUdp) == nil { udpProxyUrl = envelopeUdp.UDPProxyUrl }
- udpApplies := udpProxyUrl != "" && !strings.HasPrefix(strings.ToLower(proxyUrl), "socks5")
 
  sink := &helloSink{}
  captured := false
  var sessionDialer proxy.ContextDialer
- if udpApplies {
-  if keepAlpn { return nil, sessionId, false, src.NewTLSClientError(fmt.Errorf("keep_alpn cannot be combined with udp_proxy")) }
-  // pre-0.4.5 wiring kept verbatim: upstream owns the proxy URL (h3 reads it)
-  if strings.HasPrefix(strings.ToLower(proxyUrl), "https://") {
-   dialer, dialErr := newInsecureHttpsConnectDialer(proxyUrl, time.Duration(timeoutMs)*time.Millisecond, true)
-   if dialErr != nil { return nil, sessionId, false, src.NewTLSClientError(dialErr) }
-   options = append(options, tls_client.WithProxyDialerFactory(func(_ string, _ time.Duration, _ *net.TCPAddr, _ http.Header, _ tls_client.Logger) (proxy.ContextDialer, error) {
-    return dialer, nil
-   }))
-  } else if proxyUrl != "" {
-   options = append(options, tls_client.WithProxyUrl(proxyUrl))
-  }
-  options = append(options, tls_client.WithProxyUrl(udpProxyUrl))
- } else {
-  dialOpts, d, dialErr := transportDialOptions(proxyUrl, timeoutMs, localAddr, in.WithProtocolRacing, sink)
-  if dialErr != nil { return nil, sessionId, false, src.NewTLSClientError(dialErr) }
-  options = append(options, dialOpts...)
-  sessionDialer, captured = d, d != nil
+ // racing keeps the upstream proxy URL so HTTP/3 can tunnel through a SOCKS5 proxy;
+ // with a separate udp_proxy the TCP side can use our own dialers
+ keepUpstream := in.WithProtocolRacing && udpProxyUrl == ""
+ dialOpts, d, dialErr := transportDialOptions(proxyUrl, timeoutMs, localAddr, keepUpstream, sink)
+ if dialErr != nil { return nil, sessionId, false, src.NewTLSClientError(dialErr) }
+ options = append(options, dialOpts...)
+ sessionDialer, captured = d, d != nil
+ if udpProxyUrl != "" {
+  options = append(options, tls_client.WithHTTP3ProxyUrl(udpProxyUrl))
  }
 
  client, err := tls_client.NewHttpClient(tls_client.NewNoopLogger(), options...)
@@ -877,6 +922,7 @@ func buildJa3Client(in src.RequestInput, rawPayload []byte, sessionId string) (t
   strict = &strictH1Config{dialer: sessionDialer, helloID: profile.GetClientHelloId(), shuffle: shuffle, disableHttp3: in.DisableHttp3,
    insecure: in.InsecureSkipVerify, noTickets: wantsNoSessionTickets(rawPayload)}
   if in.ServerNameOverwrite != nil { strict.serverName = *in.ServerNameOverwrite }
+  if adv != nil { strict.ech = adv.echConfigList }
  }
  if layerErr := applySessionLayer(client, extras.okhttp(), strict, plainConfig{proxyUrl: proxyUrl, localAddr: localAddr}); layerErr != nil { return nil, sessionId, false, src.NewTLSClientError(layerErr) }
  if captured { helloSinks.Store(client, sink) }
@@ -917,39 +963,6 @@ func resolveH2Settings(ct *src.CustomTlsClient) (map[http2.SettingID]uint32, []h
  return h2Settings, h2Order
 }
 
-// hasMLKEMCurve: true when the spec keyshares/curves include MLKEM-family groups
-// that quic-go's handshake cannot negotiate.
-// specHasMLKEMCurve: hasMLKEMCurve on the spec the session will send.
-func specHasMLKEMCurve(build func() (tls.ClientHelloSpec, error)) bool {
- spec, err := build()
- if err != nil { return false }
- return hasMLKEMCurve(&spec)
-}
-
-func hasMLKEMCurve(spec *tls.ClientHelloSpec) bool {
- for _, e := range spec.Extensions {
-  if ks, ok := e.(*tls.KeyShareExtension); ok {
-   for _, k := range ks.KeyShares {
-    switch k.Group {
-    case 0x11EC: // 4588 X25519MLKEM768
-     return true
-    case 0xFE0E, 0xFE0F: // 65038/65039 MLKEM drafts
-     return true
-    }
-   }
-  }
-  if sc, ok := e.(*tls.SupportedCurvesExtension); ok {
-   for _, c := range sc.Curves {
-    switch c {
-    case 0x11EC, 0xFE0E, 0xFE0F: // 4588 + MLKEM drafts
-     return true
-    }
-   }
-  }
- }
- return false
-}
-
 // applyKeyShareData: mimic path — pre-captured share bytes per curve group,
 // overriding auto-generated ones ("To mimic it, fill the Data field manually").
 func applyKeyShareData(spec *tls.ClientHelloSpec, rawPayload []byte) {
@@ -975,14 +988,23 @@ func applyKeyShareData(spec *tls.ClientHelloSpec, rawPayload []byte) {
  }
 }
 
+// h2SettingByName: RFC 9113 names, upstream's UNKNOWN_SETTING_<id>, or the id itself
+// (decimal or 0x hex), so any setting a client sends can be expressed (Firefox: 9)
 func h2SettingByName(name string) (http2.SettingID, bool) {
- switch strings.ToLower(name) {
- case "header_table_size", "1": return http2.SettingHeaderTableSize, true
- case "enable_push", "2": return http2.SettingEnablePush, true
- case "max_concurrent_streams", "3": return http2.SettingMaxConcurrentStreams, true
- case "initial_window_size", "4": return http2.SettingInitialWindowSize, true
- case "max_frame_size", "5": return http2.SettingMaxFrameSize, true
- case "max_header_list_size", "6": return http2.SettingMaxHeaderListSize, true
+ lower := strings.ToLower(strings.TrimSpace(name))
+ switch lower {
+ case "header_table_size": return http2.SettingHeaderTableSize, true
+ case "enable_push": return http2.SettingEnablePush, true
+ case "max_concurrent_streams": return http2.SettingMaxConcurrentStreams, true
+ case "initial_window_size": return http2.SettingInitialWindowSize, true
+ case "max_frame_size": return http2.SettingMaxFrameSize, true
+ case "max_header_list_size": return http2.SettingMaxHeaderListSize, true
+ case "enable_connect_protocol": return 0x8, true
+ case "no_rfc7540_priorities": return 0x9, true
+ }
+ lower = strings.TrimPrefix(lower, "unknown_setting_")
+ if id, err := strconv.ParseUint(lower, 0, 16); err == nil && id > 0 {
+  return http2.SettingID(id), true
  }
  return 0, false
 }
@@ -1078,10 +1100,14 @@ func createPatchedClient(in src.RequestInput, rawPayload []byte) (tls_client.Htt
   localAddr = la
  }
  sink := &helloSink{}
- dialOpts, sessionDialer, dialErr := transportDialOptions(proxyUrl, timeoutMs, localAddr, in.WithProtocolRacing, sink)
+ udpProxyUrl := udpProxyFrom(rawPayload)
+ // named profiles ignored udp_proxy before 0.8.1
+ dialOpts, sessionDialer, dialErr := transportDialOptions(proxyUrl, timeoutMs, localAddr,
+  in.WithProtocolRacing && udpProxyUrl == "", sink)
  if dialErr != nil { return nil, sessionId, false, src.NewTLSClientError(dialErr) }
  captured := sessionDialer != nil
  options = append(options, dialOpts...)
+ if udpProxyUrl != "" { options = append(options, tls_client.WithHTTP3ProxyUrl(udpProxyUrl)) }
  shuffle := in.WithRandomTLSExtensionOrder && shufflesExtensions(in.TLSClientIdentifier)
  if shuffle {
   options = append(options, tls_client.WithRandomTLSExtensionOrder())

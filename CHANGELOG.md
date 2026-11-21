@@ -4,6 +4,90 @@
 Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версионирование — [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [0.8.1] — 2026-11-21
+
+### Added
+- **Документация.** Справочник `docs/` (14 страниц: сессии, запросы, ответы, профили,
+  протоколы, свой TLS-отпечаток, таймауты и ошибки, cookies, прокси, диагностика,
+  ограничения, установка, разработка), `USAGE.md` переписан в руководство с примерами,
+  README на английском для GitHub и PyPI, `THIRD_PARTY_NOTICES.md` с лицензиями
+  upstream-модулей.
+- **Примеры** `examples/` (10 скриптов: быстрый старт, asyncio, профили и заголовки,
+  cookies, стриминг, загрузка файлов, ошибки и повторы, прокси, отпечаток, custom JA3).
+  Все запускаются в тестах против локальной замены httpbin (`tests/httpbin_local.py`);
+  Python-фрагменты документации проверяются на синтаксис, ссылки — на существование.
+- `TooManyRedirects` (`kind="too_many_redirects"`) — больше 20 редиректов. Раньше —
+  `RequestError` без типа.
+- `h2_settings` и `h2_settings_order` принимают любой идентификатор SETTINGS: имена RFC 9113,
+  `ENABLE_CONNECT_PROTOCOL`, `NO_RFC7540_PRIORITIES` (у Firefox), `UNKNOWN_SETTING_<n>` и
+  числа (`9`, `"0x9"`).
+
+### Fixed
+- **Custom JA3 с расширениями 22 (encrypt_then_mac) и 51764 (trust anchors)** — JA3
+  `chrome_146`/`chrome_152` и `cloudscraper` из их же отпечатка — падал с непонятной
+  `TLSError: unknown ClientHelloID: Custom-ja3`. Теперь работают. JA3 с расширением,
+  которое нельзя собрать, — `InvalidRequestError` с номером расширения. Разбор JA3 больше не
+  печатает `attention ...` в stdout.
+- **`trust_anchors_payload` и `ech_config_list` игнорировались** с первой версии. Теперь
+  первое попадает в расширение 51764, второе включает настоящий ECH (внутренний ClientHello
+  зашифрован ключом сервера; без него ECH остаётся GREASE). Оба проверяются при создании
+  сессии.
+- **`CookieJar` терял cookie при параллельных запросах**: `AsyncSession` применяет ответы
+  из потоков пула, и одновременные изменения затирали друг друга (8 потоков × 400 cookie —
+  в jar оставалось 585 из 3200). Jar стал потокобезопасным; `copy.deepcopy` и `pickle`
+  работают.
+- **Редиректы как в браузере.** На каждый хоп Go сам добавлял `Referer` с адресом редиректа
+  (браузер и `requests` его не меняют); теперь нет, ваш `Referer` переносится как есть. Когда
+  метод меняется на GET, вместе с телом уходят `Content-Type`, `Content-Encoding`,
+  `Content-Language`, `Content-Location`, `Content-Length` и `Origin` (как в Chromium).
+  301 и 302 меняют на GET только `POST` (стандарт Fetch); раньше в GET без тела
+  превращались и `PUT`, `PATCH`, `DELETE`.
+- **Заголовки ответа — как прислал сервер.** По HTTP/1.1 (если в запросе был gzip в
+  `Accept-Encoding`, то есть почти всегда) и по HTTP/3 из ответа пропадали `Content-Length`
+  и `Content-Encoding`; по HTTP/2 оставались. Тело по-прежнему распаковывается.
+- **`supported_signature_algorithms`** с `"0x0403"` падал при первом запросе; теперь
+  принимаются имена, числа и hex с `0x` и без, неизвестное имя — `SessionConfigurationError`.
+- **`pseudo_header_order`** с опечаткой или неполный отправлял запросы без `:authority` и
+  `:scheme`. Теперь нужны все четыре псевдозаголовка (`":method"`, `"method"` или `"m"`).
+- **`tls_extension_order`** ставил в конец ECH, ALPS (старый и новый), NPN, PSK и ещё ряд
+  расширений: их номера сопоставлялись неверно.
+- **`h2_settings` без `h2_settings_order`** уходили в случайном порядке; теперь — в порядке
+  словаря.
+- **`connection_flow` без `ja3_string`** молча игнорировался; теперь
+  `SessionConfigurationError`, как у остальных параметров custom TLS.
+- **`udp_proxy`** у custom JA3 заменял и TCP-прокси, у профилей игнорировался, а
+  `http_version="3"` с HTTP-прокси отклонялся даже вместе с `udp_proxy`. Теперь QUIC идёт через
+  `udp_proxy` (SOCKS5), TCP — через `proxy`.
+- **QUIC через SOCKS5 выдавал себя**: 4-байтный Source Connection ID (у Chrome — 0), без
+  `google_initial_rtt` и без стадийных таймаутов. Теперь рукопожатие через прокси такое же, как
+  напрямую.
+- **Неверный URL запроса** (не `http(s)://`, без хоста, с неверным портом) давал
+  `ConnectError` с `retryable=True` — код повтора по `retryable` повторял его без конца.
+  Теперь — `InvalidRequestError` (`stage="request"`) до обращения к сети.
+- **Свой JA3 с `X25519MLKEM768` (4588)** — то есть JA3 любого современного Chrome — с
+  `http_version="3"` молча оставался на TCP. Теперь HTTP/3 работает: QUIC ClientHello
+  берётся из записи Chrome (или quic-go при `fill_custom_with_chrome_defaults=False`), а не
+  из JA3.
+- **Незакрытая сессия** держала свои соединения до конца процесса. Теперь их освобождает
+  сборщик мусора (закрывать сессию явно по-прежнему правильно).
+- `default_headers()` для Safari, приложений и okhttp возвращал обычный `dict` (поиск с учётом
+  регистра); теперь всегда `Headers`.
+- **Неверный URL прокси** (без схемы, `ftp://`, без порта у SOCKS, кривой порт) давал
+  `InvalidRequestError: client creation failed` при первом запросе; теперь —
+  `SessionConfigurationError` с понятным текстом при создании сессии (и для `proxy=` запроса).
+- `http://` через `https://`-прокси проверял сертификат прокси, а `https://` — нет. Теперь
+  оба не проверяют (сертификат прокси никогда не проверялся для HTTPS-целей; цель
+  проверяется по `verify`).
+
+### Changed
+- **Предел редиректов — 20, как в браузерах** (стандарт Fetch, Chromium). Раньше действовал
+  предел Go: на 10-м редиректе ошибка, то есть выполнялось 9.
+- `udp_proxy` принимает только `socks5://` и `socks5h://` (`udp://` принимался, но не работал).
+- Метаданные пакета: описание, классификаторы, ключевые слова, ссылки на документацию,
+  лицензия в формате SPDX (`MIT`), файлы лицензий upstream в wheel.
+- Старые примеры (`basic_requests.py`, `cookies_flow.py`, `profiles_and_os.py`) заменены
+  новыми.
+
 ## [0.8.0] — 2026-11-20
 
 ### Added

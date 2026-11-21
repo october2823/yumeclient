@@ -398,8 +398,7 @@ func (s *RequestStream) ReadResponse() (*http.Response, error) {
 		res.ContentLength = 0
 	}
 	if s.requestedGzip && res.Header.Get("Content-Encoding") == "gzip" {
-		res.Header.Del("Content-Encoding")
-		res.Header.Del("Content-Length")
+		// yumeclient: headers kept as sent, like HTTP/1.1 and HTTP/2
 		res.ContentLength = -1
 		s.responseBody = newGzipReader(respBody)
 		res.Uncompressed = true

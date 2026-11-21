@@ -12,6 +12,7 @@ package tls_client
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"strings"
@@ -150,6 +151,7 @@ func (b *endOnClose) Close() error {
 // Dial an http3.Transport opens no UDP socket, so this one owns it; Close releases it
 // (CloseIdleConnections alone left every transport's socket and its goroutines behind).
 type racedHTTP3 struct {
+	socks string // SOCKS5 proxy whose UDP relay carries the QUIC packets
 	*http3.Transport
 	use    usage
 	mu     sync.Mutex
@@ -166,11 +168,21 @@ type racedHTTP3 struct {
 // newHTTP3 builds a gated HTTP/3 transport (an already decided gate for a transport
 // that is not racing).
 func (pr *protocolRacer) newHTTP3(gate *raceGate) (*racedHTTP3, error) {
-	built, err := buildHTTP3Transport(pr.getHTTP3Config())
+	cfg := pr.getHTTP3Config()
+	built, err := buildHTTP3Transport(cfg)
 	if err != nil {
 		return nil, err
 	}
-	r := newRacedHTTP3(built.(*http3.Transport), gate, pr.http3Fingerprint)
+	t3 := built.(*http3.Transport)
+	var socks string
+	if pr.http3Fingerprint != nil && cfg.proxyURL != "" {
+		// a fingerprinted profile dials the SOCKS5 relay itself: the stock SOCKS5 QUIC
+		// dialer gave every connection a 4-byte source connection ID (Chrome: none), no
+		// google_initial_rtt and no trace events for the stage timeouts
+		socks, t3.Dial = cfg.proxyURL, nil
+	}
+	r := newRacedHTTP3(t3, gate, pr.http3Fingerprint)
+	r.socks = socks
 	return r, nil
 }
 
@@ -344,15 +356,25 @@ func (r *racedHTTP3) Close() error {
 // dialOwnSocket dials a fingerprinted connection from a socket of its own, as
 // browsers do, with the fingerprint's connection ID length.
 func (r *racedHTTP3) dialOwnSocket(ctx context.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (*quic.Conn, error) {
-	udpAddr, err := resolveRaceUDPAddr(ctx, addr)
-	if err != nil {
-		return nil, err
+	var udpAddr *net.UDPAddr
+	var err error
+	if r.socks == "" {
+		if udpAddr, err = resolveRaceUDPAddr(ctx, addr); err != nil {
+			return nil, err
+		}
+	} else {
+		udpAddr = &net.UDPAddr{IP: net.IPv4zero} // replaced by dialSOCKS5Relay
 	}
 	network := "udp4"
 	if udpAddr.IP.To4() == nil {
 		network = "udp6"
 	}
-	sock, err := net.ListenUDP(network, nil)
+	var sock net.PacketConn
+	if r.socks != "" {
+		sock, udpAddr, err = dialSOCKS5Relay(ctx, r.socks, addr)
+	} else {
+		sock, err = net.ListenUDP(network, nil)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -505,4 +527,30 @@ func rewound(req *http.Request) (*http.Request, error) {
 	copied := *req
 	copied.Body = body
 	return &copied, nil
+}
+
+// dialSOCKS5Relay opens a UDP ASSOCIATE session with the SOCKS5 proxy and returns the
+// packet conn that wraps every datagram for its relay, with the target resolved here
+// (quic-go needs an address; the DNS query is local, as in the stock dialer).
+func dialSOCKS5Relay(ctx context.Context, proxyURL, addr string) (net.PacketConn, *net.UDPAddr, error) {
+	proxyAddr, auth, err := parseSOCKS5ProxyURL(proxyURL)
+	if err != nil {
+		return nil, nil, fmt.Errorf("socks5 quic dialer: %w", err)
+	}
+	local, err := net.ListenUDP("udp", nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("socks5 quic dialer: failed to create UDP socket: %w", err)
+	}
+	control, relay, err := socks5UDPAssociate(ctx, proxyAddr, auth, local.LocalAddr().(*net.UDPAddr))
+	if err != nil {
+		_ = local.Close()
+		return nil, nil, fmt.Errorf("socks5 quic dialer: %w", err)
+	}
+	conn := &socks5PacketConn{udpConn: local, controlConn: control, relayAddr: relay}
+	target, err := resolveUDPAddr(ctx, addr, relay.IP)
+	if err != nil {
+		_ = conn.Close()
+		return nil, nil, fmt.Errorf("socks5 quic dialer: failed to resolve target %q: %w", addr, err)
+	}
+	return conn, target, nil
 }

@@ -59,9 +59,24 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(302, headers=[("Location", "/chain2"), ("Set-Cookie", "c1=1; Path=/")])
         if self.path == "/chain2":
             return self._send(302, headers=[("Location", "/echo"), ("Set-Cookie", "c2=2; Path=/")])
+        if self.path == "/gzip":
+            import gzip as _gzip
+            return self._send(body=_gzip.compress(b'{"packed": true}'), headers=[("Content-Encoding", "gzip")])
+        if self.path == "/loop":
+            return self._send(302, headers=[("Location", "/loop")])
+        if self.path.startswith("/chain/"):  # /chain/<n>: n redirects, then 200
+            n = int(self.path.rsplit("/", 1)[1])
+            return self._send(302, headers=[("Location", f"/chain/{n - 1}")]) if n else self._send(200, b"end")
+        if self.path.startswith("/set/"):
+            return self._send(headers=[("Set-Cookie", f"{self.path[5:]}=1; Path=/")])
         return self._echo()
 
-    def do_POST(self): return self._echo()
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        if length: self.rfile.read(length)
+        if self.path.startswith("/r/"):  # /r/<code>: redirect to /echo
+            return self._send(int(self.path[3:]), headers=[("Location", "/echo")])
+        return self._echo()
     def do_HEAD(self): return self._send()
     def do_DELETE(self): return self._echo()
     def do_OPTIONS(self): return self._send()
@@ -69,7 +84,9 @@ class Handler(BaseHTTPRequestHandler):
 
 @pytest.fixture(scope="module")
 def server():
-    httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    class Server(ThreadingHTTPServer):
+        request_queue_size = 128  # parallel tests open many connections at once
+    httpd = Server(("127.0.0.1", 0), Handler)
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     yield f"http://127.0.0.1:{httpd.server_address[1]}"
@@ -378,3 +395,202 @@ def test_live_httpbin_cookie_flow(online):
         session.get("https://httpbin.org/cookies/set/live/1")
         r = session.get("https://httpbin.org/cookies")
         assert r.json()["cookies"]["live"] == "1"
+
+
+def test_cookie_jar_keeps_concurrent_updates():
+    # parallel requests (threads, AsyncSession workers) merge cookies at the same time;
+    # set() used to rebuild the list without a lock and dropped other threads' cookies
+    import sys
+    jar = yumeclient.CookieJar()
+    interval = sys.getswitchinterval()
+    sys.setswitchinterval(1e-5)
+    try:
+        def work(t):
+            for i in range(300): jar.set(f"c{t}_{i}", "v", domain="example.com")
+        threads = [threading.Thread(target=work, args=(t,)) for t in range(8)]
+        for t in threads: t.start()
+        for t in threads: t.join()
+    finally:
+        sys.setswitchinterval(interval)
+    assert len(jar) == 2400 and len({(c.name, c.domain, c.path) for c in jar}) == 2400
+
+
+@pytest.mark.asyncio
+async def test_async_gather_keeps_every_cookie(server, native):
+    import sys
+    interval = sys.getswitchinterval()
+    sys.setswitchinterval(1e-5)
+    try:
+        async with AsyncSession(timeout=10) as s:
+            await asyncio.gather(*(s.get(f"{server}/set/k{i}") for i in range(64)))
+            assert sorted(c.name for c in s.cookies) == sorted(f"k{i}" for i in range(64))
+    finally:
+        sys.setswitchinterval(interval)
+
+
+@pytest.mark.parametrize("code, method", [(301, "GET"), (302, "GET"), (303, "GET"), (307, "POST"), (308, "POST")])
+def test_redirect_request_headers_like_browsers(server, native, code, method):
+    # a redirect that turns POST into GET drops the body headers and Origin (Chromium,
+    # requests); no Referer is invented on redirect hops (Go set the redirecting URL)
+    headers = {"Content-Type": "text/plain", "Content-Language": "en", "Origin": "https://a.example"}
+    with Session(timeout=10) as s:
+        r = s.post(f"{server}/r/{code}", data=b"payload", headers=headers)
+        got = r.json()
+        assert got["method"] == method and [h.status_code for h in r.history] == [code]
+        kept = {k for k in ("content-type", "content-language", "origin") if k in got["headers"]}
+        assert kept == (set() if method == "GET" else {"content-type", "content-language", "origin"})
+        assert "referer" not in got["headers"]
+        r = s.get(f"{server}/redirect-cookie", headers={"Referer": "https://ref.example/page"})
+        assert s.get(f"{server}/chain").json()["headers"].get("referer") is None
+        r = s.get(f"{server}/chain", headers={"Referer": "https://ref.example/page"})
+        assert r.json()["headers"]["referer"] == "https://ref.example/page"
+
+
+@pytest.mark.parametrize("code, method, sent, body", [
+    (301, "POST", "GET", ""), (302, "POST", "GET", ""), (303, "POST", "GET", ""),
+    (301, "PUT", "PUT", "payload"), (302, "PATCH", "PATCH", "payload"), (303, "PUT", "GET", ""),
+    (307, "PUT", "PUT", "payload"), (308, "POST", "POST", "payload"),
+])
+def test_redirect_method_like_browsers(server, native, code, method, sent, body):
+    # the Fetch standard: 301/302 change only POST to GET, 303 everything but GET/HEAD;
+    # Go changed every method on 301/302 to GET and dropped the body
+    class Redirect(Handler):
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length") or 0)
+            data = self.rfile.read(length) if length else b""
+            if self.path == "/go":
+                return self._send(code, headers=[("Location", "/to")])
+            return self._send(body=json.dumps({"method": self.command, "body": data.decode()}).encode())
+        do_PUT = do_PATCH = do_POST
+
+        def do_GET(self):
+            return self._send(body=json.dumps({"method": "GET", "body": ""}).encode())
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), Redirect)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        with Session(timeout=10) as s:
+            r = s.request(method, f"http://127.0.0.1:{httpd.server_address[1]}/go", data=b"payload")
+        assert r.json() == {"method": sent, "body": body} and [h.status_code for h in r.history] == [code]
+    finally:
+        httpd.shutdown()
+
+
+def test_too_many_redirects(server, native):
+    # 20 redirects are followed, the 21st is an error (Fetch, Chromium); Go stopped at the 10th
+    with Session(timeout=10) as s:
+        r = s.get(f"{server}/chain/20")
+        assert r.content == b"end" and len(r.history) == 20
+        with pytest.raises(yumeclient.TooManyRedirects) as info:
+            s.get(f"{server}/chain/21")
+        with pytest.raises(yumeclient.TooManyRedirects):
+            s.get(f"{server}/loop")
+    assert info.value.kind == "too_many_redirects" and not info.value.retryable
+
+
+def test_response_headers_stay_as_sent(server, native):
+    # the body is decoded, the headers are the server's (like requests and our HTTP/2);
+    # HTTP/1.1 used to drop Content-Length of every response and Content-Encoding
+    with Session(timeout=10) as s:
+        r = s.get(f"{server}/echo")
+        assert int(r["Content-Length"]) == len(r.content)
+        r = s.get(f"{server}/gzip")
+        assert r.json() == {"packed": True}
+        assert r["Content-Encoding"] == "gzip" and int(r["Content-Length"]) > len(r.content) - 20
+
+
+@pytest.mark.parametrize("proxy, message", [
+    ("127.0.0.1:8080", "has no scheme"),
+    ("ftp://127.0.0.1:21", "unsupported scheme 'ftp'"),
+    ("socks5://127.0.0.1", "needs a port"),
+    ("http://:8080", "no host"),
+    ("http://127.0.0.1:99999", "invalid port"),
+    ("http://user:secret@:8080", "no host"),
+])
+def test_bad_proxy_urls_fail_before_any_request(proxy, message):
+    # before 0.8.1 they surfaced at the first request as "client creation failed: ..."
+    with pytest.raises(yumeclient.SessionConfigurationError, match=message) as info:
+        yumeclient.Session(proxy=proxy)
+    assert "secret" not in str(info.value)
+    with yumeclient.Session() as s, pytest.raises(yumeclient.SessionConfigurationError, match=message):
+        s.get("http://127.0.0.1:1/", proxy=proxy)
+    with pytest.raises(yumeclient.SessionConfigurationError, match=message.replace("proxy", "udp_proxy")):
+        yumeclient.Session(udp_proxy=proxy.replace("ftp", "socks5").replace("http", "socks5")
+                           if message != "unsupported scheme 'ftp'" else proxy)
+
+
+def test_per_request_proxy_override_and_direct(server):
+    from socks5udp import Socks5
+
+    session_proxy, other = Socks5(), Socks5()
+    try:
+        with yumeclient.Session(proxy=session_proxy.url) as s:
+            assert s.get(f"{server}/get").status_code == 200
+            assert s.get(f"{server}/get", proxy=None).status_code == 200  # None: the session's proxy
+            assert s.get(f"{server}/get", proxy=other.url).status_code == 200
+            assert s.get(f"{server}/get", proxy="").status_code == 200  # "": direct
+        # the test server closes every connection: one CONNECT per request
+        assert len([e for e in session_proxy.log if e[0] == "connect"]) == 2
+        assert len([e for e in other.log if e[0] == "connect"]) == 1
+    finally:
+        session_proxy.close(); other.close()
+
+
+def test_plain_http_through_an_https_proxy_with_a_self_signed_certificate(server):
+    """The TLS leg to an https:// proxy is not verified for http:// requests either;
+    before 0.8.1 they failed with "certificate signed by unknown authority"."""
+    import os
+    import socket
+    import ssl
+    import tempfile
+    from test_wire import _PEM
+
+    fd, pem = tempfile.mkstemp(suffix=".pem")
+    os.write(fd, _PEM.encode() if isinstance(_PEM, str) else _PEM)
+    os.close(fd)
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(pem)
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(4)
+    seen = []
+
+    def serve():
+        conn, _ = listener.accept()
+        with ctx.wrap_socket(conn, server_side=True) as tls:
+            head = b""
+            while b"\r\n\r\n" not in head:
+                head += tls.recv(4096)
+            seen.append(head.split(b"\r\n", 1)[0].decode())
+            host, port = server.removeprefix("http://").split(":")
+            with socket.create_connection((host, int(port))) as up:
+                up.sendall(head)
+                while chunk := up.recv(65536):
+                    tls.sendall(chunk)
+
+    threading.Thread(target=serve, daemon=True).start()
+    try:
+        r = yumeclient.get(f"{server}/get", proxy=f"https://127.0.0.1:{listener.getsockname()[1]}", timeout=5)
+        assert r.status_code == 200
+        assert seen == [f"GET {server}/get HTTP/1.1"]
+    finally:
+        listener.close()
+        os.unlink(pem)
+
+
+@pytest.mark.parametrize("url", ["ftp://example.com/x", "http:///x", "not a url", "//example.com/x",
+                                 "http://example.com:99999/", "https://[::1/", "http://exa\nmple.com/"])
+def test_invalid_urls_fail_before_sending(native, url):
+    # these went to the native layer and came back as a retryable ConnectError
+    with Session(timeout=5) as s:
+        with pytest.raises(yumeclient.InvalidRequestError) as info:
+            s.get(url)
+    assert info.value.kind == "invalid_request" and info.value.stage == "request" and not info.value.retryable
+
+
+@pytest.mark.parametrize("identifier", ["chrome_152", "safari_ios_18_5", "mesh_android", "okhttp4_android_13"])
+def test_default_headers_are_always_headers(identifier):
+    headers = yumeclient.default_headers(identifier)
+    assert isinstance(headers, yumeclient.Headers)
+    if headers:
+        assert headers.get("USER-AGENT") == headers.get("user-agent") is not None

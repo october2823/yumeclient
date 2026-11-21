@@ -231,3 +231,129 @@ def test_key_shares_only_for_declared_groups(sniffer, curves, fill, shares):
     # the test server (Python's OpenSSL) picks ML-KEM through HelloRetryRequest from 3.5 on
     mlkem_hrr = "4588" in curves.split("-") and "29" not in curves.split("-") and ssl.OPENSSL_VERSION_INFO >= (3, 5)
     assert ok == (not mlkem_hrr)
+
+
+CHROME_152_JA3 = ("771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,"
+                  "11-13-27-51-51764-5-35-43-18-65037-65281-0-17613-10-23-45-16,4588-29-23-24,0")
+
+
+def test_chrome_ja3_with_trust_anchors(sniffer):
+    # Chrome 146+ sends trust_anchors (51764): its own JA3 used to fail on every handshake
+    # ("unknown ClientHelloID: Custom-ja3"); filled from Chrome, the list is Chrome's
+    custom, r = _hello(sniffer, ja3_string=CHROME_152_JA3)
+    chrome = _chrome_hello(sniffer)
+    assert custom["exts"][51764] == chrome["exts"][51764] and len(custom["exts"][51764]) > 2
+    # random_tls_extension_order (default True) shuffles a custom JA3's extensions too
+    assert sorted(r.fingerprint["ja3"].split(",")[2].split("-")) == sorted(CHROME_152_JA3.split(",")[2].split("-"))
+    bare, _ = _hello(sniffer, ja3_string=CHROME_152_JA3, fill_custom_with_chrome_defaults=False)
+    assert bare["exts"][51764] == b"\x00\x00"
+
+
+@pytest.mark.parametrize("payload", [bytes.fromhex("0006050401020304"), "0006050401020304", "00:06:05:04:01:02:03:04"])
+def test_trust_anchors_payload(sniffer, payload):
+    custom, _ = _hello(sniffer, ja3_string=CHROME_152_JA3, trust_anchors_payload=payload)
+    assert custom["exts"][51764] == bytes.fromhex("0006050401020304")
+
+
+@pytest.mark.parametrize("ja3, payload", [
+    (CHROME_JA3, "0000"),                    # no extension 51764 in the ja3
+    (CHROME_152_JA3, "0005"),                # length does not match
+    (CHROME_152_JA3, "zz"),                  # not hex
+    (CHROME_152_JA3, 5),
+])
+def test_trust_anchors_payload_is_validated(ja3, payload):
+    with pytest.raises(yumeclient.SessionConfigurationError):
+        Session(ja3_string=ja3, trust_anchors_payload=payload)
+
+
+def test_unbuildable_ja3_is_a_configuration_error():
+    ja3 = "771,4865-4866-4867,0-23-65281-10-11-13-43-45-51-4242,29-23-24,0"
+    with Session(ja3_string=ja3, timeout=5) as s:
+        with pytest.raises(yumeclient.InvalidRequestError, match="4242"):
+            s.get("https://127.0.0.1:9/")
+
+
+def test_ja3_parsing_prints_nothing(sniffer, capfd):
+    _hello(sniffer, ja3_string="771,4865-4866-4867-49195,0-23-65281-10-11-13-27-43-45-51,29-23-24,0",
+           fill_custom_with_chrome_defaults=False)
+    assert capfd.readouterr().out == ""
+
+
+def test_ech_config_list_is_validated():
+    # real ECH needs a serialized ECHConfigList, the ECH extension in the JA3 and TCP
+    # (the QUIC hello has no ECH); the wire behaviour is covered by native/ech_test.go
+    config = bytes([0xFE, 0x0D, 0x00, 0x02, 0x01, 0x02])
+    good = len(config).to_bytes(2, "big") + config
+    with Session(ja3_string=CHROME_152_JA3, ech_config_list=good):
+        pass
+    for kwargs, message in [
+        ({"ech_config_list": config}, "ECHConfigList"),
+        ({"ech_config_list": good, "ja3_string": CHROME_152_JA3.replace("-65037", "")}, "65037"),
+        ({"ech_config_list": good, "http_version": "3"}, "TCP only"),
+    ]:
+        options = {"ja3_string": CHROME_152_JA3, **kwargs}
+        with pytest.raises(SessionConfigurationError, match=message):
+            Session(**options)
+
+
+def test_http2_settings_by_name_or_id(h2):
+    # any SETTINGS id can be sent (Firefox: 9 = NO_RFC7540_PRIORITIES); unknown names used
+    # to be dropped from the frame without a word
+    with Session(ja3_string=CHROME_JA3, verify=False, timeout=5, http_version="2",
+                 h2_settings={"HEADER_TABLE_SIZE": 65536, "initial_window_size": 131072, "MAX_FRAME_SIZE": 16384,
+                              "NO_RFC7540_PRIORITIES": 1, 0x4A4A: 7},
+                 h2_settings_order=["HEADER_TABLE_SIZE", "INITIAL_WINDOW_SIZE", "MAX_FRAME_SIZE", "9", "0x4a4a"]) as s:
+        r = s.get(f"https://127.0.0.1:{h2.port}/a")
+    settings = next(f for f in h2.frames if f[0] == 4 and f[3])[3]
+    sent = [struct.unpack(">HI", settings[i:i + 6]) for i in range(0, len(settings), 6)]
+    assert sent == [(1, 65536), (4, 131072), (5, 16384), (9, 1), (0x4A4A, 7)]
+    assert r.fingerprint["akamai_fingerprint"].startswith("1:65536;4:131072;5:16384;9:1;19018:7|")
+    for bad in ({"MAX_CONCURENT_STREAMS": 1}, {"HEADER_TABLE_SIZE": -1}, {0: 1}):
+        with pytest.raises(SessionConfigurationError):
+            Session(ja3_string=CHROME_JA3, h2_settings=bad)
+
+
+def test_signature_algorithms_accept_names_and_ids(sniffer):
+    expected = "0403,0804"
+    for algs in (["0x0403", "0x0804"], ["ECDSAWithP256AndSHA256", "PSSWithSHA256"], [1027, 2052], ["1027", "0804"]):
+        custom, _ = _hello(sniffer, ja3_string=CHROME_JA3, supported_signature_algorithms=algs)
+        assert custom["exts"][13][2:] == bytes.fromhex(expected.replace(",", "")), algs
+    with pytest.raises(SessionConfigurationError, match="unknown signature algorithm"):
+        Session(ja3_string=CHROME_JA3, supported_signature_algorithms=["ECDSA_P256"])
+
+
+def test_pseudo_header_order_lists_all_four(h2):
+    for order in ([":method", ":path", ":authority", ":scheme"], ["method", "path", "authority", "scheme"],
+                  ["m", "p", "a", "s"]):
+        with Session(ja3_string=CHROME_JA3, verify=False, timeout=5, http_version="2", pseudo_header_order=order) as s:
+            r = s.get(f"https://127.0.0.1:{h2.port}/a")
+        assert [h[0] for h in r.fingerprint["request_headers"][:4]] == [":method", ":path", ":authority", ":scheme"]
+    # a partial or misspelled list used to send requests without :authority / :scheme
+    for bad in ([":method", ":path"], ["method", "path", "host", "scheme"], ["m", "m", "a", "s"]):
+        with pytest.raises(SessionConfigurationError, match="pseudo_header_order"):
+            Session(ja3_string=CHROME_JA3, pseudo_header_order=bad)
+
+
+def test_tls_extension_order_places_every_extension(sniffer):
+    # ECH, the old ALPS id and NPN had wrong ids in the reorder table and ended up last
+    ja3 = ("771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49171-49172-156-157-47-53,"
+           "0-23-65281-10-11-35-16-5-13-18-51-45-43-27-17513-65037-13172,4588-29-23-24,0")
+    order = list(reversed([int(x) for x in ja3.split(",")[2].split("-")]))
+    for shuffle in (False, True):  # an explicit order is never shuffled
+        custom, _ = _hello(sniffer, ja3_string=ja3, tls_extension_order=order, random_tls_extension_order=shuffle)
+        assert [e for e in custom["exts"] if e & 0x0F0F != 0x0A0A] == order
+
+
+def test_http2_settings_keep_the_dict_order(h2):
+    # without h2_settings_order the native map used to send them in random order
+    settings = {"MAX_HEADER_LIST_SIZE": 262144, "INITIAL_WINDOW_SIZE": 6291456, "ENABLE_PUSH": 0,
+                "HEADER_TABLE_SIZE": 65536, "MAX_FRAME_SIZE": 16384}
+    for _ in range(5):
+        with Session(ja3_string=CHROME_JA3, verify=False, timeout=5, http_version="2", h2_settings=settings) as s:
+            r = s.get(f"https://127.0.0.1:{h2.port}/a")
+        assert r.fingerprint["akamai_fingerprint"].split("|")[0] == "6:262144;4:6291456;2:0;1:65536;5:16384"
+
+
+def test_connection_flow_requires_ja3():
+    with pytest.raises(SessionConfigurationError, match="connection_flow require ja3_string"):
+        Session(connection_flow=12517377)

@@ -1086,6 +1086,10 @@ func classifyError(err error, ctl *reqControl) (kind, stage string) {
 	if errors.As(err, &headerErr) {
 		return "invalid_request", "request"
 	}
+	// fhttp's default redirect policy: "stopped after 20 redirects"
+	if msg := err.Error(); strings.Contains(msg, "stopped after ") && strings.HasSuffix(msg, " redirects") {
+		return "too_many_redirects", "request"
+	}
 	var refused *alpnRefusedError
 	var h2cRefused *tls_client.H2CRefusedError
 	if errors.As(err, &refused) || errors.As(err, &h2cRefused) {

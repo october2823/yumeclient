@@ -161,6 +161,15 @@ class Sniffer:
                     s.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nContent-Type: application/json\r\n"
                               + (b"Connection: close\r\n" if close else b"") + b"\r\n{}")
                     if close:  # forces a new connection -> TLS 1.3 resumption with the ticket
+                        # FIN after the response, then drain: closing with unread client bytes
+                        # makes Windows send RST, which can discard the response (flaky on CI)
+                        try:
+                            s.shutdown(socket.SHUT_WR)
+                            s.settimeout(2)
+                            while s.recv(65536):
+                                pass
+                        except OSError:
+                            pass
                         s.close()
                         return
         except Exception:

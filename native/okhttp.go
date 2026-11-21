@@ -297,7 +297,7 @@ func okhttpLayout(r *http.Request, jar http.CookieJar) {
 		take("transfer-encoding")
 	}
 	if hop && !listed["referer"] {
-		take("referer") // fhttp adds Referer on redirect hops; okhttp never does
+		take("referer") // okhttp adds no Referer on redirect hops (an app-set one is kept)
 	}
 
 	// cookies: http.Client merged the jar into "Cookie". okhttp sets one Cookie
@@ -404,6 +404,7 @@ type strictH1Config struct {
 	insecure     bool
 	serverName   string
 	noTickets    bool
+	ech          []byte // ECHConfigList (custom JA3 ech_config_list)
 }
 
 // helloResumes mirrors tls-client: a session cache only for specs that carry
@@ -448,7 +449,8 @@ func newStrictH1Transport(cfg *strictH1Config, opts *tls_client.TransportOptions
 			OmitEmptyPsk:       true,
 			// BoringSSL (Conscrypt) fills records up to 16 KiB; Go's adaptive
 			// sizing would cut a request head over ~1.2 KiB into several records
-			DynamicRecordSizingDisabled: true,
+			DynamicRecordSizingDisabled:    true,
+			EncryptedClientHelloConfigList: cfg.ech,
 		}
 		uc := tls.UClient(raw, tlsCfg, cfg.helloID, cfg.shuffle, false, cfg.disableHttp3)
 		if err := uc.HandshakeContext(ctx); err != nil {

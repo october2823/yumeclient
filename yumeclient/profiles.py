@@ -374,20 +374,21 @@ _BROWSER_PREFIXES = ("chrome_", "brave_", "opera_", "edge_", "firefox_", "tor_",
 FIREFOX_H2_EXTRA: Final[tuple[tuple[str, str], ...]] = (("te", "trailers"),)
 
 
-def default_headers(identifier: str, os_name: str | None = None, header_style: str | None = None) -> dict[str, str]:
+def default_headers(identifier: str, os_name: str | None = None, header_style: str | None = None) -> Headers:
     """Browser-plausible baseline headers for a profile; any key can be overridden.
 
-    Browser profiles spell the names as the browser does over HTTP/1.1, in a Headers
-    mapping (every operation ignores case and keeps that spelling).
+    Always a Headers mapping (every operation ignores case and keeps the spelling).
+    Browser profiles spell the names as the browser does over HTTP/1.1; Safari and app
+    profiles are not captured from devices and use lowercase names.
     header_style="okhttp" (the default for okhttp profiles) starts empty: okhttp
     has no application-level default headers, its bridge adds Accept-Encoding and
     User-Agent at the network layer, in their own slots."""
     if resolve_header_style(identifier, header_style) == "okhttp":
-        return {}
+        return Headers()
     headers = _default_headers(identifier, os_name)
     if identifier.startswith(_BROWSER_PREFIXES):
         return Headers((_wire_name(k), v) for k, v in headers.items())
-    return headers
+    return Headers(headers)  # Safari and apps: not captured, names as the library writes them
 
 
 def _default_headers(identifier: str, os_name: str | None) -> dict[str, str]:

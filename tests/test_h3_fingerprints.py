@@ -36,14 +36,14 @@ def server():
     srv.close()
 
 
-def _capture(server, profile: str, decoder: bool = False) -> dict:
+def _capture(server, profile: str, decoder: bool = False, **options) -> dict:
     with server.recorder.lock:
         server.recorder.conns.clear()
         server.recorder.by_addr.clear()
     url = f"https://localhost:{server.port}/"
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        with yumeclient.Session(client_identifier=profile, verify=False, timeout=8, http_version="3") as s:
+        with yumeclient.Session(client_identifier=profile, verify=False, timeout=8, http_version="3", **options) as s:
             for path in ("", "favicon.ico"):  # a second request: QPACK decoder stream, PRIORITY_UPDATE
                 r = s.get(url + path)
                 assert r.used_protocol == "HTTP/3.0"
@@ -170,3 +170,27 @@ def _check_first_flight(packets: list[dict], chaos: str, length: int) -> None:
     elif chaos == "multi_packet" and len(per_packet) > 1:
         first = per_packet[0]
         assert any(off == 0 for off, _ in first) and any(off + n == length for off, n in first)
+
+
+@pytest.mark.parametrize("profile", ["chrome_144", "firefox_147"])
+def test_quic_through_socks5_keeps_the_fingerprint(server, profile):
+    """QUIC through a SOCKS5 relay (proxy= or udp_proxy=) sends the same handshake as a
+    direct connection; the stock SOCKS5 dialer gave it a 4-byte source connection ID."""
+    from socks5udp import Socks5
+
+    # random per connection: CID length and first packet number (neqo), the frames of the
+    # first flight (Chromium's chaos protection places PINGs at random; checked in
+    # test_profile_sends_the_captured_browser_handshake with tolerance)
+    random = ("quic.dcid_len", "quic.first_packet_number", "quic.first_flight_frame_kinds")
+    # wait for the QPACK decoder stream too: it opens after the first dynamic-table
+    # section, which can land after the second response (flaky on CI otherwise)
+    decoder = bool(DATA["captures"][DATA["profiles"][profile]["capture"]]["h3"]["qpack"])
+    direct = h3_capture.fingerprint({"connections": [_capture(server, profile, decoder=decoder)]})
+    socks = Socks5()
+    try:
+        for options in ({"proxy": socks.url}, {"udp_proxy": socks.url}):
+            proxied = h3_capture.fingerprint({"connections": [_capture(server, profile, decoder=decoder, **options)]})
+            assert {k: v for k, v in proxied.items() if k not in random} ==                    {k: v for k, v in direct.items() if k not in random}, options
+        assert ("udp", "127.0.0.1", server.port) in socks.log
+    finally:
+        socks.close()
