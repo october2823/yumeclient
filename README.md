@@ -115,7 +115,8 @@ The API itself has docstrings and type hints (`py.typed`).
 
 Bug reports, fingerprint captures and pull requests are welcome, in English or Russian. See
 [CONTRIBUTING.md](https://github.com/october2823/yumeclient/blob/main/CONTRIBUTING.md). Report vulnerabilities privately, as described in
-[SECURITY.md](https://github.com/october2823/yumeclient/blob/main/SECURITY.md).
+[SECURITY.md](https://github.com/october2823/yumeclient/blob/main/SECURITY.md). Everyone taking part follows the
+[Code of Conduct](https://github.com/october2823/yumeclient/blob/main/CODE_OF_CONDUCT.md).
 
 ## How it works
 

@@ -46,7 +46,7 @@ Returns a dictionary that can be serialized to JSON:
 {
     "format": "yumeclient.profile",
     "version": 1,
-    "yumeclient": "0.8.2",
+    "yumeclient": "0.8.3",
     "transport": {                       # parameters that define the fingerprint
         "client_identifier": "chrome_146",
         "client_os": "windows",
@@ -161,7 +161,7 @@ Returns a JSON-compatible description of the request and the response:
 
 ```python
 {
-    "format": "yumeclient.trace", "version": 1, "yumeclient": "0.8.2",
+    "format": "yumeclient.trace", "version": 1, "yumeclient": "0.8.3",
     "request_id": "16a39d51...", "elapsed": 0.058,
     "request": {
         "method": "GET",

@@ -13,7 +13,7 @@ body:
     attributes:
       label: yumeclient version / версия
       description: '`python -c "import yumeclient; print(yumeclient.__version__)"`'
-      placeholder: 0.8.2
+      placeholder: 0.8.3
     validations:
       required: true
   - type: input

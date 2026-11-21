@@ -115,7 +115,8 @@ with Session(proxy="socks5://user:pass@127.0.0.1:1080",
 
 Сообщения об ошибках, записи отпечатков и pull request'ы приветствуются, на русском или
 английском. См. [CONTRIBUTING.ru.md](CONTRIBUTING.ru.md). Об уязвимостях сообщайте закрыто,
-как описано в [SECURITY.ru.md](SECURITY.ru.md).
+как описано в [SECURITY.ru.md](SECURITY.ru.md). Участники следуют
+[Кодексу поведения](CODE_OF_CONDUCT.ru.md).
 
 ## Как это устроено
 
