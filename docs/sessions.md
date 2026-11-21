@@ -77,6 +77,7 @@ current Chrome on Windows.
 | `server_name_overwrite` | `None` | name to send in SNI instead of the host from the URL; the certificate is verified for this name |
 | `local_address` | `None` | local address for outgoing connections, `"IP:port"` (port `0` means any) |
 | `max_content_size` | `None` | maximum size of the decompressed response body in bytes (`ResponseTooLarge`) |
+| `retries` | `0` | automatic retries of failed requests: a number or `Retry`. See [Retries](timeouts-and-errors.md#automatic-retries) |
 
 ### Custom TLS fingerprint
 
@@ -127,7 +128,7 @@ TLS parameters) into a session with a different proxy, use
 `Session.from_profile(s.export_profile(), proxy=...)`; see [Diagnostics](diagnostics.md).
 
 A single request can be given `proxy=`, `timeout=`, `headers=`, `cookies=`, `header_order=`,
-`allow_redirects=`, `stream=`, `max_content_size=`, `host_override=`. A request with `proxy=`
+`allow_redirects=`, `stream=`, `max_content_size=`, `host_override=`, `retries=`. A request with `proxy=`
 goes through a separate native client with its own connection pool; the profile, headers and
 cookies come from the session.
 

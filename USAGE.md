@@ -250,10 +250,9 @@ except yumeclient.RequestError as e:      # any other network error
 ```
 
 Configuration errors (`SessionConfigurationError`) are raised when the session is created,
-before any network access. The library itself retries a request only on a new connection when
-the old one was closed (for example, a connection from the pool), and only if the request
-definitely did not reach the server or is idempotent (GET, HEAD, OPTIONS, TRACE, a request with
-`Idempotency-Key`); any other retries are up to you. An example of retries with backoff is in
+before any network access. Failed requests are repeated only if you ask: `retries=3` repeats
+timeouts, dropped connections and connection failures (a POST only if it failed before being
+sent); see the recipe [below](#recipes). Your own retry loop is in
 [examples/errors_and_retries.py](examples/errors_and_retries.py).
 Details: [Timeouts, errors and cancellation](docs/timeouts-and-errors.md).
 
@@ -350,18 +349,19 @@ By default `AsyncSession` has a pool for 64 concurrent requests per process; for
 **Retry a request on a network error**
 
 ```python
-for attempt in range(3):
-    try:
-        r = s.get(url)
-        break
-    except yumeclient.RequestError as e:
-        if not e.retryable or attempt == 2:
-            raise
-        time.sleep(2 ** attempt)
+from yumeclient import Retry, Session
+
+with Session(retries=3) as s:          # timeouts, EOF, connection failures: up to 3 repeats
+    r = s.get(url)
+    print(r.attempts)                  # how many times it was sent
+
+s = Session(retries=Retry(total=5, statuses={429, 503}))   # and 429/503, honouring Retry-After
 ```
 
-Retry like this only idempotent requests (`GET`, `HEAD`, `PUT`, `DELETE`, `OPTIONS` or with
-`Idempotency-Key`): a POST may have reached the server before the error.
+By default a failure that may have happened after the request was sent is repeated only for
+idempotent methods (`GET`, `HEAD`, `OPTIONS`, `TRACE`, `PUT`, `DELETE`): a POST may already
+have been processed. `Retry(methods=None)` repeats every method. Details:
+[Retries](docs/timeouts-and-errors.md#automatic-retries).
 
 **Pretend to be an Android app**
 

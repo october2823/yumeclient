@@ -77,6 +77,7 @@ async def main():
 | `server_name_overwrite` | `None` | имя в SNI вместо хоста из URL; сертификат проверяется для этого имени |
 | `local_address` | `None` | локальный адрес исходящих соединений, `"IP:порт"` (порт `0` — любой) |
 | `max_content_size` | `None` | максимальный размер распакованного тела ответа в байтах (`ResponseTooLarge`) |
+| `retries` | `0` | автоматические повторы неудавшихся запросов: число или `Retry`. См. [Повторы](timeouts-and-errors.md#автоматические-повторы) |
 
 ### Свой TLS-отпечаток
 
@@ -126,7 +127,7 @@ TLS-параметры) в сессию с другим прокси —
 `Session.from_profile(s.export_profile(), proxy=...)`, см. [Диагностика](diagnostics.md).
 
 Отдельному запросу можно задать `proxy=`, `timeout=`, `headers=`, `cookies=`, `header_order=`,
-`allow_redirects=`, `stream=`, `max_content_size=`, `host_override=`. Запрос с `proxy=` идёт
+`allow_redirects=`, `stream=`, `max_content_size=`, `host_override=`, `retries=`. Запрос с `proxy=` идёт
 через отдельный нативный клиент со своим пулом соединений; профиль, заголовки и cookie —
 от сессии.
 

@@ -6,6 +6,18 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Automatic retries.** `Session(retries=3)`, or `retries=` on one request, repeats timeouts
+  (including waiting for the response headers), dropped connections (`EOF`) and connection,
+  DNS and proxy failures. `yumeclient.Retry` sets the details: `methods`, `statuses` (for
+  example 429 and 503, honouring `Retry-After`), `backoff` and `max_backoff`. A failure while
+  connecting is repeated for every method; a failure that may have happened after sending
+  only for idempotent methods, unless `Retry(methods=None)`. `Response.attempts` and
+  `RequestError.attempts` tell how many times the request was sent. Before, retries had to be
+  written by hand.
+
 ## [0.8.3] — 2026-11-21
 
 ### Added
@@ -856,6 +868,7 @@ and versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html
   a cgo c-shared adapter, upstream profiles, CookieJar, multipart encoder, CI (tests on
   three OSes + release wheels for py3.11–3.14).
 
+[Unreleased]: https://github.com/october2823/yumeclient/compare/v0.8.3...HEAD
 [0.8.3]: https://github.com/october2823/yumeclient/releases/tag/v0.8.3
 [0.8.2]: https://github.com/october2823/yumeclient/releases/tag/v0.8.2
 [0.8.1]: https://github.com/october2823/yumeclient/releases/tag/v0.8.1

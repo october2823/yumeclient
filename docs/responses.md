@@ -34,6 +34,7 @@ r.elapsed            # 0.148 (seconds)
 | `connection_info` | `dict` | connection, TLS, addresses, timings ([below](#connection_info)) |
 | `fingerprint` | `dict` | the fingerprint of what went out on the wire ([below](#fingerprint)) |
 | `request_id` | `str` | the request id in the native layer (exceptions have it too) |
+| `attempts` | `int` | how many times the request was sent: `1`, or more with [retries](timeouts-and-errors.md#automatic-retries) |
 | `raise_for_status()` | | `HTTPStatusError` for codes outside 200–399; the response is in `e.response` |
 | `trace()` | | a description of the request without secrets ([Diagnostics](diagnostics.md#responsetrace)) |
 

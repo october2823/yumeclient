@@ -1,5 +1,5 @@
-"""Errors: the exception types, what they carry, and a retry helper for idempotent
-requests.
+"""Errors: the exception types, what they carry, built-in retries (retries=) and a
+hand-written retry loop for rules of your own.
 
     python examples/errors_and_retries.py
 """
@@ -8,17 +8,29 @@ import random
 import time
 
 import yumeclient
-from yumeclient import ConnectError, RequestError, Session, Timeout, TimeoutConfig, TooManyRedirects
+from yumeclient import ConnectError, RequestError, Retry, Session, Timeout, TimeoutConfig, TooManyRedirects
 
 BASE = os.environ.get("HTTPBIN", "https://httpbin.org")
 
 IDEMPOTENT = {"GET", "HEAD", "OPTIONS", "PUT", "DELETE"}
 
 
+# Built-in retries: timeouts, dropped connections (EOF) and connection failures are repeated
+# with exponential backoff; a POST only when it failed before being sent. statuses= repeats
+# these response codes too, honouring Retry-After.
+with Session(timeout=10, retries=Retry(total=2, backoff=0.2, statuses={429, 503})) as s:
+    r = s.get(f"{BASE}/status/503")
+    print("built-in retries:", r.status_code, "after", r.attempts, "attempts")
+    try:
+        s.get("http://127.0.0.1:9/")
+    except ConnectError as e:
+        print(f"built-in retries: {type(e).__name__} after {e.attempts} attempts")
+
+
 def request_with_retries(session: Session, method: str, url: str, attempts: int = 3, **kwargs):
-    """Retry network errors marked retryable (connect failures, timeouts, dropped
-    connections), only for idempotent methods, with exponential backoff and jitter.
-    Also retry 429/503 responses, honouring a numeric Retry-After."""
+    """The same by hand, for rules retries= does not cover (here: printing every attempt).
+    Retry network errors marked retryable, only for idempotent methods, with exponential
+    backoff and jitter; also retry 429/503 responses, honouring a numeric Retry-After."""
     for attempt in range(1, attempts + 1):
         try:
             r = session.request(method, url, **kwargs)

@@ -34,6 +34,7 @@ r.elapsed            # 0.148 (секунды)
 | `connection_info` | `dict` | соединение, TLS, адреса, тайминги ([ниже](#connection_info)) |
 | `fingerprint` | `dict` | отпечаток того, что ушло в сеть ([ниже](#fingerprint)) |
 | `request_id` | `str` | идентификатор запроса в нативном слое (есть и у исключений) |
+| `attempts` | `int` | сколько раз запрос был отправлен: `1` или больше с [повторами](timeouts-and-errors.md#автоматические-повторы) |
 | `raise_for_status()` | | `HTTPStatusError` для кодов вне 200–399; ответ — в `e.response` |
 | `trace()` | | описание запроса без секретов ([Диагностика](diagnostics.md#responsetrace)) |
 

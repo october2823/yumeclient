@@ -6,6 +6,18 @@
 Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 версионирование — [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [Unreleased]
+
+### Added
+- **Автоматические повторы.** `Session(retries=3)` или `retries=` у одного запроса повторяет
+  таймауты (в том числе ожидание заголовков ответа), оборванные соединения (`EOF`) и сбои
+  подключения, DNS и прокси. Подробности задаёт `yumeclient.Retry`: `methods`, `statuses`
+  (например, 429 и 503 с учётом `Retry-After`), `backoff` и `max_backoff`. Сбой при
+  подключении повторяется для любого метода, сбой, возможно случившийся после отправки, —
+  только для идемпотентных методов, если не задано `Retry(methods=None)`. `Response.attempts` и
+  `RequestError.attempts` — сколько раз запрос был отправлен. Раньше повторы приходилось
+  писать самому.
+
 ## [0.8.3] — 2026-11-21
 
 ### Added
@@ -843,6 +855,7 @@
   профили upstream, CookieJar, multipart encoder, CI (тесты на
   трёх ОС + релизные wheels для py3.11–3.14).
 
+[Unreleased]: https://github.com/october2823/yumeclient/compare/v0.8.3...HEAD
 [0.8.3]: https://github.com/october2823/yumeclient/releases/tag/v0.8.3
 [0.8.2]: https://github.com/october2823/yumeclient/releases/tag/v0.8.2
 [0.8.1]: https://github.com/october2823/yumeclient/releases/tag/v0.8.1

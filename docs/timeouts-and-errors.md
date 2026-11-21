@@ -110,6 +110,7 @@ Thanks to the built-in base classes, code written for the standard exceptions wo
 | `method`, `url` | the request. The username and password are removed from the URL |
 | `elapsed` | seconds from the start of the request to the error |
 | `request_id` | native request id, the same as `Response.request_id` |
+| `attempts` | how many times the request was sent ([automatic retries](#automatic-retries)) |
 | `retryable` | `True` for timeouts, `connect`, `dns`, `proxy`, `connection_closed` |
 | `detail` | the error text without the request context |
 | `response` | the response (only for `HTTPStatusError`) |
@@ -122,24 +123,57 @@ message is safe to write to a log.
 
 `retryable=True` means the error is temporary and the same request may succeed. It does not
 mean a retry is safe: with `connection_closed`, `read_timeout` and `timeout` the server may
-have already processed the request. Retry automatically only idempotent requests (GET, HEAD,
-PUT, DELETE, OPTIONS) or requests with `Idempotency-Key`.
+have already processed the request.
+
+### Automatic retries
+
+`retries=` on the session or on one request repeats failed requests:
 
 ```python
-import time
-from yumeclient import RequestError, Session
+from yumeclient import Retry, Session
 
-def get_with_retries(s: Session, url: str, attempts: int = 3):
-    for attempt in range(attempts):
-        try:
-            return s.get(url, timeout=10)
-        except RequestError as e:
-            if not e.retryable or attempt == attempts - 1:
-                raise
-            time.sleep(0.5 * 2 ** attempt)
+s = Session(retries=3)                                          # up to 3 repeats
+s = Session(retries=Retry(total=5, backoff=1, statuses={429, 502, 503, 504}))
+s.get(url, retries=0)                                           # this request: no retries
+s.post(url, json=order, retries=Retry(total=3, methods=None))   # POST too: it may run twice
 ```
 
-The library itself retries a request only where a browser does:
+| `Retry` field | Default | Meaning |
+|---|---|---|
+| `total` | `3` | how many times a request is repeated after the first attempt. `retries=N` is `Retry(total=N)`; a session has `retries=0` (no retries) unless you set it |
+| `methods` | `GET`, `HEAD`, `OPTIONS`, `TRACE`, `PUT`, `DELETE` | methods repeated after a failure that may have happened after sending, and for `statuses`; `None` means every method |
+| `statuses` | none | response codes to repeat, for example `{429, 503}`; when the retries run out, the last response is returned |
+| `backoff` | `0.5` | pause before retry n: `backoff * 2 ** (n - 1)` seconds, at random between half of it and all of it |
+| `max_backoff` | `30` | the longest pause, seconds |
+| `respect_retry_after` | `True` | for a repeated status, `Retry-After` sets the pause; a pause longer than `max_backoff` ends the retries and the response is returned |
+
+Which failures are repeated:
+
+- errors with `retryable=True`: timeouts (including waiting for the response headers), dropped
+  connections (`ConnectionClosed`, for example `EOF`), connection, DNS and proxy failures.
+  Other errors (invalid request, TLS, protocol, too many redirects, `RequestCancelled`) are
+  raised at once;
+- a failure while connecting (`stage == "connect"`) is repeated for every method: nothing was
+  sent;
+- any other failure is repeated only for `methods`. A POST that timed out waiting for the
+  headers may already have been processed; to repeat it anyway, pass `Retry(methods=None)`.
+
+How it works:
+
+- every attempt gets the full `timeout`;
+- `r.attempts` and `e.attempts` tell how many times the request was sent;
+- file objects in `files=` are read once, so every attempt sends the same content;
+- with `stream=True` only failures before the headers are repeated, not errors while reading
+  the body;
+- cancelling the task, Ctrl+C or closing the session during a pause ends the retries.
+
+For other rules (a time budget for all attempts, logging each attempt) write your own loop
+around `s.request(...)`: [examples/errors_and_retries.py](../examples/errors_and_retries.py)
+shows both ways.
+
+### Retries inside the library
+
+Regardless of `retries=`, the library itself retries a request where a browser does:
 
 - a connection from the pool turned out to be closed by the server: the request is retried on a
   new connection if nothing from it was written to the old one (then any method, and the body

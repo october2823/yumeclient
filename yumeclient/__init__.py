@@ -23,6 +23,7 @@ import json
 import mimetypes
 import os
 import platform
+import random
 import re
 import sys
 import threading
@@ -32,6 +33,7 @@ import warnings
 import weakref
 from concurrent.futures import ThreadPoolExecutor, wait as _waitFutures
 from dataclasses import dataclass
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any, AsyncIterator, Iterator, Mapping, Sequence
 from urllib.parse import urlencode, urlsplit, urlunsplit
@@ -47,7 +49,7 @@ __all__ = ["Session", "AsyncSession", "Response", "CookieJar", "Headers", "Profi
            "ALL_IDENTIFIERS", "ALL_CLIENT_OS", "ALL_HEADER_STYLES", "ClientIdentifier", "ClientOs", "HeaderStyle",
            "find", "default_headers", "TLSClientError", "RequestError",
            "SessionConfigurationError", "close_runtime", "encode_multipart", "choose_boundary",
-           "TimeoutConfig", "InvalidRequestError", "RequestCancelled", "ConnectError", "ProxyError", "TLSError",
+           "TimeoutConfig", "Retry", "InvalidRequestError", "RequestCancelled", "ConnectError", "ProxyError", "TLSError",
            "ConnectionClosed", "Timeout", "ConnectTimeout", "ReadTimeout", "WriteTimeout", "ResponseTooLarge",
            "StreamClosed", "HTTPStatusError", "ProtocolError", "TooManyRedirects", "fingerprint_diff",
            "__version__"]
@@ -75,6 +77,7 @@ class RequestError(TLSClientError):
         self.elapsed, self.request_id, self.retryable = elapsed, request_id, retryable
         self.detail = message if detail is None else detail
         self.response = response
+        self.attempts = 1  # how many times the request was sent (Retry)
 
 
 class SessionConfigurationError(TLSClientError, ValueError): pass
@@ -238,6 +241,112 @@ def _timeoutConfig(value: Any) -> TimeoutConfig:
         if len(value) != 2: raise SessionConfigurationError("timeout tuple must be (connect, read)")
         return TimeoutConfig(connect=value[0], read=value[1])
     return TimeoutConfig(total=value)
+
+
+_IDEMPOTENT_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE"})
+
+
+@dataclass(frozen=True)
+class Retry:
+    """Automatic retries: ``Session(retries=...)`` or ``retries=`` on one request.
+
+    * ``total`` - how many times a request is repeated after the first attempt (0 = never);
+    * errors: a request is repeated after a :class:`RequestError` with ``retryable=True``
+      (timeouts, connection failures, ``ConnectionClosed``, proxy and DNS errors). A failure while
+      connecting (``stage == "connect"``: nothing was sent) is retried for every method; any
+      other failure only for ``methods`` (``None`` = every method, POST and PATCH included: the
+      server may then process a request twice);
+    * ``statuses`` - responses with these codes are repeated too (for ``methods``), for example
+      ``{429, 502, 503, 504}``; when the retries run out the last response is returned;
+    * ``backoff`` - the pause before retry n is ``backoff * 2 ** (n - 1)`` seconds with jitter
+      (between half of it and all of it), at most ``max_backoff``;
+    * ``respect_retry_after`` - for a repeated status, ``Retry-After`` sets the pause; a pause
+      longer than ``max_backoff`` ends the retries and the response is returned.
+
+    Every attempt gets the full ``timeout``. ``retries=5`` is ``Retry(total=5)``.
+    """
+    total: int = 3
+    backoff: float = 0.5
+    max_backoff: float = 30.0
+    methods: frozenset[str] | None = _IDEMPOTENT_METHODS
+    statuses: frozenset[int] = frozenset()
+    respect_retry_after: bool = True
+
+    def __post_init__(self) -> None:
+        if isinstance(self.total, bool) or not isinstance(self.total, int) or self.total < 0:
+            raise SessionConfigurationError(f"retries: total must be an int >= 0, got {self.total!r}")
+        for name in ("backoff", "max_backoff"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not value >= 0:
+                raise SessionConfigurationError(f"retries: {name} must be a number >= 0, got {value!r}")
+        if self.methods is not None:
+            if isinstance(self.methods, (str, bytes)):
+                raise SessionConfigurationError("retries: methods must be a collection of method names or None, "
+                                                f"got {self.methods!r}")
+            object.__setattr__(self, "methods", frozenset(str(m).upper() for m in self.methods))
+        if isinstance(self.statuses, (str, bytes, int)):
+            raise SessionConfigurationError(f"retries: statuses must be a collection of codes, got {self.statuses!r}")
+        statuses = frozenset(self.statuses)
+        for code in statuses:
+            if isinstance(code, bool) or not isinstance(code, int) or not 100 <= code <= 599:
+                raise SessionConfigurationError(f"retries: status {code!r} is not an HTTP status code")
+        object.__setattr__(self, "statuses", statuses)
+
+    def _allows(self, method: str) -> bool:
+        return self.methods is None or method.upper() in self.methods
+
+    def _pause(self, attempt: int) -> float:
+        delay = min(self.max_backoff, self.backoff * 2 ** min(attempt - 1, 62))
+        return random.uniform(delay / 2, delay) if delay > 0 else 0.0
+
+    def _afterError(self, method: str, error: "RequestError", attempt: int) -> float | None:
+        """Pause before the next attempt after ``error``, or None to give up."""
+        if attempt > self.total or not error.retryable: return None
+        if error.stage != "connect" and not self._allows(method): return None
+        return self._pause(attempt)
+
+    def _afterResponse(self, method: str, response: "Response", attempt: int) -> float | None:
+        if attempt > self.total or response.status_code not in self.statuses or not self._allows(method): return None
+        if self.respect_retry_after:
+            wait = _retryAfter(response)
+            if wait is not None: return wait if wait <= self.max_backoff else None
+        return self._pause(attempt)
+
+
+def _retryAfter(response: "Response") -> float | None:
+    """Seconds from a Retry-After header (delay-seconds or an HTTP date), or None."""
+    values = response.headers.get("Retry-After") or []
+    if not values: return None
+    value = values[0].strip()
+    if value.isdigit(): return float(value)
+    try: when = parsedate_to_datetime(value)
+    except (TypeError, ValueError, IndexError): return None
+    if when is None: return None
+    return max(0.0, when.timestamp() - time.time())
+
+
+def _retryPolicy(value: Any) -> Retry:
+    if value is None: return Retry(total=0)
+    if isinstance(value, Retry): return value
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise SessionConfigurationError(f"retries must be an int or a yumeclient.Retry, got {value!r}")
+    return Retry(total=value)
+
+
+def _rewindableFiles(files: Any) -> Any:
+    """``files=`` with file objects read into bytes once, so a retry sends the same content
+    (a second read of a file object returns nothing)."""
+    if files is None: return None
+    from .multipart import _guessFilename
+    entries = list(files.items()) if hasattr(files, "items") else list(files)
+    out = []
+    for name, spec in entries:
+        if isinstance(spec, (tuple, list)):
+            spec = tuple(item.read() if index == 1 and hasattr(item, "read") else item for index, item in enumerate(spec))
+        elif hasattr(spec, "read"):
+            spec = (_guessFilename(spec) or name, spec.read())
+        out.append((name, spec))
+    return out
 
 
 # opening one connection (DNS, TCP, the proxy tunnel) never takes longer than this, even
@@ -426,7 +535,7 @@ class Response:
     """
     __slots__ = ("status_code", "headers", "cookies", "_content", "url", "used_protocol", "history",
                  "elapsed", "encoding", "fingerprint", "connection_info", "request_id", "_stream", "_async",
-                 "_owner", "_method", "_request", "__weakref__")
+                 "_owner", "_method", "_request", "attempts", "__weakref__")
 
     def __init__(self, status_code: int, headers: dict[str, list[str]], cookies: dict[str, str],
                  content: bytes = b"", url: str = "", used_protocol: str = "",
@@ -442,6 +551,7 @@ class Response:
         self._owner: Any = None
         self._method: str | None = None
         self._request: dict[str, Any] | None = None
+        self.attempts = 1  # how many times the request was sent (Retry)
 
     def trace(self, *, redact: Any = (), values: bool = True, redact_query: bool = True) -> dict[str, Any]:
         """Redacted, JSON-safe description of this request (see :func:`yumeclient.diagnostics.request_trace`):
@@ -1015,7 +1125,7 @@ class _Core:
                  key_share_data: Mapping[int, bytes] | None = None,
                  header_style: HeaderStyle | str | None = None,
                  keep_alpn: bool = False,
-                 max_content_size: int | None = None) -> None:
+                 max_content_size: int | None = None, retries: int | Retry | None = 0) -> None:
         # explicit options as passed (Session.export_profile)
         self._options = {name: value for name, value in locals().items()
                          if name != "self" and value is not _CORE_DEFAULTS.get(name, _MISSING)
@@ -1041,6 +1151,7 @@ class _Core:
         if max_content_size is not None and (isinstance(max_content_size, bool) or not isinstance(max_content_size, int) or max_content_size < 1):
             raise SessionConfigurationError("max_content_size must be a positive int (bytes) or None")
         self.max_content_size = max_content_size
+        self.retries = _retryPolicy(retries)
         self.force_http1, self.disable_http3, self.disable_session_tickets = force_http1, disable_http3, disable_session_tickets
         self.server_name_overwrite, self.local_address = server_name_overwrite, local_address
         # advanced ClientHello controls (iOS CFNetwork-class fingerprints)
@@ -1282,10 +1393,35 @@ class _Core:
         return "*chrome" if self.custom.get("chromeDefaultsProfile") else ""
 
     def _syncRequest(self, method: str, url: str, **kwargs: Any) -> Response:
+        policy = self._retryFor(kwargs)
         kwargs["_flags"] = self._flags(kwargs.get("proxy"))
-        for oldId in self._retire(): _closeNative(oldId)
-        handle = _RequestHandle()
-        return _interruptible(functools.partial(self._request, method, url, _handle=handle, **kwargs), handle.cancel)
+        attempt = 0
+        while True:
+            attempt += 1
+            for oldId in self._retire(): _closeNative(oldId)
+            handle = _RequestHandle()
+            try:
+                response = _interruptible(functools.partial(self._request, method, url, _handle=handle, **kwargs),
+                                          handle.cancel)
+            except RequestError as error:
+                pause = policy._afterError(method, error, attempt)
+                error.attempts = attempt
+                if pause is None or self._closed: raise
+                time.sleep(pause)
+                if self._closed: raise
+                continue
+            response.attempts = attempt
+            pause = policy._afterResponse(method, response, attempt)
+            if pause is None or self._closed: return response
+            response.close()
+            time.sleep(pause)
+
+    def _retryFor(self, kwargs: dict[str, Any]) -> Retry:
+        """The request's Retry (``retries=`` or the session's); file objects in ``files=`` are
+        read once so every attempt sends the same body."""
+        policy = _retryPolicy(kwargs.pop("retries")) if "retries" in kwargs else self.retries
+        if policy.total and kwargs.get("files") is not None: kwargs["files"] = _rewindableFiles(kwargs["files"])
+        return policy
 
     def _cancelInflight(self, grace: float | None) -> None:
         """Let in-flight requests (other threads) finish for ``grace`` seconds, then cancel them."""
@@ -1354,7 +1490,7 @@ class _FixedTransport:
         if name in _FIXED_OPTIONS:
             raise AttributeError(f"{name!r} is fixed for the lifetime of a session: create a new session. "
                                  "Per request you can pass proxy=, timeout=, headers=, cookies=, header_order=, "
-                                 "allow_redirects=, stream=, max_content_size=")
+                                 "allow_redirects=, stream=, max_content_size=, retries=")
         object.__setattr__(self, name, value)
 
 
@@ -1460,10 +1596,26 @@ class AsyncSession(_FixedTransport):
 
     async def request(self, method: str, url: str, **kwargs: Any) -> Response:
         core = self._core
+        policy = core._retryFor(kwargs)
         kwargs["_flags"] = core._flags(kwargs.get("proxy"))
-        response = await self._run(core._request, method, url, **kwargs)
-        response._async = True
-        return response
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                response = await self._run(core._request, method, url, **kwargs)
+            except RequestError as error:
+                pause = policy._afterError(method, error, attempt)
+                error.attempts = attempt
+                if pause is None or core._closed: raise
+                await asyncio.sleep(pause)
+                if core._closed: raise
+                continue
+            response._async = True
+            response.attempts = attempt
+            pause = policy._afterResponse(method, response, attempt)
+            if pause is None or core._closed: return response
+            await response.aclose()
+            await asyncio.sleep(pause)
 
     async def get(self, url: str, **kwargs: Any) -> Response: return await self.request("GET", url, **kwargs)
     async def head(self, url: str, **kwargs: Any) -> Response: return await self.request("HEAD", url, **kwargs)

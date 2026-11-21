@@ -30,6 +30,7 @@ r = s.post(url, json={"name": "yume"})
 | `host_override` | `str` | value of the `Host` header (`:authority` for HTTP/2 and HTTP/3); the connection, SNI and certificate verification use the host from the URL |
 | `stream` | `bool`, default `False` | do not read the body right away ([Streaming](responses.md#streaming)) |
 | `max_content_size` | `int` | limit on the decompressed body for this request |
+| `retries` | `int`, `Retry` | replaces the session's retries for this request ([Retries](timeouts-and-errors.md#automatic-retries)) |
 
 An unknown parameter raises `TypeError`, as with any function. An invalid URL (not `http://` or
 `https://`, no host, an invalid port or control characters), method or header raises

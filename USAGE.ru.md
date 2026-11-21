@@ -249,11 +249,10 @@ except yumeclient.RequestError as e:      # всё остальное сетев
 ```
 
 Ошибки конфигурации (`SessionConfigurationError`) возникают при создании сессии, до
-сети. Сама библиотека повторяет запрос только по новому соединению, когда старое
-закрылось (например, соединение из пула), и только если запрос точно не дошёл до сервера
-или идемпотентный (GET, HEAD, OPTIONS, TRACE, запрос с `Idempotency-Key`); остальные повторы —
-ваше решение. Пример повтора с
-backoff — в [examples/errors_and_retries.py](examples/errors_and_retries.py).
+сети. Неудавшиеся запросы повторяются, только если вы об этом попросите: `retries=3`
+повторяет таймауты, оборванные соединения и сбои подключения (POST — только если он не успел
+уйти); см. рецепт [ниже](#рецепты). Свой цикл повторов — в
+[examples/errors_and_retries.py](examples/errors_and_retries.py).
 Подробно: [Таймауты, ошибки, отмена](docs/ru/timeouts-and-errors.md).
 
 ## Большие ответы: стриминг
@@ -348,18 +347,19 @@ async def fetch(s, url):
 **Повторить запрос при сетевой ошибке**
 
 ```python
-for attempt in range(3):
-    try:
-        r = s.get(url)
-        break
-    except yumeclient.RequestError as e:
-        if not e.retryable or attempt == 2:
-            raise
-        time.sleep(2 ** attempt)
+from yumeclient import Retry, Session
+
+with Session(retries=3) as s:          # таймауты, EOF, сбои подключения: до 3 повторов
+    r = s.get(url)
+    print(r.attempts)                  # сколько раз запрос был отправлен
+
+s = Session(retries=Retry(total=5, statuses={429, 503}))   # и 429/503 с учётом Retry-After
 ```
 
-Повторяйте так только идемпотентные запросы (`GET`, `HEAD`, `PUT`, `DELETE`, `OPTIONS` или
-с `Idempotency-Key`): POST мог дойти до сервера до ошибки.
+По умолчанию сбой, который мог случиться уже после отправки запроса, повторяется только для
+идемпотентных методов (`GET`, `HEAD`, `OPTIONS`, `TRACE`, `PUT`, `DELETE`): POST сервер мог уже
+выполнить. `Retry(methods=None)` повторяет любые методы. Подробно:
+[Повторы](docs/ru/timeouts-and-errors.md#автоматические-повторы).
 
 **Притвориться Android-приложением**
 

@@ -30,8 +30,8 @@ with Session(client_identifier="chrome_152") as s:
   falls back to HTTP/1.1 without telling you.
 - **Sync `Session` and asyncio `AsyncSession`.** Cancelling an asyncio task cancels the
   request on the wire, and Ctrl+C interrupts a blocking call.
-- **Typed errors and timeouts.** Split connect, read, write and total timeouts, and streaming
-  responses.
+- **Typed errors, timeouts and retries.** Split connect, read, write and total timeouts,
+  automatic retries (`retries=`) and streaming responses.
 - **Cookies like a browser.** An RFC 6265 cookie jar with the public suffix list, which you
   can export and import (Cookie-Editor JSON).
 - **Proxies.** HTTP(S), SOCKS4/4a/5/5h, and QUIC through SOCKS5 with the same fingerprint.
@@ -85,6 +85,7 @@ from yumeclient import Session, TimeoutConfig, ReadTimeout, ProxyError
 
 with Session(proxy="socks5://user:pass@127.0.0.1:1080",
              timeout=TimeoutConfig(total=60, connect=5, read=15),
+             retries=3,                         # repeat timeouts and dropped connections
              http_version="3") as s:            # HTTP/3 racing TCP, like Chrome
     try:
         with s.get("https://example.com/large.bin", stream=True) as r:

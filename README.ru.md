@@ -30,8 +30,8 @@ with Session(client_identifier="chrome_152") as s:
   откатывается на HTTP/1.1 молча.
 - **Синхронный `Session` и asyncio `AsyncSession`.** Отмена asyncio-задачи отменяет запрос
   на проводе, а Ctrl+C прерывает блокирующий вызов.
-- **Типизированные ошибки и таймауты.** Раздельные таймауты на подключение, чтение, запись и
-  общий, потоковые ответы.
+- **Типизированные ошибки, таймауты и повторы.** Раздельные таймауты на подключение, чтение,
+  запись и общий, автоматические повторы (`retries=`), потоковые ответы.
 - **Cookies как в браузере.** Cookie jar по RFC 6265 со списком публичных суффиксов; его
   можно экспортировать и импортировать (JSON Cookie-Editor).
 - **Прокси.** HTTP(S), SOCKS4/4a/5/5h и QUIC через SOCKS5 с тем же отпечатком.
@@ -85,6 +85,7 @@ from yumeclient import Session, TimeoutConfig, ReadTimeout, ProxyError
 
 with Session(proxy="socks5://user:pass@127.0.0.1:1080",
              timeout=TimeoutConfig(total=60, connect=5, read=15),
+             retries=3,                         # повторять таймауты и оборванные соединения
              http_version="3") as s:            # HTTP/3 наперегонки с TCP, как в Chrome
     try:
         with s.get("https://example.com/large.bin", stream=True) as r:
